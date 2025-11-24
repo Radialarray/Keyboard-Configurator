@@ -1,0 +1,3 @@
+[submodule "vial-qmk-keebart"]
+	path = vial-qmk-keebart
+	url = https://github.com/Keebart/vial-qmk-keebart.git
