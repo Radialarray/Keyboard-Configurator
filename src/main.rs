@@ -46,7 +46,25 @@ fn main() -> Result<()> {
 
     if let Some(path) = cli.layout_path {
         println!("Loading layout from: {}", path.display());
-        println!("Full TUI implementation coming in Phase 5");
+        
+        // Load and validate the layout file (T060)
+        match parser::parse_markdown_layout(&path) {
+            Ok(layout) => {
+                println!("✓ Successfully loaded layout: {}", layout.metadata.name);
+                println!("  Description: {}", layout.metadata.description);
+                println!("  Author: {}", layout.metadata.author);
+                println!("  Layers: {}", layout.layers.len());
+                println!("  Categories: {}", layout.categories.len());
+                println!();
+                println!("Full TUI implementation coming in Phase 5");
+            }
+            Err(e) => {
+                eprintln!("✗ Failed to load layout: {}", e);
+                eprintln!();
+                eprintln!("Make sure the file is a valid Markdown layout.");
+                std::process::exit(1);
+            }
+        }
     } else {
         println!("Usage: keyboard_tui [FILE]");
         println!("  or:  keyboard_tui --init");

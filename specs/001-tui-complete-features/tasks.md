@@ -121,29 +121,29 @@
 
 ### Markdown Parsing
 
-- [ ] T044 [P] [US4] Implement YAML frontmatter parser for LayoutMetadata in src/parser/layout.rs
-- [ ] T045 [P] [US4] Implement Markdown table parsing state machine in src/parser/table.rs (InFrontmatter, InLayerHeader, InLayerColor, InTable, InCategories)
-- [ ] T046 [US4] Implement layer header parsing (## Layer N: Name) in src/parser/layer.rs
-- [ ] T047 [US4] Implement layer color parsing (**Color**: #RRGGBB) in src/parser/layer.rs
-- [ ] T048 [US4] Implement layer category parsing (**Category**: category-id) in src/parser/layer.rs
-- [ ] T049 [US4] Implement table row parsing with keycode syntax extraction in src/parser/table.rs
-- [ ] T050 [US4] Implement keycode syntax parsing: KC_X, KC_X{#RRGGBB}, KC_X@category-id, KC_X{#RRGGBB}@category-id in src/parser/table.rs
-- [ ] T051 [US4] Implement category section parsing in src/parser/layout.rs
-- [ ] T052 [US4] Implement post-parse validation (keycode existence, category references, position coverage) in src/parser/layout.rs
-- [ ] T053 [P] [US4] Write unit tests for parser round-trip (Markdown → Layout → Markdown) in tests/unit/parser_tests.rs
+- [X] T044 [P] [US4] Implement YAML frontmatter parser for LayoutMetadata in src/parser/layout.rs
+- [X] T045 [P] [US4] Implement Markdown table parsing state machine in src/parser/table.rs (InFrontmatter, InLayerHeader, InLayerColor, InTable, InCategories)
+- [X] T046 [US4] Implement layer header parsing (## Layer N: Name) in src/parser/layer.rs
+- [X] T047 [US4] Implement layer color parsing (**Color**: #RRGGBB) in src/parser/layer.rs
+- [X] T048 [US4] Implement layer category parsing (**Category**: category-id) in src/parser/layer.rs
+- [X] T049 [US4] Implement table row parsing with keycode syntax extraction in src/parser/table.rs
+- [X] T050 [US4] Implement keycode syntax parsing: KC_X, KC_X{#RRGGBB}, KC_X@category-id, KC_X{#RRGGBB}@category-id in src/parser/table.rs
+- [X] T051 [US4] Implement category section parsing in src/parser/layout.rs
+- [X] T052 [US4] Implement post-parse validation (keycode existence, category references, position coverage) in src/parser/layout.rs
+- [X] T053 [P] [US4] Write unit tests for parser round-trip (Markdown → Layout → Markdown) in tests/unit/parser_tests.rs
 
 ### Markdown Generation
 
-- [ ] T054 [P] [US4] Implement YAML frontmatter serialization in src/parser/template_gen.rs
-- [ ] T055 [US4] Implement layer section generation (header, color, category, table) in src/parser/template_gen.rs
-- [ ] T056 [US4] Implement table generation with 12-column or 14-column format based on layout in src/parser/template_gen.rs
-- [ ] T057 [US4] Implement keycode syntax serialization with color/category annotations in src/parser/template_gen.rs
-- [ ] T058 [US4] Implement category section generation in src/parser/template_gen.rs
-- [ ] T059 [US4] Implement atomic file write using temp file + rename pattern in src/parser/template_gen.rs
+- [X] T054 [P] [US4] Implement YAML frontmatter serialization in src/parser/template_gen.rs
+- [X] T055 [US4] Implement layer section generation (header, color, category, table) in src/parser/template_gen.rs
+- [X] T056 [US4] Implement table generation with 12-column or 14-column format based on layout in src/parser/template_gen.rs
+- [X] T057 [US4] Implement keycode syntax serialization with color/category annotations in src/parser/template_gen.rs
+- [X] T058 [US4] Implement category section generation in src/parser/template_gen.rs
+- [X] T059 [US4] Implement atomic file write using temp file + rename pattern in src/parser/template_gen.rs
 
 ### File Operations
 
-- [ ] T060 [P] [US4] Implement layout loading from file path in src/main.rs
+- [X] T060 [P] [US4] Implement layout loading from file path in src/main.rs
 - [ ] T061 [P] [US4] Implement save operation (Ctrl+S) with dirty flag clearing in src/tui/mod.rs
 - [ ] T062 [US4] Implement unsaved changes prompt on quit (Ctrl+Q) in src/tui/mod.rs
 - [ ] T063 [US4] Implement dirty flag tracking in AppState with asterisk display in title bar in src/tui/mod.rs
