@@ -40,39 +40,39 @@
 
 ### Core Data Models
 
-- [ ] T005 [P] Implement Position struct in src/models/mod.rs (row: u8, col: u8 with derives)
-- [ ] T006 [P] Implement RgbColor struct in src/models/rgb.rs with hex parsing/serialization and validation
-- [ ] T007 [P] Implement Category struct in src/models/category.rs (id, name, color with validation)
-- [ ] T008 Implement KeyDefinition struct in src/models/layer.rs (position, keycode, label, color_override, category_id, combo_participant)
-- [ ] T009 Implement Layer struct in src/models/layer.rs (number, name, default_color, category_id, keys Vec)
-- [ ] T010 Implement LayoutMetadata struct in src/models/layout.rs (name, description, author, created, modified, tags, is_template, version)
-- [ ] T011 Implement Layout struct in src/models/layout.rs with color resolution method implementing four-level priority system
-- [ ] T012 [P] Write unit tests for color priority resolution in tests/unit/color_priority_tests.rs
+- [X] T005 [P] Implement Position struct in src/models/mod.rs (row: u8, col: u8 with derives)
+- [X] T006 [P] Implement RgbColor struct in src/models/rgb.rs with hex parsing/serialization and validation
+- [X] T007 [P] Implement Category struct in src/models/category.rs (id, name, color with validation)
+- [X] T008 Implement KeyDefinition struct in src/models/layer.rs (position, keycode, label, color_override, category_id, combo_participant)
+- [X] T009 Implement Layer struct in src/models/layer.rs (number, name, default_color, category_id, keys Vec)
+- [X] T010 Implement LayoutMetadata struct in src/models/layout.rs (name, description, author, created, modified, tags, is_template, version)
+- [X] T011 Implement Layout struct in src/models/layout.rs with color resolution method implementing four-level priority system
+- [X] T012 [P] Write unit tests for color priority resolution in tests/unit/color_priority_tests.rs
 
 ### Keyboard Geometry System
 
-- [ ] T013 [P] Implement KeyGeometry struct in src/models/keyboard_geometry.rs (matrix_position, led_index, visual_x, visual_y, width, height, rotation)
-- [ ] T014 Implement KeyboardGeometry struct in src/models/keyboard_geometry.rs with matrix dimension tracking
-- [ ] T015 Implement VisualLayoutMapping struct in src/models/visual_layout_mapping.rs with bidirectional HashMaps (led_to_matrix, matrix_to_led, matrix_to_visual, visual_to_matrix)
-- [ ] T016 Implement coordinate transformation methods in src/models/visual_layout_mapping.rs (led_to_matrix_pos, matrix_to_visual_pos, visual_to_matrix_pos, visual_to_led_index)
-- [ ] T017 Implement split keyboard column reversal logic in src/models/visual_layout_mapping.rs
-- [ ] T018 [P] Write unit tests for three-coordinate mapping transformations in tests/unit/coordinate_tests.rs
+- [X] T013 [P] Implement KeyGeometry struct in src/models/keyboard_geometry.rs (matrix_position, led_index, visual_x, visual_y, width, height, rotation)
+- [X] T014 Implement KeyboardGeometry struct in src/models/keyboard_geometry.rs with matrix dimension tracking
+- [X] T015 Implement VisualLayoutMapping struct in src/models/visual_layout_mapping.rs with bidirectional HashMaps (led_to_matrix, matrix_to_led, matrix_to_visual, visual_to_matrix)
+- [X] T016 Implement coordinate transformation methods in src/models/visual_layout_mapping.rs (led_to_matrix_pos, matrix_to_visual_pos, visual_to_matrix_pos, visual_to_led_index)
+- [X] T017 Implement split keyboard column reversal logic in src/models/visual_layout_mapping.rs
+- [X] T018 [P] Write unit tests for three-coordinate mapping transformations in tests/unit/coordinate_tests.rs
 
 ### Configuration System
 
-- [ ] T019 [P] Implement Config structs (PathConfig, BuildConfig, UiConfig) in src/config.rs with serde derives
-- [ ] T020 Implement TOML loading with platform-specific config directory resolution in src/config.rs
-- [ ] T021 Implement TOML validation (QMK path, keyboard, layout, output_format) in src/config.rs
-- [ ] T022 Implement atomic config save using temp file + rename pattern in src/config.rs
-- [ ] T023 [P] Write integration tests for config persistence in tests/integration/config_tests.rs
+- [X] T019 [P] Implement Config structs (PathConfig, BuildConfig, UiConfig) in src/config.rs with serde derives
+- [X] T020 Implement TOML loading with platform-specific config directory resolution in src/config.rs
+- [X] T021 Implement TOML validation (QMK path, keyboard, layout, output_format) in src/config.rs
+- [X] T022 Implement atomic config save using temp file + rename pattern in src/config.rs
+- [X] T023 [P] Write integration tests for config persistence in tests/integration/config_tests.rs
 
 ### Keycode Database
 
-- [ ] T024 Create keycodes.json file in src/keycode_db/ with 600+ QMK keycodes organized by category (Basic, Navigation, Symbols, Function, Media, Modifiers)
-- [ ] T025 Implement KeycodeDatabase struct in src/keycode_db/mod.rs with HashMap for O(1) lookups
-- [ ] T026 Implement keycode validation against database in src/keycode_db/mod.rs
-- [ ] T027 Implement fuzzy search for keycode picker in src/keycode_db/mod.rs with category filtering
-- [ ] T028 [P] Write unit tests for keycode validation in tests/unit/keycode_validation_tests.rs
+- [X] T024 Create keycodes.json file in src/keycode_db/ with 600+ QMK keycodes organized by category (Basic, Navigation, Symbols, Function, Media, Modifiers)
+- [X] T025 Implement KeycodeDatabase struct in src/keycode_db/mod.rs with HashMap for O(1) lookups
+- [X] T026 Implement keycode validation against database in src/keycode_db/mod.rs
+- [X] T027 Implement fuzzy search for keycode picker in src/keycode_db/mod.rs with category filtering
+- [X] T028 [P] Write unit tests for keycode validation in tests/unit/keycode_validation_tests.rs
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
