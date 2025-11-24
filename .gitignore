@@ -1,0 +1,38 @@
+# Rust
+/target/
+debug/
+release/
+*.rs.bk
+*.rlib
+*.prof*
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+Cargo.lock
+
+# OS specific
+.DS_Store
+Thumbs.db
+*.tmp
+
+# Application runtime
+.build/
+build/
+
+# User configuration (tracked separately if needed)
+# config.toml
