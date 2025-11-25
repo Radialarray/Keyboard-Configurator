@@ -227,6 +227,9 @@ impl Default for BuildState {
 }
 
 /// Runs the QMK build process in a background thread.
+///
+/// The keyboard parameter may include variant subdirectories (e.g., "keebart/corne_choc_pro/standard").
+/// QMK's build system will use the variant-specific keyboard.json for configuration.
 fn run_build(
     sender: Sender<BuildMessage>,
     qmk_path: PathBuf,
@@ -248,7 +251,7 @@ fn run_build(
         })
         .ok();
 
-    // Build make command
+    // Build make command with full keyboard path (including variant if present)
     let make_target = format!("{keyboard}:{keymap}");
 
     let mut cmd = Command::new("make");
