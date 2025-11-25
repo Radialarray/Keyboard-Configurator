@@ -1,9 +1,10 @@
 //! Keyboard widget for rendering the visual keyboard layout
 
 use ratatui::{
-    layout::{Constraint, Rect},
-    style::{Color, Style},
-    widgets::{Block, Borders, Cell, Row, Table},
+    layout::Rect,
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
     Frame,
 };
 
@@ -16,6 +17,7 @@ impl KeyboardWidget {
     /// Render the keyboard widget
     pub fn render(f: &mut Frame, area: Rect, state: &AppState) {
         let theme = &state.theme;
+        
         // Get current layer
         let layer = if let Some(layer) = state.layout.layers.get(state.current_layer) {
             layer
@@ -27,116 +29,104 @@ impl KeyboardWidget {
             return;
         };
 
-        // Find dimensions by examining all key positions
-        let max_row = layer.keys.iter().map(|k| k.position.row).max().unwrap_or(0) + 1;
-        let max_col = layer.keys.iter().map(|k| k.position.col).max().unwrap_or(0) + 1;
+        // Render outer container
+        let outer_block = Block::default()
+            .title(format!(" Layer {}: {} ", state.current_layer, layer.name))
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.primary));
+        f.render_widget(outer_block, area);
 
-        // Calculate viewport bounds (accounting for borders and spacing)
-        // Area height - 2 for borders, divide by row height
-        let visible_rows = (area.height.saturating_sub(3)) as usize;
-        // Area width - 2 for borders, divide by column width (7 chars + 1 spacing)
-        let visible_cols = (area.width.saturating_sub(2) / 8) as usize;
+        // Calculate inner area for keys (inside the outer border)
+        let inner_area = Rect {
+            x: area.x + 1,
+            y: area.y + 1,
+            width: area.width.saturating_sub(2),
+            height: area.height.saturating_sub(2),
+        };
 
-        // Determine which rows/cols to render based on viewport
-        let start_row = 0; // Could scroll in future
-        let end_row = (start_row + visible_rows).min(max_row as usize);
-        let start_col = 0; // Could scroll in future
-        let end_col = (start_col + visible_cols).min(max_col as usize);
+        // Each key needs: 7 chars width + 2 for borders = 9 total width
+        // Each key needs: 3 lines height (1 content + 2 borders)
+        let key_width = 9;
+        let key_height = 3;
 
-        // Build a grid (only for visible range)
-        let visible_row_count = end_row - start_row;
-        let visible_col_count = end_col - start_col;
-        let mut grid = vec![vec![String::from("     "); visible_col_count]; visible_row_count];
-
-        // Fill grid with keycodes and resolve colors (only visible keys)
+        // Render each key as an individual block
         for key in &layer.keys {
             let row = key.position.row as usize;
             let col = key.position.col as usize;
 
-            // Skip keys outside viewport
-            if row < start_row || row >= end_row || col < start_col || col >= end_col {
+            // Calculate key position
+            let key_x = inner_area.x + (col * key_width) as u16;
+            let key_y = inner_area.y + (row * key_height) as u16;
+
+            // Skip if key is outside visible area
+            if key_x >= inner_area.x + inner_area.width
+                || key_y >= inner_area.y + inner_area.height
+            {
                 continue;
             }
 
-            // Map to grid coordinates
-            let grid_row = row - start_row;
-            let grid_col = col - start_col;
+            let key_area = Rect {
+                x: key_x,
+                y: key_y,
+                width: key_width.min((inner_area.x + inner_area.width).saturating_sub(key_x) as usize) as u16,
+                height: key_height.min((inner_area.y + inner_area.height).saturating_sub(key_y) as usize) as u16,
+            };
 
-            if grid_row < grid.len() && grid_col < grid[0].len() {
-                // Abbreviate keycode for display
-                let display = Self::format_keycode(&key.keycode);
-
-                // Add color indicator based on source priority
-                let color_indicator = if key.color_override.is_some() {
-                    "i" // Individual override
-                } else if key.category_id.is_some() {
-                    "k" // Key category
-                } else if layer.category_id.is_some() {
-                    "L" // Layer category
-                } else {
-                    "d" // Layer default
-                };
-
-                // Format: "ABC i" (3 chars keycode + space + indicator)
-                grid[grid_row][grid_col] = format!(" {display:<3}{color_indicator}");
+            // Skip if key area is too small
+            if key_area.width < 7 || key_area.height < 3 {
+                continue;
             }
-        }
 
-        // Build table rows with color resolution
-        let mut table_rows = vec![];
-        for (grid_row_idx, row_data) in grid.iter().enumerate() {
-            let cells: Vec<Cell> = row_data
-                .iter()
-                .enumerate()
-                .map(|(grid_col_idx, text)| {
-                    // Map back to actual position
-                    let actual_row = grid_row_idx + start_row;
-                    let actual_col = grid_col_idx + start_col;
+            let is_selected = row == state.selected_position.row as usize
+                && col == state.selected_position.col as usize;
 
-                    let is_selected = actual_row == state.selected_position.row as usize
-                        && actual_col == state.selected_position.col as usize;
+            // Resolve key color
+            let rgb = state.layout.resolve_key_color(state.current_layer, key);
+            let key_color = Color::Rgb(rgb.r, rgb.g, rgb.b);
 
-                    // Find the key at this position to get its color
-                    let key_color = layer
-                        .keys
-                        .iter()
-                        .find(|k| {
-                            k.position.row as usize == actual_row
-                                && k.position.col as usize == actual_col
-                        })
-                        .map(|key| {
-                            let rgb = state.layout.resolve_key_color(state.current_layer, key);
-                            Color::Rgb(rgb.r, rgb.g, rgb.b)
-                        });
+            // Determine color indicator
+            let color_indicator = if key.color_override.is_some() {
+                "i" // Individual override
+            } else if key.category_id.is_some() {
+                "k" // Key category
+            } else if layer.category_id.is_some() {
+                "L" // Layer category
+            } else {
+                "d" // Layer default
+            };
 
-                    let style = if is_selected {
-                        Style::default().fg(theme.background).bg(theme.accent)
-                    } else if let Some(color) = key_color {
-                        Style::default().fg(color)
-                    } else {
-                        Style::default().fg(theme.text)
-                    };
+            // Format keycode for display
+            let display = Self::format_keycode(&key.keycode);
 
-                    Cell::from(text.as_str()).style(style)
-                })
-                .collect();
+            // Create key content: keycode on left, indicator on right
+            let content = Line::from(vec![
+                Span::styled(
+                    format!("{:<3}", display),
+                    Style::default().fg(theme.text),
+                ),
+                Span::raw(" "),
+                Span::styled(
+                    color_indicator,
+                    Style::default().fg(key_color).add_modifier(Modifier::BOLD),
+                ),
+            ]);
 
-            table_rows.push(Row::new(cells));
-        }
-
-        // Create column constraints (equal width) for visible columns only
-        let constraints = vec![Constraint::Length(7); visible_col_count];
-
-        // Build table widget
-        let table = Table::new(table_rows, constraints)
-            .block(
+            // Create the key block with colored border
+            let key_block = if is_selected {
                 Block::default()
-                    .title(format!(" Layer {}: {} ", state.current_layer, layer.name))
-                    .borders(Borders::ALL),
-            )
-            .column_spacing(1);
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+                    .style(Style::default().bg(theme.accent).fg(theme.background))
+            } else {
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(key_color))
+            };
 
-        f.render_widget(table, area);
+            let key_paragraph = Paragraph::new(content).block(key_block);
+
+            f.render_widget(key_paragraph, key_area);
+        }
     }
 
     /// Format keycode for compact display (first 3-4 chars)
@@ -148,5 +138,3 @@ impl KeyboardWidget {
         display.chars().take(3).collect()
     }
 }
-
-use ratatui::widgets::Paragraph;
