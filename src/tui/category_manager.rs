@@ -3,7 +3,6 @@
 //! Provides a UI for creating, renaming, recoloring, and deleting categories.
 //! Accessible via Ctrl+T shortcut.
 
-use anyhow::Result;
 use ratatui::{
     layout::{Alignment, Constraint, Rect},
     style::{Color, Modifier, Style},

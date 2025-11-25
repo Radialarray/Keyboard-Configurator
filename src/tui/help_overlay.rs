@@ -55,7 +55,8 @@ impl HelpOverlayState {
 
     /// Scroll down by a page (approximation based on visible height).
     pub fn page_down(&mut self, visible_height: usize) {
-        self.scroll_offset = (self.scroll_offset + visible_height).min(self.total_lines.saturating_sub(1));
+        self.scroll_offset =
+            (self.scroll_offset + visible_height).min(self.total_lines.saturating_sub(1));
     }
 
     /// Scroll up by a page (approximation based on visible height).
@@ -571,8 +572,9 @@ impl HelpOverlayState {
             .thumb_symbol("█")
             .style(Style::default().fg(Color::Cyan));
 
-        let mut scrollbar_state = ScrollbarState::new(self.total_lines.saturating_sub(visible_height))
-            .position(self.scroll_offset);
+        let mut scrollbar_state =
+            ScrollbarState::new(self.total_lines.saturating_sub(visible_height))
+                .position(self.scroll_offset);
 
         frame.render_stateful_widget(scrollbar, scrollbar_area, &mut scrollbar_state);
     }

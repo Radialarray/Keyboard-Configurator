@@ -293,8 +293,8 @@ impl AppState {
     ///
     /// Result indicating success or error with context
     pub fn rebuild_geometry(&mut self, layout_name: &str) -> Result<()> {
-        use crate::parser::keyboard_json::{build_keyboard_geometry, parse_keyboard_info_json};
         use crate::models::VisualLayoutMapping;
+        use crate::parser::keyboard_json::{build_keyboard_geometry, parse_keyboard_info_json};
 
         // Parse keyboard info.json to get layout definition
         let qmk_path = self
@@ -775,12 +775,16 @@ fn handle_help_overlay_input(state: &mut AppState, key: event::KeyEvent) -> Resu
 
 /// Handle input for metadata editor
 fn handle_metadata_editor_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
-    let action = metadata_editor::handle_metadata_editor_input(&mut state.metadata_editor_state, key);
-    
+    let action =
+        metadata_editor::handle_metadata_editor_input(&mut state.metadata_editor_state, key);
+
     match action {
         metadata_editor::MetadataEditorAction::Confirm => {
             // Validate and apply changes
-            match state.metadata_editor_state.apply_to_layout(&mut state.layout) {
+            match state
+                .metadata_editor_state
+                .apply_to_layout(&mut state.layout)
+            {
                 Ok(()) => {
                     state.mark_dirty();
                     state.active_popup = None;
@@ -803,7 +807,9 @@ fn handle_metadata_editor_input(state: &mut AppState, key: event::KeyEvent) -> R
 
 /// Handle input for layout picker
 fn handle_layout_picker_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
-    if let Some(selected) = config_dialogs::handle_layout_picker_input(&mut state.layout_picker_state, key) {
+    if let Some(selected) =
+        config_dialogs::handle_layout_picker_input(&mut state.layout_picker_state, key)
+    {
         if selected.is_empty() {
             // User cancelled
             state.active_popup = None;

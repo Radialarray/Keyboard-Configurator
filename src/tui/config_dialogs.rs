@@ -205,9 +205,11 @@ impl LayoutPickerState {
 
     /// Gets the currently selected layout name
     pub fn get_selected(&self) -> Option<String> {
-        self.layouts.get(self.selected_index).map(|v| v.name.clone())
+        self.layouts
+            .get(self.selected_index)
+            .map(|v| v.name.clone())
     }
-    
+
     /// Gets the currently selected layout variant (with key count)
     pub fn get_selected_variant(&self) -> Option<&LayoutVariant> {
         self.layouts.get(self.selected_index)

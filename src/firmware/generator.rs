@@ -10,7 +10,6 @@ use crate::models::visual_layout_mapping::VisualLayoutMapping;
 use anyhow::{Context, Result};
 use serde_json::json;
 use std::fs;
-use std::path::Path;
 
 /// Firmware generator for keymap.c and vial.json.
 pub struct FirmwareGenerator<'a> {
@@ -302,7 +301,6 @@ impl<'a> FirmwareGenerator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::category::Category;
     use crate::models::keyboard_geometry::KeyGeometry;
     use crate::models::layer::{KeyDefinition, Layer, Position};
     use crate::models::RgbColor;

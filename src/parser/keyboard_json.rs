@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::models::{KeyGeometry, KeyboardGeometry};
 
@@ -226,7 +226,7 @@ pub fn extract_layout_variants(info: &QmkInfoJson) -> Vec<LayoutVariant> {
             key_count: def.layout.len(),
         })
         .collect();
-    
+
     // Sort by name for consistent ordering
     variants.sort_by(|a, b| a.name.cmp(&b.name));
     variants
@@ -388,11 +388,11 @@ mod tests {
         let variants = extract_layout_variants(&info);
 
         assert_eq!(variants.len(), 2);
-        
+
         // Check LAYOUT variant
         let layout = variants.iter().find(|v| v.name == "LAYOUT").unwrap();
         assert_eq!(layout.key_count, 6);
-        
+
         // Check LAYOUT_split variant
         let split = variants.iter().find(|v| v.name == "LAYOUT_split").unwrap();
         assert_eq!(split.key_count, 4);

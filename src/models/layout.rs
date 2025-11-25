@@ -1,6 +1,8 @@
 //! Layout and metadata data structures.
 
-use crate::models::layer::{KeyDefinition, Layer, Position};
+#[cfg(test)]
+use crate::models::layer::Position;
+use crate::models::layer::{KeyDefinition, Layer};
 use crate::models::{Category, RgbColor};
 use anyhow::Result;
 use chrono::{DateTime, Utc};

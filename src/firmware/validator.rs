@@ -7,7 +7,7 @@ use crate::keycode_db::KeycodeDb;
 use crate::models::keyboard_geometry::KeyboardGeometry;
 use crate::models::layout::Layout;
 use crate::models::visual_layout_mapping::VisualLayoutMapping;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::collections::HashSet;
 
 /// Validation result with specific errors and warnings.
@@ -411,7 +411,6 @@ impl<'a> FirmwareValidator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::category::Category;
     use crate::models::keyboard_geometry::KeyGeometry;
     use crate::models::layer::{KeyDefinition, Layer, Position};
     use crate::models::RgbColor;

@@ -245,13 +245,31 @@ pub fn render_metadata_editor(f: &mut Frame, state: &MetadataEditorState) {
 
     // Render controls
     let controls_text = vec![Line::from(vec![
-        Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Enter",
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw(" save  "),
-        Span::styled("Esc", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Esc",
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        ),
         Span::raw(" cancel  "),
-        Span::styled("Tab", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Tab",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw(" next field  "),
-        Span::styled("Shift+Tab", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Shift+Tab",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw(" prev field"),
     ])];
     let controls = Paragraph::new(controls_text).alignment(Alignment::Center);
@@ -262,7 +280,9 @@ pub fn render_metadata_editor(f: &mut Frame, state: &MetadataEditorState) {
 fn render_field(f: &mut Frame, area: Rect, field: MetadataField, value: &str, is_active: bool) {
     let label = field.label();
     let style = if is_active {
-        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::White)
     };
@@ -285,9 +305,7 @@ fn render_field(f: &mut Frame, area: Rect, field: MetadataField, value: &str, is
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    let paragraph = Paragraph::new(display_value)
-        .style(style)
-        .block(block);
+    let paragraph = Paragraph::new(display_value).style(style).block(block);
 
     f.render_widget(paragraph, area);
 }
@@ -324,7 +342,7 @@ pub fn handle_metadata_editor_input(
         }
 
         // Character input
-        (KeyCode::Char(c), KeyModifiers::NONE) | (KeyCode::Char(c), KeyModifiers::SHIFT) => {
+        (KeyCode::Char(c), KeyModifiers::NONE | KeyModifiers::SHIFT) => {
             let field = state.get_active_field_mut();
             field.push(c);
             MetadataEditorAction::Continue

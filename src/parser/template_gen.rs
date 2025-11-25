@@ -3,7 +3,7 @@
 //! This module handles generating human-readable Markdown files from Layout structures,
 //! with atomic file writes for safety.
 
-use crate::models::{Layout, RgbColor};
+use crate::models::Layout;
 use anyhow::{Context, Result};
 use std::path::Path;
 
@@ -210,7 +210,7 @@ fn atomic_write(path: &Path, content: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Category, KeyDefinition, Layer, LayoutMetadata, Position};
+    use crate::models::{Category, KeyDefinition, Layer, LayoutMetadata, Position, RgbColor};
     use crate::parser::layout::parse_markdown_layout_str;
     use chrono::Utc;
 

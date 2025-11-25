@@ -1,46 +1,138 @@
 # Keyboard TUI
 
-Terminal-based keyboard layout editor for mechanical keyboards with QMK firmware support.
+A terminal-based keyboard layout editor for mechanical keyboards with QMK firmware support. Edit keyboard layouts visually in your terminal, manage multiple layers, organize keys with colors and categories, and generate QMK firmware - all with human-readable Markdown files.
 
 ## Features
 
-- Visual keyboard layout editing in the terminal
-- Support for multiple layers and complex layouts
-- Color-coded key categories for easy organization
-- Human-readable Markdown file format for layouts
-- QMK firmware generation and compilation
-- Template system for reusable layouts
+- **Visual Editing**: Navigate and edit your keyboard layout using arrow keys or VIM-style navigation (hjkl)
+- **Multi-Layer Support**: Edit multiple keyboard layers with easy layer switching (Tab/Shift+Tab)
+- **Color Organization**: Four-level color priority system (individual key > key category > layer category > layer default)
+- **Category System**: Group keys by logical function (navigation, symbols, modifiers, etc.)
+- **Human-Readable Format**: Layouts stored as Markdown files with YAML frontmatter for version control
+- **QMK Integration**: Parse QMK keyboard definitions and generate firmware code
+- **Background Compilation**: Build QMK firmware in the background with live progress updates
+- **Template System**: Save and reuse layouts across keyboards
+- **Searchable Keycode Picker**: Fuzzy search through 600+ QMK keycodes with category filtering
 
 ## Status
 
-🚧 **In Development** - Phase 1 (Setup) Complete
+🚧 **In Development** - Phases 1-12 Complete, Phase 13 (Polish) In Progress
 
-This project is under active development. See the [tasks list](specs/001-tui-complete-features/tasks.md) for current progress.
+- ✅ Core editing features complete
+- ✅ Color and category management complete
+- ✅ Firmware generation and building complete  
+- ✅ Template system complete
+- ✅ Help system and configuration dialogs complete
+- 🔄 Final polish and testing in progress
+
+Test Results: 109/110 tests passing (99% pass rate)
 
 ## Requirements
 
-- Rust 1.75 or higher
-- QMK firmware repository (for keyboard definitions and compilation)
-- Terminal with ANSI escape sequence support
+- **Rust**: Version 1.75 or higher
+- **QMK Firmware**: Local clone of QMK firmware repository
+- **Terminal**: ANSI escape sequence and Unicode support (iTerm2, Alacritty, Windows Terminal, GNOME Terminal, etc.)
+- **Minimum Terminal Size**: 80x24 characters recommended
 
 ## Installation
+
+### From Source
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/keyboard_tui.git
+cd keyboard_tui
+
+# Initialize QMK submodule
+git submodule update --init --recursive vial-qmk-keebart
+
+# Build in release mode
+cargo build --release
+
+# Binary will be at target/release/keyboard_tui
+```
+
+### Quick Build
 
 ```bash
 cargo build --release
 ```
 
-## Usage
+## Quick Start
+
+### First Run
+
+On first run, the onboarding wizard will guide you through configuration:
 
 ```bash
-# Run the editor
-keyboard_tui path/to/layout.md
-
-# Initialize configuration
-keyboard_tui --init
-
-# Show help
-keyboard_tui --help
+./target/release/keyboard_tui
 ```
+
+The wizard will prompt you for:
+1. QMK firmware path (path to your QMK firmware directory)
+2. Keyboard selection (from available keyboards in QMK)
+3. Layout variant (if your keyboard has multiple layouts)
+
+Configuration is saved to `~/.config/layout_tools/config.toml` (Unix) or `%APPDATA%\layout_tools\config.toml` (Windows).
+
+### Loading an Existing Layout
+
+```bash
+keyboard_tui path/to/layout.md
+```
+
+### Creating a New Layout
+
+```bash
+# Create an empty layout file first, then edit it
+touch my_layout.md
+keyboard_tui my_layout.md
+```
+
+## Usage
+
+### Navigation
+
+- **Arrow Keys** or **hjkl** (VIM-style): Move cursor between keys
+- **Tab**: Switch to next layer
+- **Shift+Tab**: Switch to previous layer
+- **?**: Open help overlay with all shortcuts
+
+### Editing Keys
+
+- **Enter**: Open keycode picker for selected key
+- **x** or **Delete**: Clear key (set to KC_TRNS)
+- **Shift+C**: Set individual key color
+- **Shift+K**: Assign key to category
+
+### Layer Operations
+
+- **c**: Set layer default color
+- **Shift+L**: Assign layer to category
+
+### File Operations
+
+- **Ctrl+S**: Save layout
+- **Ctrl+Q**: Quit (prompts if unsaved changes)
+
+### Firmware
+
+- **Ctrl+G**: Generate firmware files (keymap.c and vial.json)
+- **Ctrl+B**: Build firmware in background
+- **Ctrl+L**: View build log
+
+### Configuration
+
+- **Ctrl+P**: Change QMK firmware path
+- **Ctrl+K**: Select different keyboard
+- **Ctrl+Y**: Switch layout variant
+- **Ctrl+T**: Open category manager
+- **Ctrl+E**: Edit layout metadata
+
+### Templates
+
+- **t**: Browse and load templates
+- **Shift+T**: Save current layout as template
 
 ## Project Structure
 
