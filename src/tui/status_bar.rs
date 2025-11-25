@@ -19,28 +19,51 @@ impl StatusBar {
         // Determine contextual help message based on active popup or mode
         let help_message = Self::get_contextual_help(state);
         
-        let status_text = if let Some(error) = &state.error_message {
+        // Build status indicator if build is active
+        let build_status_line = if let Some(build_state) = &state.build_state {
+            let status = &build_state.status;
+            let color = match status {
+                crate::firmware::BuildStatus::Idle => Color::Gray,
+                crate::firmware::BuildStatus::Validating => Color::Yellow,
+                crate::firmware::BuildStatus::Generating => Color::Yellow,
+                crate::firmware::BuildStatus::Compiling => Color::Yellow,
+                crate::firmware::BuildStatus::Success => Color::Green,
+                crate::firmware::BuildStatus::Failed => Color::Red,
+            };
+            
+            Some(Line::from(vec![
+                Span::styled("Build: ", Style::default().fg(Color::Cyan)),
+                Span::styled(status.to_string(), Style::default().fg(color)),
+            ]))
+        } else {
+            None
+        };
+        
+        let mut status_text = if let Some(error) = &state.error_message {
             vec![
                 Line::from(vec![
                     Span::styled("ERROR: ", Style::default().fg(Color::Red)),
                     Span::raw(error),
                 ]),
-                Line::from(""),
-                Line::from(vec![
-                    Span::styled("Help: ", Style::default().fg(Color::Yellow)),
-                    Span::raw(help_message),
-                ]),
             ]
         } else {
             vec![
                 Line::from(state.status_message.as_str()),
-                Line::from(""),
-                Line::from(vec![
-                    Span::styled("Help: ", Style::default().fg(Color::Cyan)),
-                    Span::raw(help_message),
-                ]),
             ]
         };
+        
+        // Add build status line if present
+        if let Some(build_line) = build_status_line {
+            status_text.push(build_line);
+        } else {
+            status_text.push(Line::from(""));
+        }
+        
+        // Add help line
+        status_text.push(Line::from(vec![
+            Span::styled("Help: ", Style::default().fg(Color::Cyan)),
+            Span::raw(help_message),
+        ]));
 
         let status = Paragraph::new(status_text)
             .block(Block::default()

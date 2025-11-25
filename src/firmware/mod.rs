@@ -3,4 +3,11 @@
 //! This module handles generating keymap.c and vial.json files,
 //! as well as background compilation of QMK firmware.
 
-// Re-export firmware generation
+pub mod builder;
+pub mod generator;
+pub mod validator;
+
+// Re-export firmware types
+pub use builder::{BuildMessage, BuildState, BuildStatus};
+pub use generator::FirmwareGenerator;
+pub use validator::{FirmwareValidator, ValidationReport};

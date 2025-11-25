@@ -262,7 +262,7 @@
 
 ---
 
-## Phase 8: User Story 6 - Firmware Generation and Building (Priority: P1) 🎯 MVP OUTPUT
+## Phase 8: User Story 6 - Firmware Generation and Building (Priority: P1) 🎯 MVP OUTPUT ✅ COMPLETE
 
 **Goal**: Generate QMK firmware C code and Vial JSON, compile firmware in background with progress tracking
 
@@ -272,32 +272,32 @@
 
 ### Firmware Generation
 
-- [ ] T114 [P] [US6] Implement firmware validator in src/firmware/validator.rs (invalid keycodes, matrix coverage checks)
-- [ ] T115 [US6] Implement keymap.c generator in src/firmware/generator.rs with PROGMEM keymap arrays
-- [ ] T116 [US6] Implement layer-by-layer keymap generation using LED index order in src/firmware/generator.rs
-- [ ] T117 [US6] Implement vial.json generator in src/firmware/generator.rs with layout definition
-- [ ] T118 [US6] Implement generation trigger (Ctrl+G) with pre-validation in src/tui/mod.rs
-- [ ] T119 [P] [US6] Write integration tests for firmware generation pipeline in tests/integration/firmware_gen_tests.rs
+- [X] T114 [P] [US6] Implement firmware validator in src/firmware/validator.rs (invalid keycodes, matrix coverage checks)
+- [X] T115 [US6] Implement keymap.c generator in src/firmware/generator.rs with PROGMEM keymap arrays
+- [X] T116 [US6] Implement layer-by-layer keymap generation using LED index order in src/firmware/generator.rs
+- [X] T117 [US6] Implement vial.json generator in src/firmware/generator.rs with layout definition
+- [X] T118 [US6] Implement generation trigger (Ctrl+G) with pre-validation in src/tui/mod.rs
+- [X] T119 [P] [US6] Write integration tests for firmware generation pipeline in tests/firmware_gen_tests.rs
 
 ### Background Building
 
-- [ ] T120 [P] [US6] Implement BuildState struct in src/firmware/builder.rs (status, message channel receiver, log accumulator)
-- [ ] T121 [US6] Implement background build thread spawning in src/firmware/builder.rs
-- [ ] T122 [US6] Implement QMK make command execution with output capture in src/firmware/builder.rs
-- [ ] T123 [US6] Implement build progress message channel (BuildProgress, BuildLog, BuildComplete) in src/firmware/builder.rs
-- [ ] T124 [US6] Implement build trigger (Ctrl+B) spawning background thread in src/tui/mod.rs
-- [ ] T125 [US6] Implement build status display in status bar (Idle/Validating/Compiling/Success/Failed) in src/tui/status_bar.rs
-- [ ] T126 [US6] Implement main loop polling of build channel with UI updates in src/tui/mod.rs
+- [X] T120 [P] [US6] Implement BuildState struct in src/firmware/builder.rs (status, message channel receiver, log accumulator)
+- [X] T121 [US6] Implement background build thread spawning in src/firmware/builder.rs
+- [X] T122 [US6] Implement QMK make command execution with output capture in src/firmware/builder.rs
+- [X] T123 [US6] Implement build progress message channel (BuildProgress, BuildLog, BuildComplete) in src/firmware/builder.rs
+- [X] T124 [US6] Implement build trigger (Ctrl+B) spawning background thread in src/tui/mod.rs
+- [X] T125 [US6] Implement build status display in status bar (Idle/Validating/Compiling/Success/Failed) in src/tui/status_bar.rs
+- [X] T126 [US6] Implement main loop polling of build channel with UI updates in src/tui/mod.rs
 
 ### Build Log Viewer
 
-- [ ] T127 [P] [US6] Implement BuildLogState struct in src/tui/build_log.rs (log_lines Vec, scroll_offset)
-- [ ] T128 [US6] Implement build log rendering with scrollable history in src/tui/build_log.rs
-- [ ] T129 [US6] Implement log level color coding (INFO/OK/ERROR) in src/tui/build_log.rs
-- [ ] T130 [US6] Implement build log opening with Ctrl+L in src/tui/mod.rs
-- [ ] T131 [US6] Implement log scrolling with arrow keys and Home/End in src/tui/build_log.rs
+- [X] T127 [P] [US6] Implement BuildLogState struct in src/tui/build_log.rs (log_lines Vec, scroll_offset)
+- [X] T128 [US6] Implement build log rendering with scrollable history in src/tui/build_log.rs
+- [X] T129 [US6] Implement log level color coding (INFO/OK/ERROR) in src/tui/build_log.rs
+- [X] T130 [US6] Implement build log opening with Ctrl+L in src/tui/mod.rs
+- [X] T131 [US6] Implement log scrolling with arrow keys and Home/End in src/tui/build_log.rs
 
-**Checkpoint**: Firmware generation complete - can generate and compile QMK firmware from layouts
+**Checkpoint**: ✅ Firmware generation complete - can generate and compile QMK firmware from layouts
 
 ---
 

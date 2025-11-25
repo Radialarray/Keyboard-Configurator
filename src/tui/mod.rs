@@ -3,6 +3,7 @@
 //! This module contains the main TUI loop, `AppState`, event handling,
 //! and all UI widgets using Ratatui.
 
+pub mod build_log;
 pub mod config_dialogs;
 pub mod onboarding_wizard;
 pub mod keyboard;
@@ -31,6 +32,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::config::Config;
+use crate::firmware::BuildState;
 use crate::keycode_db::KeycodeDb;
 use crate::models::{KeyboardGeometry, Layout, Position, VisualLayoutMapping};
 
@@ -104,12 +106,16 @@ pub struct AppState {
     pub category_picker_state: CategoryPickerState,
     pub category_picker_context: Option<CategoryPickerContext>,
     pub category_manager_state: CategoryManagerState,
+    pub build_log_state: build_log::BuildLogState,
 
     // System resources
     pub keycode_db: KeycodeDb,
     pub geometry: KeyboardGeometry,
     pub mapping: VisualLayoutMapping,
     pub config: Config,
+
+    // Firmware build state
+    pub build_state: Option<BuildState>,
 
     // Control flags
     pub should_quit: bool,
@@ -142,10 +148,12 @@ impl AppState {
             category_picker_state: CategoryPickerState::new(),
             category_picker_context: None,
             category_manager_state: CategoryManagerState::new(),
+            build_log_state: build_log::BuildLogState::new(),
             keycode_db,
             geometry,
             mapping,
             config,
+            build_state: None,
             should_quit: false,
         })
     }
@@ -232,6 +240,13 @@ pub fn run_tui(state: &mut AppState, terminal: &mut Terminal<CrosstermBackend<io
             }
         }
 
+        // Poll build state for updates
+        if let Some(build_state) = &mut state.build_state {
+            if build_state.poll() {
+                // Build message received, will update on next render
+            }
+        }
+
         // Check if should quit
         if state.should_quit {
             break;
@@ -311,6 +326,11 @@ fn render_popup(f: &mut Frame, popup_type: &PopupType, state: &AppState) {
         }
         PopupType::UnsavedChangesPrompt => {
             render_unsaved_prompt(f);
+        }
+        PopupType::BuildLog => {
+            if let Some(build_state) = &state.build_state {
+                build_log::render_build_log(f, build_state, &state.build_log_state);
+            }
         }
         _ => {
             // Other popups not implemented yet
@@ -392,6 +412,9 @@ fn handle_popup_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool
         Some(PopupType::UnsavedChangesPrompt) => {
             handle_unsaved_prompt_input(state, key)
         }
+        Some(PopupType::BuildLog) => {
+            handle_build_log_input(state, key)
+        }
         _ => {
             // Escape closes any popup
             if key.code == KeyCode::Esc {
@@ -400,6 +423,41 @@ fn handle_popup_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool
             }
             Ok(false)
         }
+    }
+}
+
+/// Handle input for build log viewer
+fn handle_build_log_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('l') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            state.active_popup = None;
+            state.build_log_state.visible = false;
+            state.set_status("Build log closed");
+            Ok(false)
+        }
+        KeyCode::Up => {
+            state.build_log_state.scroll_up();
+            Ok(false)
+        }
+        KeyCode::Down => {
+            if let Some(build_state) = &state.build_state {
+                let max_lines = build_state.log_lines.len();
+                state.build_log_state.scroll_down(max_lines, 20); // Approximate visible lines
+            }
+            Ok(false)
+        }
+        KeyCode::Home => {
+            state.build_log_state.scroll_to_top();
+            Ok(false)
+        }
+        KeyCode::End => {
+            if let Some(build_state) = &state.build_state {
+                let max_lines = build_state.log_lines.len();
+                state.build_log_state.scroll_to_bottom(max_lines, 20); // Approximate visible lines
+            }
+            Ok(false)
+        }
+        _ => Ok(false),
     }
 }
 
@@ -610,6 +668,35 @@ fn handle_main_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool>
             Ok(false)
         }
 
+        // Generate firmware (Ctrl+G)
+        (KeyCode::Char('g'), KeyModifiers::CONTROL) => {
+            handle_firmware_generation(state)?;
+            Ok(false)
+        }
+
+        // Build firmware (Ctrl+B)
+        (KeyCode::Char('b'), KeyModifiers::CONTROL) => {
+            handle_firmware_build(state)?;
+            Ok(false)
+        }
+
+        // Toggle build log (Ctrl+L)
+        (KeyCode::Char('l'), KeyModifiers::CONTROL) => {
+            if state.build_state.is_some() {
+                if state.build_log_state.visible {
+                    state.active_popup = None;
+                    state.build_log_state.visible = false;
+                } else {
+                    state.active_popup = Some(PopupType::BuildLog);
+                    state.build_log_state.visible = true;
+                }
+                state.set_status("Build log toggled");
+            } else {
+                state.set_error("No build active");
+            }
+            Ok(false)
+        }
+
         // Help
         (KeyCode::Char('?'), _) => {
             state.set_status("Help system not implemented yet - coming in Phase 10");
@@ -618,6 +705,89 @@ fn handle_main_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool>
 
         _ => Ok(false),
     }
+}
+
+/// Handle firmware generation with validation
+fn handle_firmware_generation(state: &mut AppState) -> Result<()> {
+    use crate::firmware::{FirmwareGenerator, FirmwareValidator};
+
+    // Step 1: Validate layout
+    state.set_status("Validating layout...");
+    
+    let validator = FirmwareValidator::new(
+        &state.layout,
+        &state.geometry,
+        &state.mapping,
+        &state.keycode_db,
+    );
+    let report = validator.validate()?;
+    
+    if !report.is_valid() {
+        // Show validation errors
+        let error_msg = report.format_message();
+        state.set_error(format!("Validation failed:\n{}", error_msg));
+        return Ok(());
+    }
+    
+    // Step 2: Generate firmware files
+    state.set_status("Generating firmware files...");
+    
+    let generator = FirmwareGenerator::new(
+        &state.layout,
+        &state.geometry,
+        &state.mapping,
+        &state.config,
+    );
+    
+    match generator.generate() {
+        Ok((keymap_path, vial_path)) => {
+            state.set_status(format!(
+                "✓ Generated: {} and {}",
+                keymap_path, vial_path
+            ));
+        }
+        Err(e) => {
+            state.set_error(format!("Generation failed: {}", e));
+        }
+    }
+    
+    Ok(())
+}
+
+/// Handle firmware build in background
+fn handle_firmware_build(state: &mut AppState) -> Result<()> {
+    // Check that QMK firmware path is configured
+    let qmk_path = match &state.config.paths.qmk_firmware {
+        Some(path) => path.clone(),
+        None => {
+            state.set_error("QMK firmware path not configured");
+            return Ok(());
+        }
+    };
+    
+    // Initialize build state if needed
+    if state.build_state.is_none() {
+        state.build_state = Some(BuildState::new());
+    }
+    
+    let build_state = state.build_state.as_mut().unwrap();
+    
+    // Check if build already in progress
+    if build_state.is_building() {
+        state.set_error("Build already in progress");
+        return Ok(());
+    }
+    
+    // Start the build
+    build_state.start_build(
+        qmk_path,
+        state.config.build.keyboard.clone(),
+        state.config.build.keymap.clone(),
+    )?;
+    
+    state.set_status("Build started - check status with Ctrl+L");
+    
+    Ok(())
 }
 
 /// Handle input for category manager
