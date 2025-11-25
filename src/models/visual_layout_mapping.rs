@@ -124,6 +124,14 @@ impl VisualLayoutMapping {
     pub const fn key_count(&self) -> usize {
         self.led_to_matrix.len()
     }
+
+    /// Returns all valid visual positions in this mapping.
+    ///
+    /// Used when adjusting layouts to match a new geometry.
+    #[must_use]
+    pub fn get_all_visual_positions(&self) -> Vec<Position> {
+        self.visual_to_matrix.keys().copied().collect()
+    }
 }
 
 impl Default for VisualLayoutMapping {
