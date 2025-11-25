@@ -48,7 +48,8 @@ impl Default for BuildConfig {
 impl BuildConfig {
     /// Gets the default output directory path.
     ///
-    /// - Unix/Linux/macOS: `~/.config/KeyboardConfigurator/builds/`
+    /// - Linux: `~/.config/KeyboardConfigurator/builds/`
+    /// - macOS: `~/Library/Application Support/KeyboardConfigurator/builds/`
     /// - Windows: `%APPDATA%\KeyboardConfigurator\builds\`
     fn default_output_dir() -> Result<PathBuf> {
         Ok(Config::config_dir()?.join("builds"))
@@ -77,7 +78,8 @@ impl Default for UiConfig {
 ///
 /// # File Location
 ///
-/// - Unix/Linux/macOS: `~/.config/KeyboardConfigurator/config.toml`
+/// - Linux: `~/.config/KeyboardConfigurator/config.toml`
+/// - macOS: `~/Library/Application Support/KeyboardConfigurator/config.toml`
 /// - Windows: `%APPDATA%\KeyboardConfigurator\config.toml`
 ///
 /// # Validation
@@ -110,7 +112,8 @@ impl Config {
 
     /// Gets the platform-specific config directory path.
     ///
-    /// - Unix/Linux/macOS: `~/.config/KeyboardConfigurator/`
+    /// - Linux: `~/.config/KeyboardConfigurator/`
+    /// - macOS: `~/Library/Application Support/KeyboardConfigurator/`
     /// - Windows: `%APPDATA%\KeyboardConfigurator\`
     pub fn config_dir() -> Result<PathBuf> {
         let config_dir = dirs::config_dir()
