@@ -14,8 +14,11 @@ use crate::models::RgbColor;
 /// RGB channel being edited
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RgbChannel {
+    /// Red color channel
     Red,
+    /// Green color channel
     Green,
+    /// Blue color channel
     Blue,
 }
 

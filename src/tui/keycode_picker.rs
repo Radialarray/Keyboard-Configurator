@@ -15,12 +15,16 @@ use super::AppState;
 /// Keycode picker state
 #[derive(Debug, Clone)]
 pub struct KeycodePickerState {
+    /// Search query string
     pub search: String,
+    /// Selected keycode index
     pub selected: usize,
+    /// Active category filter (if any)
     pub active_category: Option<String>,
 }
 
 impl KeycodePickerState {
+    /// Creates a new keycode picker state
     pub fn new() -> Self {
         Self {
             search: String::new(),

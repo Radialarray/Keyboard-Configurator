@@ -19,13 +19,27 @@ pub enum ManagerMode {
     /// Browsing categories (default mode)
     Browsing,
     /// Creating a new category (entering name)
-    CreatingName { input: String },
+    CreatingName {
+        /// User input for category name
+        input: String
+    },
     /// Creating a new category (selecting color)
-    CreatingColor { name: String },
+    CreatingColor {
+        /// Name of category being created
+        name: String
+    },
     /// Renaming a category
-    Renaming { category_id: String, input: String },
+    Renaming {
+        /// ID of category being renamed
+        category_id: String,
+        /// User input for new name
+        input: String
+    },
     /// Confirming deletion
-    ConfirmingDelete { category_id: String },
+    ConfirmingDelete {
+        /// ID of category to delete
+        category_id: String
+    },
 }
 
 /// State for the category manager dialog

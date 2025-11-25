@@ -45,15 +45,25 @@ impl std::fmt::Display for BuildStatus {
 pub enum BuildMessage {
     /// Build progress update
     Progress {
+        /// Current build status
         status: BuildStatus,
+        /// Progress message
         message: String,
     },
     /// Build log output
-    Log { level: LogLevel, message: String },
+    Log {
+        /// Log level (Info, Ok, Error)
+        level: LogLevel,
+        /// Log message content
+        message: String
+    },
     /// Build completed (success or failure)
     Complete {
+        /// Whether the build succeeded
         success: bool,
+        /// Path to generated firmware file
         firmware_path: Option<PathBuf>,
+        /// Error message if build failed
         error: Option<String>,
     },
 }
@@ -61,8 +71,11 @@ pub enum BuildMessage {
 /// Log level for build output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogLevel {
+    /// Informational message
     Info,
+    /// Success message
     Ok,
+    /// Error message
     Error,
 }
 
