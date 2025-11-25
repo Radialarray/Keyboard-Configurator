@@ -260,7 +260,7 @@ impl HelpOverlayState {
             Line::from(vec![
                 Span::styled("  ", Style::default().fg(theme.text)),
                 Span::styled("Info:", Style::default().fg(theme.primary)),
-                Span::styled(" Configuration saved to ~/.config/KeyboardConfigurator/config.toml", Style::default().fg(theme.text)),
+                Span::styled(" Configuration saved to system config directory (KeyboardConfigurator/config.toml)", Style::default().fg(theme.text)),
             ]),
             Line::from(""),
             // Templates Section
