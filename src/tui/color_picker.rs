@@ -244,6 +244,8 @@ pub fn handle_input(state: &mut super::AppState, key: KeyEvent) -> anyhow::Resul
                         state.mark_dirty();
                         state.set_status(format!("Set key color to {}", color.to_hex()));
                     }
+                    state.active_popup = None;
+                    state.color_picker_context = None;
                 }
                 Some(super::ColorPickerContext::LayerDefault) => {
                     if let Some(layer) = state.layout.layers.get_mut(state.current_layer) {
@@ -251,14 +253,58 @@ pub fn handle_input(state: &mut super::AppState, key: KeyEvent) -> anyhow::Resul
                         state.mark_dirty();
                         state.set_status(format!("Set layer default color to {}", color.to_hex()));
                     }
+                    state.active_popup = None;
+                    state.color_picker_context = None;
+                }
+                Some(super::ColorPickerContext::Category) => {
+                    // Handle category color completion
+                    use super::category_manager::ManagerMode;
+                    
+                    match &state.category_manager_state.mode {
+                        ManagerMode::CreatingColor { name } => {
+                            // Create new category (T108)
+                            let name = name.clone();
+                            let id = name.to_lowercase().replace(' ', "-");
+                            
+                            if let Ok(category) = crate::models::Category::new(&id, &name, color) {
+                                state.layout.categories.push(category);
+                                state.mark_dirty();
+                                state.category_manager_state.cancel();
+                                state.set_status(format!("Created category '{}'", name));
+                            } else {
+                                state.set_error("Failed to create category");
+                            }
+                            
+                            state.active_popup = Some(super::PopupType::CategoryManager);
+                            state.color_picker_context = None;
+                        }
+                        ManagerMode::Browsing => {
+                            // Changing color of existing category (T110)
+                            let selected_idx = state.category_manager_state.selected;
+                            if let Some(category) = state.layout.categories.get_mut(selected_idx) {
+                                let name = category.name.clone();
+                                category.set_color(color);
+                                state.mark_dirty();
+                                state.set_status(format!("Updated color for '{}'", name));
+                            }
+                            
+                            state.active_popup = Some(super::PopupType::CategoryManager);
+                            state.color_picker_context = None;
+                        }
+                        _ => {
+                            state.set_error("Invalid category manager state");
+                            state.active_popup = Some(super::PopupType::CategoryManager);
+                            state.color_picker_context = None;
+                        }
+                    }
                 }
                 None => {
                     state.set_error("No color context set");
+                    state.active_popup = None;
+                    state.color_picker_context = None;
                 }
             }
             
-            state.active_popup = None;
-            state.color_picker_context = None;
             Ok(false)
         }
         KeyCode::Up => {
