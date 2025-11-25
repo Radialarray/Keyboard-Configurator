@@ -378,7 +378,7 @@
 
 ---
 
-## Phase 12: User Story 10 - Multi-Layout Support (Priority: P2)
+## Phase 12: User Story 10 - Multi-Layout Support (Priority: P2) ✅ COMPLETE
 
 **Goal**: Enable switching between keyboard layout variants at runtime
 
@@ -386,20 +386,20 @@
 
 ### Layout Switching
 
-- [ ] T164 [P] [US10] Implement layout variant detection from info.json in src/parser/keyboard_json.rs
-- [ ] T165 [US10] Enhance layout picker to display key counts for each variant in src/tui/mod.rs
-- [ ] T166 [US10] Implement geometry rebuild on layout switch in src/tui/mod.rs
-- [ ] T167 [US10] Implement visual layout mapping rebuild on layout switch in src/tui/mod.rs
-- [ ] T168 [US10] Implement keyboard rendering update with new geometry in src/tui/keyboard.rs
+- [X] T164 [P] [US10] Implement layout variant detection from info.json in src/parser/keyboard_json.rs
+- [X] T165 [US10] Enhance layout picker to display key counts for each variant in src/tui/mod.rs
+- [X] T166 [US10] Implement geometry rebuild on layout switch in src/tui/mod.rs
+- [X] T167 [US10] Implement visual layout mapping rebuild on layout switch in src/tui/mod.rs
+- [X] T168 [US10] Implement keyboard rendering update with new geometry in src/tui/keyboard.rs
 
 ### Layout Format Handling
 
-- [ ] T169 [US10] Implement 12-column vs 14-column table format detection in src/parser/table.rs
-- [ ] T170 [US10] Implement EX key column handling (col 6 and 13) in src/parser/table.rs
-- [ ] T171 [US10] Implement dynamic column count adjustment in table generation in src/parser/template_gen.rs
-- [ ] T172 [US10] Implement split keyboard left/right half rendering with visual offset in src/tui/keyboard.rs
+- [X] T169 [US10] Implement 12-column vs 14-column table format detection in src/parser/table.rs
+- [X] T170 [US10] Implement EX key column handling (col 6 and 13) in src/parser/table.rs
+- [X] T171 [US10] Implement dynamic column count adjustment in table generation in src/parser/template_gen.rs
+- [X] T172 [US10] Implement split keyboard left/right half rendering with visual offset in src/tui/keyboard.rs
 
-**Checkpoint**: Multi-layout support complete - can switch between layout variants at runtime
+**Checkpoint**: ✅ Multi-layout support complete - can switch between layout variants at runtime
 
 ---
 

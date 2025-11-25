@@ -184,6 +184,15 @@ pub fn parse_keyboard_info_json(qmk_path: &Path, keyboard: &str) -> Result<QmkIn
     parse_info_json(&info_json_path)
 }
 
+/// Layout variant information including name and key count.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LayoutVariant {
+    /// Layout name (e.g., "LAYOUT_split_3x6_3")
+    pub name: String,
+    /// Number of keys in this layout
+    pub key_count: usize,
+}
+
 /// Extracts available layout names from info.json.
 ///
 /// # Arguments
@@ -197,6 +206,30 @@ pub fn extract_layout_names(info: &QmkInfoJson) -> Vec<String> {
     let mut names: Vec<String> = info.layouts.keys().cloned().collect();
     names.sort();
     names
+}
+
+/// Extracts available layout variants with key counts from info.json.
+///
+/// # Arguments
+///
+/// * `info` - Parsed QMK info.json structure
+///
+/// # Returns
+///
+/// Vector of layout variants with names and key counts
+pub fn extract_layout_variants(info: &QmkInfoJson) -> Vec<LayoutVariant> {
+    let mut variants: Vec<LayoutVariant> = info
+        .layouts
+        .iter()
+        .map(|(name, def)| LayoutVariant {
+            name: name.clone(),
+            key_count: def.layout.len(),
+        })
+        .collect();
+    
+    // Sort by name for consistent ordering
+    variants.sort_by(|a, b| a.name.cmp(&b.name));
+    variants
 }
 
 /// Extracts a specific layout definition from info.json.
@@ -343,6 +376,26 @@ mod tests {
         assert_eq!(names.len(), 2);
         assert!(names.contains(&"LAYOUT".to_string()));
         assert!(names.contains(&"LAYOUT_split".to_string()));
+    }
+
+    #[test]
+    fn test_extract_layout_variants() {
+        let temp_dir = TempDir::new().unwrap();
+        let info_path = temp_dir.path().join("info.json");
+        fs::write(&info_path, create_test_info_json()).unwrap();
+
+        let info = parse_info_json(&info_path).unwrap();
+        let variants = extract_layout_variants(&info);
+
+        assert_eq!(variants.len(), 2);
+        
+        // Check LAYOUT variant
+        let layout = variants.iter().find(|v| v.name == "LAYOUT").unwrap();
+        assert_eq!(layout.key_count, 6);
+        
+        // Check LAYOUT_split variant
+        let split = variants.iter().find(|v| v.name == "LAYOUT_split").unwrap();
+        assert_eq!(split.key_count, 4);
     }
 
     #[test]

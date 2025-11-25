@@ -14,9 +14,9 @@ use ratatui::{
 };
 use std::path::PathBuf;
 
-use crate::config::Config;
 use crate::parser::keyboard_json::{
-    extract_layout_names, parse_keyboard_info_json, scan_keyboards,
+    extract_layout_names, extract_layout_variants, parse_keyboard_info_json, scan_keyboards,
+    LayoutVariant,
 };
 
 /// Path configuration dialog state
@@ -170,8 +170,8 @@ impl Default for KeyboardPickerState {
 /// Layout picker dialog state
 #[derive(Debug, Clone)]
 pub struct LayoutPickerState {
-    /// Available layouts for current keyboard
-    pub layouts: Vec<String>,
+    /// Available layouts with key counts for current keyboard
+    pub layouts: Vec<LayoutVariant>,
     /// Selected index
     pub selected_index: usize,
     /// Error message
@@ -192,7 +192,7 @@ impl LayoutPickerState {
     pub fn load_layouts(&mut self, qmk_path: &PathBuf, keyboard: &str) -> Result<()> {
         match parse_keyboard_info_json(qmk_path, keyboard) {
             Ok(info) => {
-                self.layouts = extract_layout_names(&info);
+                self.layouts = extract_layout_variants(&info);
                 self.selected_index = 0;
                 Ok(())
             }
@@ -203,9 +203,14 @@ impl LayoutPickerState {
         }
     }
 
-    /// Gets the currently selected layout
+    /// Gets the currently selected layout name
     pub fn get_selected(&self) -> Option<String> {
-        self.layouts.get(self.selected_index).cloned()
+        self.layouts.get(self.selected_index).map(|v| v.name.clone())
+    }
+    
+    /// Gets the currently selected layout variant (with key count)
+    pub fn get_selected_variant(&self) -> Option<&LayoutVariant> {
+        self.layouts.get(self.selected_index)
     }
 
     /// Moves selection up
@@ -330,7 +335,7 @@ pub fn render_keyboard_picker(f: &mut Frame, state: &KeyboardPickerState) {
 
 /// Renders the layout picker dialog
 pub fn render_layout_picker(f: &mut Frame, state: &LayoutPickerState, keyboard: &str) {
-    let area = centered_rect(60, 50, f.size());
+    let area = centered_rect(70, 50, f.size());
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -341,12 +346,12 @@ pub fn render_layout_picker(f: &mut Frame, state: &LayoutPickerState, keyboard: 
         ])
         .split(area);
 
-    // Layout list
+    // Layout list with key counts
     let items: Vec<ListItem> = state
         .layouts
         .iter()
         .enumerate()
-        .map(|(i, layout)| {
+        .map(|(i, variant)| {
             let style = if i == state.selected_index {
                 Style::default()
                     .fg(Color::Yellow)
@@ -354,7 +359,9 @@ pub fn render_layout_picker(f: &mut Frame, state: &LayoutPickerState, keyboard: 
             } else {
                 Style::default()
             };
-            ListItem::new(layout.as_str()).style(style)
+            // Display layout name with key count
+            let display = format!("{} ({} keys)", variant.name, variant.key_count);
+            ListItem::new(display).style(style)
         })
         .collect();
 

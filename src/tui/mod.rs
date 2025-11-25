@@ -167,6 +167,7 @@ pub enum PopupType {
     BuildLog,
     MetadataEditor,
     UnsavedChangesPrompt,
+    LayoutPicker,
 }
 
 /// Application state - single source of truth
@@ -198,6 +199,7 @@ pub struct AppState {
     pub template_save_dialog_state: TemplateSaveDialogState,
     pub metadata_editor_state: MetadataEditorState,
     pub help_overlay_state: HelpOverlayState,
+    pub layout_picker_state: config_dialogs::LayoutPickerState,
 
     // System resources
     pub keycode_db: KeycodeDb,
@@ -243,6 +245,7 @@ impl AppState {
             template_save_dialog_state: TemplateSaveDialogState::default(),
             metadata_editor_state: MetadataEditorState::default(),
             help_overlay_state: HelpOverlayState::new(),
+            layout_picker_state: config_dialogs::LayoutPickerState::new(),
             keycode_db,
             geometry,
             mapping,
@@ -278,6 +281,50 @@ impl AppState {
     /// Clear dirty flag (after save)
     pub fn mark_clean(&mut self) {
         self.dirty = false;
+    }
+
+    /// Rebuild keyboard geometry and visual layout mapping for a new layout variant.
+    ///
+    /// # Arguments
+    ///
+    /// * `layout_name` - Name of the layout variant (e.g., "LAYOUT_split_3x6_3")
+    ///
+    /// # Returns
+    ///
+    /// Result indicating success or error with context
+    pub fn rebuild_geometry(&mut self, layout_name: &str) -> Result<()> {
+        use crate::parser::keyboard_json::{build_keyboard_geometry, parse_keyboard_info_json};
+        use crate::models::VisualLayoutMapping;
+
+        // Parse keyboard info.json to get layout definition
+        let qmk_path = self
+            .config
+            .paths
+            .qmk_firmware
+            .as_ref()
+            .context("QMK firmware path not configured")?;
+
+        let info = parse_keyboard_info_json(qmk_path, &self.config.build.keyboard)
+            .context("Failed to parse keyboard info.json")?;
+
+        // Build new geometry for selected layout
+        let new_geometry = build_keyboard_geometry(&info, &self.config.build.keyboard, layout_name)
+            .context("Failed to build keyboard geometry")?;
+
+        // Build new visual layout mapping
+        let new_mapping = VisualLayoutMapping::build(&new_geometry);
+
+        // Update AppState with new geometry and mapping
+        self.geometry = new_geometry;
+        self.mapping = new_mapping;
+
+        // Update config to persist layout choice
+        self.config.build.layout = layout_name.to_string();
+
+        // Reset selection to (0, 0) to avoid out-of-bounds
+        self.selected_position = Position { row: 0, col: 0 };
+
+        Ok(())
     }
 
     /// Set status message
@@ -439,6 +486,13 @@ fn render_popup(f: &mut Frame, popup_type: &PopupType, state: &AppState) {
         }
         PopupType::HelpOverlay => {
             state.help_overlay_state.render(f, f.size());
+        }
+        PopupType::LayoutPicker => {
+            config_dialogs::render_layout_picker(
+                f,
+                &state.layout_picker_state,
+                &state.config.build.keyboard,
+            );
         }
         PopupType::MetadataEditor => {
             metadata_editor::render_metadata_editor(f, &state.metadata_editor_state);
@@ -629,6 +683,7 @@ fn handle_popup_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool
         Some(PopupType::BuildLog) => handle_build_log_input(state, key),
         Some(PopupType::HelpOverlay) => handle_help_overlay_input(state, key),
         Some(PopupType::MetadataEditor) => handle_metadata_editor_input(state, key),
+        Some(PopupType::LayoutPicker) => handle_layout_picker_input(state, key),
         _ => {
             // Escape closes any popup
             if key.code == KeyCode::Esc {
@@ -744,6 +799,31 @@ fn handle_metadata_editor_input(state: &mut AppState, key: event::KeyEvent) -> R
         }
         metadata_editor::MetadataEditorAction::Continue => Ok(false),
     }
+}
+
+/// Handle input for layout picker
+fn handle_layout_picker_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
+    if let Some(selected) = config_dialogs::handle_layout_picker_input(&mut state.layout_picker_state, key) {
+        if selected.is_empty() {
+            // User cancelled
+            state.active_popup = None;
+            state.set_status("Layout selection cancelled");
+            return Ok(false);
+        }
+
+        // User selected a layout - rebuild geometry and mapping
+        match state.rebuild_geometry(&selected) {
+            Ok(()) => {
+                state.active_popup = None;
+                state.set_status(format!("Switched to layout: {}", selected));
+                state.mark_dirty(); // Config change requires save
+            }
+            Err(e) => {
+                state.set_error(format!("Failed to switch layout: {}", e));
+            }
+        }
+    }
+    Ok(false)
 }
 
 /// Handle input for unsaved changes prompt
@@ -1120,6 +1200,30 @@ fn handle_main_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool>
             state.category_manager_state.reset();
             state.active_popup = Some(PopupType::CategoryManager);
             state.set_status("Category Manager - n: New, r: Rename, c: Color, d: Delete");
+            Ok(false)
+        }
+
+        // Layout Picker (Ctrl+Y)
+        (KeyCode::Char('y'), KeyModifiers::CONTROL) => {
+            // Load available layouts for current keyboard
+            let qmk_path = match &state.config.paths.qmk_firmware {
+                Some(path) => path.clone(),
+                None => {
+                    state.set_error("QMK firmware path not configured");
+                    return Ok(false);
+                }
+            };
+
+            if let Err(e) = state
+                .layout_picker_state
+                .load_layouts(&qmk_path, &state.config.build.keyboard)
+            {
+                state.set_error(format!("Failed to load layouts: {}", e));
+                return Ok(false);
+            }
+
+            state.active_popup = Some(PopupType::LayoutPicker);
+            state.set_status("Select layout variant - ↑↓: Navigate, Enter: Select");
             Ok(false)
         }
 
