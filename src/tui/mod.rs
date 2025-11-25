@@ -423,8 +423,52 @@ impl AppState {
         self.geometry = new_geometry;
         self.mapping = new_mapping;
 
+        // Adjust all layers to match new geometry
+        // Add KC_NO keys for new positions, keep existing keys where they still fit
+        self.adjust_layers_to_geometry()?;
+
         // Reset selection to (0, 0) to avoid out-of-bounds
         self.selected_position = Position { row: 0, col: 0 };
+
+        Ok(())
+    }
+
+    /// Adjusts all layers to match the current geometry.
+    ///
+    /// This ensures that:
+    /// - All key positions in the geometry have corresponding keys in each layer
+    /// - Keys are added as KC_NO for new positions
+    /// - Existing keys at valid positions are preserved
+    fn adjust_layers_to_geometry(&mut self) -> Result<()> {
+        use crate::models::layer::KeyDefinition;
+        
+        // Get all valid positions from the mapping
+        let valid_positions: std::collections::HashSet<Position> = self
+            .mapping
+            .get_all_visual_positions()
+            .into_iter()
+            .collect();
+
+        // Adjust each layer
+        for layer in &mut self.layout.layers {
+            // Keep only keys that are still in valid positions
+            layer.keys.retain(|key| valid_positions.contains(&key.position));
+
+            // Find which positions are missing
+            let existing_positions: std::collections::HashSet<Position> = 
+                layer.keys.iter().map(|k| k.position).collect();
+            
+            let missing_positions: Vec<Position> = valid_positions
+                .iter()
+                .filter(|pos| !existing_positions.contains(pos))
+                .copied()
+                .collect();
+
+            // Add KC_NO keys for missing positions
+            for pos in missing_positions {
+                layer.add_key(KeyDefinition::new(pos, "KC_NO"));
+            }
+        }
 
         Ok(())
     }
