@@ -147,25 +147,40 @@ impl Default for TemplateSaveDialogState {
 /// Fields in the template save dialog.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TemplateSaveField {
+    /// Template name field
     Name,
+    /// Template description field
     Description,
+    /// Template author field
     Author,
+    /// Template tags field
     Tags,
 }
 
 /// Popup types that can be displayed over the main UI
 #[derive(Debug, Clone, PartialEq)]
 pub enum PopupType {
+    /// Keycode picker popup
     KeycodePicker,
+    /// Color picker popup
     ColorPicker,
+    /// Category picker popup
     CategoryPicker,
+    /// Category manager popup
     CategoryManager,
+    /// Template browser popup
     TemplateBrowser,
+    /// Template save dialog popup
     TemplateSaveDialog,
+    /// Help overlay popup
     HelpOverlay,
+    /// Build log popup
     BuildLog,
+    /// Metadata editor popup
     MetadataEditor,
+    /// Unsaved changes confirmation popup
     UnsavedChangesPrompt,
+    /// Layout picker popup
     LayoutPicker,
 }
 
@@ -175,41 +190,67 @@ pub enum PopupType {
 /// Only event handlers modify state explicitly.
 pub struct AppState {
     // Core data
+    /// Current keyboard layout
     pub layout: Layout,
+    /// Path to source layout file
     pub source_path: Option<PathBuf>,
+    /// Whether layout has unsaved changes
     pub dirty: bool,
 
     // UI state
+    /// Currently displayed layer index
     pub current_layer: usize,
+    /// Currently selected key position
     pub selected_position: Position,
+    /// Currently active popup (if any)
     pub active_popup: Option<PopupType>,
+    /// Status bar message
     pub status_message: String,
+    /// Error message to display
     pub error_message: Option<String>,
 
     // Component states
+    /// Keycode picker component state
     pub keycode_picker_state: KeycodePickerState,
+    /// Color picker component state
     pub color_picker_state: ColorPickerState,
+    /// Context for color picker (what's being colored)
     pub color_picker_context: Option<ColorPickerContext>,
+    /// Category picker component state
     pub category_picker_state: CategoryPickerState,
+    /// Context for category picker (what's being categorized)
     pub category_picker_context: Option<CategoryPickerContext>,
+    /// Category manager component state
     pub category_manager_state: CategoryManagerState,
+    /// Build log component state
     pub build_log_state: build_log::BuildLogState,
+    /// Template browser component state
     pub template_browser_state: TemplateBrowserState,
+    /// Template save dialog component state
     pub template_save_dialog_state: TemplateSaveDialogState,
+    /// Metadata editor component state
     pub metadata_editor_state: MetadataEditorState,
+    /// Help overlay component state
     pub help_overlay_state: HelpOverlayState,
+    /// Layout picker component state
     pub layout_picker_state: config_dialogs::LayoutPickerState,
 
     // System resources
+    /// Keycode database
     pub keycode_db: KeycodeDb,
+    /// Keyboard physical geometry
     pub geometry: KeyboardGeometry,
+    /// Visual-to-matrix position mapping
     pub mapping: VisualLayoutMapping,
+    /// Application configuration
     pub config: Config,
 
     // Firmware build state
+    /// Current firmware build state (if building)
     pub build_state: Option<BuildState>,
 
     // Control flags
+    /// Whether application should exit
     pub should_quit: bool,
 }
 

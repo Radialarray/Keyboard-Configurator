@@ -28,6 +28,7 @@ pub struct PathConfigDialogState {
     pub error_message: Option<String>,
 }
 
+#[allow(dead_code)]
 impl PathConfigDialogState {
     /// Creates a new path configuration dialog
     pub fn new(current_path: Option<&PathBuf>) -> Self {
@@ -82,6 +83,7 @@ pub struct KeyboardPickerState {
     pub error_message: Option<String>,
 }
 
+#[allow(dead_code)]
 impl KeyboardPickerState {
     /// Creates a new keyboard picker
     pub fn new() -> Self {

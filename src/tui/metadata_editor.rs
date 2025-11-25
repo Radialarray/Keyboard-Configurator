@@ -15,9 +15,13 @@ use crate::models::{Layout as LayoutModel, LayoutMetadata};
 /// Field in the metadata editor.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MetadataField {
+    /// Layout name field
     Name,
+    /// Layout description field
     Description,
+    /// Layout author field
     Author,
+    /// Layout tags field
     Tags,
 }
 

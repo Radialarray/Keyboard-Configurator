@@ -74,11 +74,17 @@ impl Default for ValidationReport {
 /// Validation error with context.
 #[derive(Debug, Clone)]
 pub struct ValidationError {
+    /// Type of validation error
     pub kind: ValidationErrorKind,
+    /// Layer index where error occurred
     pub layer: Option<usize>,
+    /// Row in matrix where error occurred
     pub row: Option<u8>,
+    /// Column in matrix where error occurred
     pub col: Option<u8>,
+    /// Human-readable error message
     pub message: String,
+    /// Optional suggestion for fixing the error
     pub suggestion: Option<String>,
 }
 
@@ -140,11 +146,17 @@ impl std::fmt::Display for ValidationError {
 /// Types of validation errors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValidationErrorKind {
+    /// Keycode not recognized by QMK
     InvalidKeycode,
+    /// Key definition missing matrix position
     MissingPosition,
+    /// Multiple keys assigned to same matrix position
     DuplicatePosition,
+    /// Matrix position exceeds keyboard geometry bounds
     MatrixOutOfBounds,
+    /// Layer contains no key definitions
     EmptyLayer,
+    /// Number of keys doesn't match keyboard geometry
     MismatchedKeyCount,
 }
 
@@ -164,10 +176,12 @@ impl std::fmt::Display for ValidationErrorKind {
 /// Validation warning (non-blocking).
 #[derive(Debug, Clone)]
 pub struct ValidationWarning {
+    /// Warning message
     pub message: String,
 }
 
 impl ValidationWarning {
+    /// Creates a new validation warning
     pub fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
