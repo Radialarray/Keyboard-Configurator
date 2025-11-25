@@ -8,6 +8,7 @@ pub mod category_manager;
 pub mod category_picker;
 pub mod color_picker;
 pub mod config_dialogs;
+pub mod help_overlay;
 pub mod keyboard;
 pub mod keycode_picker;
 pub mod onboarding_wizard;
@@ -42,6 +43,7 @@ pub use category_manager::CategoryManagerState;
 pub use category_picker::CategoryPickerState;
 pub use color_picker::{ColorPickerState, RgbChannel};
 pub use config_dialogs::{KeyboardPickerState, LayoutPickerState, PathConfigDialogState};
+pub use help_overlay::HelpOverlayState;
 pub use keyboard::KeyboardWidget;
 pub use keycode_picker::KeycodePickerState;
 pub use onboarding_wizard::OnboardingWizardState;
@@ -192,6 +194,7 @@ pub struct AppState {
     pub build_log_state: build_log::BuildLogState,
     pub template_browser_state: TemplateBrowserState,
     pub template_save_dialog_state: TemplateSaveDialogState,
+    pub help_overlay_state: HelpOverlayState,
 
     // System resources
     pub keycode_db: KeycodeDb,
@@ -235,6 +238,7 @@ impl AppState {
             build_log_state: build_log::BuildLogState::new(),
             template_browser_state: TemplateBrowserState::new(),
             template_save_dialog_state: TemplateSaveDialogState::default(),
+            help_overlay_state: HelpOverlayState::new(),
             keycode_db,
             geometry,
             mapping,
@@ -429,6 +433,9 @@ fn render_popup(f: &mut Frame, popup_type: &PopupType, state: &AppState) {
                 build_log::render_build_log(f, build_state, &state.build_log_state);
             }
         }
+        PopupType::HelpOverlay => {
+            state.help_overlay_state.render(f, f.size());
+        }
         _ => {
             // Other popups not implemented yet
         }
@@ -613,6 +620,7 @@ fn handle_popup_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool
         Some(PopupType::TemplateSaveDialog) => handle_template_save_dialog_input(state, key),
         Some(PopupType::UnsavedChangesPrompt) => handle_unsaved_prompt_input(state, key),
         Some(PopupType::BuildLog) => handle_build_log_input(state, key),
+        Some(PopupType::HelpOverlay) => handle_help_overlay_input(state, key),
         _ => {
             // Escape closes any popup
             if key.code == KeyCode::Esc {
@@ -653,6 +661,49 @@ fn handle_build_log_input(state: &mut AppState, key: event::KeyEvent) -> Result<
                 let max_lines = build_state.log_lines.len();
                 state.build_log_state.scroll_to_bottom(max_lines, 20); // Approximate visible lines
             }
+            Ok(false)
+        }
+        _ => Ok(false),
+    }
+}
+
+/// Handle input for help overlay
+fn handle_help_overlay_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
+    match key.code {
+        // Close help with Escape or '?'
+        KeyCode::Esc | KeyCode::Char('?') => {
+            state.active_popup = None;
+            state.set_status("Press ? for help");
+            Ok(false)
+        }
+        // Scroll up
+        KeyCode::Up => {
+            state.help_overlay_state.scroll_up();
+            Ok(false)
+        }
+        // Scroll down
+        KeyCode::Down => {
+            state.help_overlay_state.scroll_down();
+            Ok(false)
+        }
+        // Page up
+        KeyCode::PageUp => {
+            state.help_overlay_state.page_up(20); // Approximate visible height
+            Ok(false)
+        }
+        // Page down
+        KeyCode::PageDown => {
+            state.help_overlay_state.page_down(20); // Approximate visible height
+            Ok(false)
+        }
+        // Home - scroll to top
+        KeyCode::Home => {
+            state.help_overlay_state.scroll_to_top();
+            Ok(false)
+        }
+        // End - scroll to bottom
+        KeyCode::End => {
+            state.help_overlay_state.scroll_to_bottom();
             Ok(false)
         }
         _ => Ok(false),
@@ -1106,7 +1157,9 @@ fn handle_main_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool>
 
         // Help
         (KeyCode::Char('?'), _) => {
-            state.set_status("Help system not implemented yet - coming in Phase 10");
+            state.help_overlay_state = HelpOverlayState::new();
+            state.active_popup = Some(PopupType::HelpOverlay);
+            state.set_status("Use arrow keys to scroll, '?' or Escape to close");
             Ok(false)
         }
 
