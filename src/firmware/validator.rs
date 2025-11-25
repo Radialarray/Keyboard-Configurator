@@ -232,9 +232,23 @@ impl<'a> FirmwareValidator<'a> {
 
         // Validate layout structure first
         if let Err(e) = self.layout.validate() {
+            let error_msg = e.to_string();
+            // Determine error kind based on the error message
+            let kind = if error_msg.contains("Duplicate position") {
+                ValidationErrorKind::DuplicatePosition
+            } else if error_msg.contains("at least one layer") {
+                ValidationErrorKind::EmptyLayer
+            } else if error_msg.contains("must have the same number of keys") && error_msg.contains("has 0,") {
+                // Empty layer will show as "has 0, expected N"
+                ValidationErrorKind::EmptyLayer
+            } else {
+                // Default to MismatchedKeyCount for other structural issues
+                ValidationErrorKind::MismatchedKeyCount
+            };
+            
             report.add_error(
                 ValidationError::new(
-                    ValidationErrorKind::EmptyLayer,
+                    kind,
                     format!("Layout validation failed: {}", e),
                 )
                 .with_suggestion("Check that all layers have keys and no gaps in layer numbers"),
