@@ -18,7 +18,7 @@ pub struct PathConfig {
 /// Firmware build configuration.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BuildConfig {
-    /// Target keyboard (e.g., "crkbd")
+    /// Target keyboard (e.g., "crkbd" or "keebart/corne_choc_pro/standard")
     pub keyboard: String,
     /// Layout variant (e.g., "`LAYOUT_split_3x6_3`")
     pub layout: String,
@@ -53,6 +53,79 @@ impl BuildConfig {
     /// - Windows: `%APPDATA%\KeyboardConfigurator\builds\`
     fn default_output_dir() -> Result<PathBuf> {
         Ok(Config::config_dir()?.join("builds"))
+    }
+
+    /// Determines the keyboard variant subdirectory based on layout and key count.
+    ///
+    /// Some keyboards have variant subdirectories (e.g., "standard", "mini") that contain
+    /// variant-specific configuration like RGB matrix LED layouts. This function detects
+    /// the appropriate variant based on the layout name and validates it exists.
+    ///
+    /// # Arguments
+    ///
+    /// * `qmk_path` - Path to QMK firmware directory
+    /// * `base_keyboard` - Base keyboard path without variant (e.g., "keebart/corne_choc_pro")
+    /// * `layout_key_count` - Number of keys in the selected layout
+    ///
+    /// # Returns
+    ///
+    /// Returns the full keyboard path with variant if applicable (e.g., "keebart/corne_choc_pro/standard"),
+    /// or the base keyboard path if no variant is needed.
+    pub fn determine_keyboard_variant(
+        &self,
+        qmk_path: &PathBuf,
+        base_keyboard: &str,
+        layout_key_count: usize,
+    ) -> Result<String> {
+        let keyboard_dir = qmk_path.join("keyboards").join(base_keyboard);
+
+        // Check if keyboard has variant subdirectories with keyboard.json files
+        let has_variants = ["standard", "mini", "normal", "full", "compact"]
+            .iter()
+            .any(|variant| keyboard_dir.join(variant).join("keyboard.json").exists());
+
+        if !has_variants {
+            // No variants, return base keyboard path
+            return Ok(base_keyboard.to_string());
+        }
+
+        // Map layout characteristics to variant names
+        // Common patterns:
+        // - "_ex2" suffix often indicates encoder support (e.g., LAYOUT_split_3x6_3_ex2)
+        // - Higher key count typically maps to "standard" variant
+        // - Lower key count typically maps to "mini" variant
+        
+        let variant = if self.layout.contains("_ex2") {
+            // For layouts with encoder support, use key count to determine variant
+            if layout_key_count >= 44 {
+                "standard"
+            } else {
+                "mini"
+            }
+        } else if self.layout.contains("3x6") {
+            // 3x6 layouts typically use standard variant
+            "standard"
+        } else if self.layout.contains("3x5") {
+            // 3x5 layouts typically use mini variant
+            "mini"
+        } else {
+            // Default to standard for unknown layouts
+            "standard"
+        };
+
+        let variant_path = format!("{}/{}", base_keyboard, variant);
+        let variant_dir = qmk_path.join("keyboards").join(&variant_path);
+
+        // Validate the variant directory exists
+        if !variant_dir.exists() {
+            anyhow::bail!(
+                "Keyboard variant directory not found: {}. Available variants should be in {}",
+                variant_dir.display(),
+                keyboard_dir.display()
+            );
+        }
+
+        Ok(variant_path)
     }
 }
 

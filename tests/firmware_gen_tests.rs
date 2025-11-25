@@ -243,7 +243,7 @@ fn test_generation_creates_files() {
         result.err()
     );
 
-    let (keymap_path, vial_path) = result.unwrap();
+    let (keymap_path, vial_path, _) = result.unwrap();
     assert!(
         PathBuf::from(&keymap_path).exists(),
         "keymap.c should be created"
@@ -268,7 +268,7 @@ fn test_generation_keymap_c_structure() {
     let result = generator.generate();
     assert!(result.is_ok(), "Generation should succeed");
 
-    let (keymap_path, _) = result.unwrap();
+    let (keymap_path, _, _) = result.unwrap();
     let content = fs::read_to_string(&keymap_path).expect("Should be able to read keymap.c");
 
     // Assert - Check for expected C code structure
@@ -318,7 +318,7 @@ fn test_generation_vial_json_structure() {
     let result = generator.generate();
     assert!(result.is_ok(), "Generation should succeed");
 
-    let (_, vial_path) = result.unwrap();
+    let (_, vial_path, _) = result.unwrap();
     let content = fs::read_to_string(&vial_path).expect("Should be able to read vial.json");
 
     // Assert - Check for valid JSON structure
@@ -357,7 +357,7 @@ fn test_generation_led_ordering() {
     let result = generator.generate();
     assert!(result.is_ok(), "Generation should succeed");
 
-    let (keymap_path, _) = result.unwrap();
+    let (keymap_path, _, _) = result.unwrap();
     let content = fs::read_to_string(&keymap_path).expect("Should be able to read keymap.c");
 
     // Assert - Keys should be ordered by LED index (0, 1, 2, 3, 4, 5)
@@ -406,7 +406,7 @@ fn test_generation_with_categories() {
     // Assert
     assert!(result.is_ok(), "Generation with categories should succeed");
 
-    let (keymap_path, _) = result.unwrap();
+    let (keymap_path, _, _) = result.unwrap();
     let content = fs::read_to_string(&keymap_path).expect("Should be able to read keymap.c");
 
     // Categories don't affect C code generation, but should not cause errors
@@ -434,7 +434,7 @@ fn test_generation_atomic_write() {
     );
 
     // Assert - Files should exist and be readable
-    let (keymap_path, vial_path) = result2.unwrap();
+    let (keymap_path, vial_path, _) = result2.unwrap();
     let keymap_content =
         fs::read_to_string(&keymap_path).expect("Should read keymap.c after overwrite");
     let vial_content =
@@ -475,7 +475,7 @@ fn test_full_pipeline_validation_to_generation() {
         result.err()
     );
 
-    let (keymap_path, vial_path) = result.unwrap();
+    let (keymap_path, vial_path, _) = result.unwrap();
     assert!(
         PathBuf::from(&keymap_path).exists(),
         "keymap.c should exist"

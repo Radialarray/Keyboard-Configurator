@@ -262,7 +262,30 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// Create a new `AppState` with the given layout and resources
+    /// Extracts the base keyboard name from a keyboard path that may include a variant.
+    ///
+    /// # Examples
+    ///
+    /// - `"keebart/corne_choc_pro/standard"` → `"keebart/corne_choc_pro"`
+    /// - `"keebart/corne_choc_pro"` → `"keebart/corne_choc_pro"`
+    /// - `"crkbd"` → `"crkbd"`
+    pub fn extract_base_keyboard(keyboard_path: &str) -> String {
+        let keyboard_parts: Vec<&str> = keyboard_path.split('/').collect();
+        if keyboard_parts.len() > 2 
+            && ["standard", "mini", "normal", "full", "compact"].contains(&keyboard_parts[keyboard_parts.len() - 1]) {
+            // Has variant subdirectory - use parent path
+            keyboard_parts[..keyboard_parts.len() - 1].join("/")
+        } else {
+            // No variant subdirectory
+            keyboard_path.to_string()
+        }
+    }
+
+    /// Creates a new `AppState` from config, layout, and keyboard geometry.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if config or layout validation fails
     pub fn new(
         layout: Layout,
         source_path: Option<PathBuf>,
@@ -341,6 +364,9 @@ impl AppState {
 
     /// Rebuild keyboard geometry and visual layout mapping for a new layout variant.
     ///
+    /// This also automatically determines and updates the keyboard variant subdirectory
+    /// (e.g., "standard", "mini") based on the selected layout's characteristics.
+    ///
     /// # Arguments
     ///
     /// * `layout_name` - Name of the layout variant (e.g., "`LAYOUT_split_3x6_3`")
@@ -360,22 +386,42 @@ impl AppState {
             .as_ref()
             .context("QMK firmware path not configured")?;
 
-        let info = parse_keyboard_info_json(qmk_path, &self.config.build.keyboard)
+        // Get the base keyboard name (without any variant subdirectory)
+        let base_keyboard = Self::extract_base_keyboard(&self.config.build.keyboard);
+        
+        let info = parse_keyboard_info_json(qmk_path, &base_keyboard)
             .context("Failed to parse keyboard info.json")?;
 
+        // Get the key count for the selected layout to determine variant
+        let layout_def = info.layouts.get(layout_name)
+            .context(format!("Layout '{}' not found in keyboard info.json", layout_name))?;
+        let key_count = layout_def.layout.len();
+
         // Build new geometry for selected layout
-        let new_geometry = build_keyboard_geometry(&info, &self.config.build.keyboard, layout_name)
+        let new_geometry = build_keyboard_geometry(&info, &base_keyboard, layout_name)
             .context("Failed to build keyboard geometry")?;
 
         // Build new visual layout mapping
         let new_mapping = VisualLayoutMapping::build(&new_geometry);
 
+        // Update config to persist layout choice
+        self.config.build.layout = layout_name.to_string();
+
+        // Determine and update keyboard variant based on layout
+        // This will add the variant subdirectory (e.g., "/standard", "/mini") if needed
+        match self.config.build.determine_keyboard_variant(qmk_path, &base_keyboard, key_count) {
+            Ok(variant_path) => {
+                self.config.build.keyboard = variant_path;
+            }
+            Err(e) => {
+                // Log warning but don't fail - keyboard might not have variants
+                eprintln!("Note: Could not determine keyboard variant: {}", e);
+            }
+        }
+
         // Update AppState with new geometry and mapping
         self.geometry = new_geometry;
         self.mapping = new_mapping;
-
-        // Update config to persist layout choice
-        self.config.build.layout = layout_name.to_string();
 
         // Reset selection to (0, 0) to avoid out-of-bounds
         self.selected_position = Position { row: 0, col: 0 };
@@ -1310,9 +1356,12 @@ fn handle_main_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool>
                 return Ok(false);
             };
 
+            // Extract base keyboard path (remove variant subdirectory if present)
+            let base_keyboard = AppState::extract_base_keyboard(&state.config.build.keyboard);
+
             if let Err(e) = state
                 .layout_picker_state
-                .load_layouts(&qmk_path, &state.config.build.keyboard)
+                .load_layouts(&qmk_path, &base_keyboard)
             {
                 state.set_error(format!("Failed to load layouts: {e}"));
                 return Ok(false);
