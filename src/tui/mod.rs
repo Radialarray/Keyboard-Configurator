@@ -18,9 +18,11 @@ pub mod onboarding_wizard;
 pub mod status_bar;
 pub mod template_browser;
 pub mod theme;
-
+ 
 use anyhow::{Context, Result};
+
 use crossterm::{
+
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -37,10 +39,10 @@ use std::io;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::config::Config;
+use crate::config::{Config, LightingMode};
 use crate::firmware::BuildState;
 use crate::keycode_db::KeycodeDb;
-use crate::models::{KeyboardGeometry, Layout, Position, VisualLayoutMapping};
+use crate::models::{KeyboardGeometry, Layout, Position, RgbColor, VisualLayoutMapping};
 
 // Re-export TUI components
 pub use category_manager::CategoryManagerState;
@@ -55,6 +57,7 @@ pub use template_browser::TemplateBrowserState;
 pub use theme::{Theme, ThemeVariant};
 
 /// Color picker context - what are we setting the color for?
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ColorPickerContext {
     /// Setting color for individual key
@@ -187,6 +190,10 @@ pub enum PopupType {
     UnsavedChangesPrompt,
     /// Layout picker popup
     LayoutPicker,
+    /// Lighting configuration popup
+    LightingConfig,
+    /// Suggestion to enable layout-based lighting
+    LightingSuggestion,
 }
 
 /// Application state - single source of truth
@@ -241,6 +248,8 @@ pub struct AppState {
     pub help_overlay_state: HelpOverlayState,
     /// Layout picker component state
     pub layout_picker_state: config_dialogs::LayoutPickerState,
+    /// Lighting configuration dialog state
+    pub lighting_config_state: config_dialogs::LightingConfigDialogState,
 
     // System resources
     /// Keycode database
@@ -259,6 +268,8 @@ pub struct AppState {
     // Control flags
     /// Whether application should exit
     pub should_quit: bool,
+    /// Whether to suppress the lighting suggestion popup for this session
+    pub suppress_lighting_suggestion: bool,
 }
 
 impl AppState {
@@ -318,12 +329,14 @@ impl AppState {
             metadata_editor_state: MetadataEditorState::default(),
             help_overlay_state: HelpOverlayState::new(),
             layout_picker_state: config_dialogs::LayoutPickerState::new(),
+            lighting_config_state: config_dialogs::LightingConfigDialogState::new(config.build.lighting_mode.clone()),
             keycode_db,
             geometry,
             mapping,
             config,
             build_state: None,
             should_quit: false,
+            suppress_lighting_suggestion: false,
         })
     }
 
@@ -645,6 +658,16 @@ fn render_popup(f: &mut Frame, popup_type: &PopupType, state: &AppState) {
         PopupType::MetadataEditor => {
             metadata_editor::render_metadata_editor(f, &state.metadata_editor_state, &state.theme);
         }
+        PopupType::LightingConfig => {
+            config_dialogs::render_lighting_config_dialog(
+                f,
+                &state.lighting_config_state,
+                &state.theme,
+            );
+        }
+        PopupType::LightingSuggestion => {
+            render_lighting_suggestion_popup(f, state);
+        }
     }
 }
 
@@ -782,6 +805,31 @@ fn render_template_save_dialog(f: &mut Frame, state: &AppState) {
     f.render_widget(actions, chunks[6]);
 }
 
+/// Render suggestion to enable layout-based lighting when colors are present.
+fn render_lighting_suggestion_popup(f: &mut Frame, state: &AppState) {
+    let area = centered_rect(70, 40, f.size());
+
+    let text = vec![
+        Line::from(""),
+        Line::from("Your base layer has custom colors, but lighting mode is set to QMK default."),
+        Line::from(""),
+        Line::from("Enabling layout-based static lighting will export these colors to firmware."),
+        Line::from(""),
+        Line::from("  [E] Enable layout static lighting"),
+        Line::from("  [K] Keep QMK default lighting"),
+        Line::from("  [Esc] Cancel"),
+    ];
+
+    let prompt = Paragraph::new(text).block(
+        Block::default()
+            .title(" Lighting Suggestion ")
+            .borders(Borders::ALL)
+            .style(Style::default().fg(state.theme.warning)),
+    );
+
+    f.render_widget(prompt, area);
+}
+
 /// Helper to create a centered rectangle
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = RatatuiLayout::default()
@@ -830,6 +878,8 @@ fn handle_popup_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool
         Some(PopupType::HelpOverlay) => handle_help_overlay_input(state, key),
         Some(PopupType::MetadataEditor) => handle_metadata_editor_input(state, key),
         Some(PopupType::LayoutPicker) => handle_layout_picker_input(state, key),
+        Some(PopupType::LightingConfig) => handle_lighting_config_input(state, key),
+        Some(PopupType::LightingSuggestion) => handle_lighting_suggestion_input(state, key),
         _ => {
             // Escape closes any popup
             if key.code == KeyCode::Esc {
@@ -995,6 +1045,60 @@ fn handle_layout_picker_input(state: &mut AppState, key: event::KeyEvent) -> Res
         }
     }
     Ok(false)
+}
+
+/// Handle input for lighting configuration dialog
+fn handle_lighting_config_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
+    if let Some(new_mode) =
+        config_dialogs::handle_lighting_config_input(&mut state.lighting_config_state, key)
+    {
+        // Apply and persist new mode, then close dialog
+        state.config.build.lighting_mode = new_mode;
+        if let Err(e) = state.config.save() {
+            state.set_error(format!("Lighting mode updated but failed to save config: {e}"));
+        } else {
+            state.set_status("Lighting mode updated");
+        }
+        state.active_popup = None;
+    }
+    Ok(false)
+}
+
+/// Handle input for lighting suggestion popup
+fn handle_lighting_suggestion_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
+    match key.code {
+        // Enable layout_static lighting and regenerate firmware
+        KeyCode::Char('e') | KeyCode::Char('E') => {
+            state.config.build.lighting_mode = LightingMode::LayoutStatic;
+            if let Err(e) = state.config.save() {
+                state.set_error(format!(
+                    "Enabled layout-based lighting but failed to save config: {e}"
+                ));
+            } else {
+                state.set_status("Lighting mode set to layout static (regenerating firmware)...");
+            }
+            state.active_popup = None;
+            state.suppress_lighting_suggestion = true;
+            // After applying, run firmware generation again to include colors
+            handle_firmware_generation(state)?;
+            Ok(false)
+        }
+        // Keep current (QMK default) lighting
+        KeyCode::Char('k') | KeyCode::Char('K') => {
+            state.suppress_lighting_suggestion = true;
+            state.active_popup = None;
+            state.set_status("Keeping QMK default lighting");
+            Ok(false)
+        }
+        // Cancel suggestion without changing lighting mode
+        KeyCode::Esc => {
+            state.active_popup = None;
+            state.suppress_lighting_suggestion = true;
+            state.set_status("Lighting suggestion dismissed");
+            Ok(false)
+        }
+        _ => Ok(false),
+    }
 }
 
 /// Handle input for unsaved changes prompt
@@ -1467,8 +1571,21 @@ fn handle_main_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool>
             Ok(false)
         }
 
+        // Lighting config (Ctrl+R)
+        (KeyCode::Char('r'), KeyModifiers::CONTROL) => {
+            // Refresh dialog state from current config
+            state.lighting_config_state =
+                config_dialogs::LightingConfigDialogState::new(
+                    state.config.build.lighting_mode.clone(),
+                );
+            state.active_popup = Some(PopupType::LightingConfig);
+            state.set_status("Lighting mode - L to toggle, Enter to apply");
+            Ok(false)
+        }
+ 
         // Help
         (KeyCode::Char('?'), _) => {
+
             state.help_overlay_state = HelpOverlayState::new();
             state.active_popup = Some(PopupType::HelpOverlay);
             state.set_status("Use arrow keys to scroll, '?' or Escape to close");
@@ -1531,7 +1648,16 @@ fn handle_firmware_generation(state: &mut AppState) -> Result<()> {
         return Ok(());
     }
 
-    // Step 2: Generate firmware files
+    // Step 2: Optionally suggest enabling layout-based lighting when appropriate
+    if should_suggest_layout_lighting(state) {
+        state.active_popup = Some(PopupType::LightingSuggestion);
+        state.set_status(
+            "Your layout has colors; consider enabling layout-based lighting (E/K/Esc)",
+        );
+        return Ok(());
+    }
+
+    // Step 3: Generate firmware files
     state.set_status("Generating firmware files...");
 
     let generator = FirmwareGenerator::new(
@@ -1552,6 +1678,36 @@ fn handle_firmware_generation(state: &mut AppState) -> Result<()> {
 
     Ok(())
 }
+
+/// Returns true if we should suggest enabling layout-based static lighting.
+fn should_suggest_layout_lighting(state: &AppState) -> bool {
+    // Only suggest once per session
+    if state.suppress_lighting_suggestion {
+        return false;
+    }
+
+    // Only suggest when lighting mode is currently QMK default
+    if !matches!(state.config.build.lighting_mode, LightingMode::QmkDefault) {
+        return false;
+    }
+
+    // Ensure we have at least one layer
+    let Some(first_layer) = state.layout.layers.first() else {
+        return false;
+    };
+
+    // Heuristic: if any key on base layer resolves to a non-default color, suggest
+    let default_color = RgbColor::default();
+    for key in &first_layer.keys {
+        let color = state.layout.resolve_key_color(0, key);
+        if color != default_color {
+            return true;
+        }
+    }
+
+    false
+}
+
 
 /// Handle firmware build in background
 fn handle_firmware_build(state: &mut AppState) -> Result<()> {
