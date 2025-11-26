@@ -160,7 +160,11 @@ fn test_parse_multiple_keyboards() {
     let qmk_path = get_qmk_path();
 
     // Test a few common keyboards
-    let keyboards = vec!["crkbd", "ferris/sweep"];
+    let keyboards = vec![
+        "crkbd",
+        "ferris/sweep",
+        "keebart/corne_choc_pro/standard",
+    ];
 
     for keyboard in keyboards {
         let result = parse_keyboard_info_json(&qmk_path, keyboard);
