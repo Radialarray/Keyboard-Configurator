@@ -164,27 +164,51 @@ pub fn parse_info_json(path: &Path) -> Result<QmkInfoJson> {
 
 /// Parses a QMK info.json file by keyboard name.
 ///
+/// This helper supports both base keyboard paths (e.g., "crkbd") and
+/// variant paths (e.g., "keebart/corne_choc_pro/standard"). If the
+/// variant directory does not contain its own `info.json`, it falls back
+/// to the base keyboard directory so keyboards that store `info.json`
+/// only at the root still work.
+///
 /// # Arguments
 ///
 /// * `qmk_path` - Path to QMK firmware root directory
-/// * `keyboard` - Keyboard name (e.g., "crkbd", "ferris/sweep")
+/// * `keyboard` - Keyboard name (e.g., "crkbd", "ferris/sweep",
+///   "keebart/corne_choc_pro/standard")
 ///
 /// # Returns
 ///
 /// Parsed QMK info.json structure
 pub fn parse_keyboard_info_json(qmk_path: &Path, keyboard: &str) -> Result<QmkInfoJson> {
-    let info_json_path = qmk_path.join("keyboards").join(keyboard).join("info.json");
+    // First try the path as given (this supports keyboards that keep
+    // their info.json inside a variant directory).
+    let keyboards_dir = qmk_path.join("keyboards");
+    let info_json_path = keyboards_dir.join(keyboard).join("info.json");
 
-    if !info_json_path.exists() {
-        anyhow::bail!(
-            "info.json not found for keyboard '{}' at {}",
-            keyboard,
-            info_json_path.display()
-        );
+    if info_json_path.exists() {
+        return parse_info_json(&info_json_path);
     }
 
-    parse_info_json(&info_json_path)
+    // If that fails and the keyboard path looks like it includes a
+    // variant suffix, fall back to the base keyboard directory.
+    if let Some((base, _variant)) = keyboard.rsplit_once('/') {
+        let base_info_json_path = keyboards_dir.join(base).join("info.json");
+
+        if base_info_json_path.exists() {
+            return parse_info_json(&base_info_json_path);
+        }
+    }
+
+    anyhow::bail!(
+        "info.json not found for keyboard '{}' under {}",
+        keyboard,
+        keyboards_dir.display()
+    );
 }
+
+
+    
+
 
 /// Layout variant information including name and key count.
 #[derive(Debug, Clone, PartialEq, Eq)]
