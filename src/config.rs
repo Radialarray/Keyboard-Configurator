@@ -15,6 +15,23 @@ pub struct PathConfig {
     pub qmk_firmware: Option<PathBuf>,
 }
 
+/// Lighting behavior for generated firmware.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LightingMode {
+    /// Preserve QMK/Vial defaults and do not export layout colors.
+    #[serde(rename = "qmk_default")]
+    QmkDefault,
+    /// Generate static per-key RGB matrix colors from layout colors.
+    #[serde(rename = "layout_static")]
+    LayoutStatic,
+}
+
+impl Default for LightingMode {
+    fn default() -> Self {
+        Self::QmkDefault
+    }
+}
+
 /// Firmware build configuration.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BuildConfig {
@@ -28,6 +45,9 @@ pub struct BuildConfig {
     pub output_format: String,
     /// Build output directory
     pub output_dir: PathBuf,
+    /// Lighting behavior for generated firmware
+    #[serde(default)]
+    pub lighting_mode: LightingMode,
 }
 
 impl Default for BuildConfig {
@@ -41,6 +61,7 @@ impl Default for BuildConfig {
             keymap: "default".to_string(),
             output_format: "uf2".to_string(),
             output_dir,
+            lighting_mode: LightingMode::QmkDefault,
         }
     }
 }

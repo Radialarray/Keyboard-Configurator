@@ -17,7 +17,7 @@ use ratatui::{
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::config::Config;
+use crate::config::{Config, LightingMode};
 use crate::parser::keyboard_json::{
     extract_layout_names, parse_keyboard_info_json, scan_keyboards,
 };
@@ -75,9 +75,12 @@ impl WizardStep {
     }
 }
 
-/// Onboarding wizard state
+    /// Onboarding wizard state
 #[derive(Debug, Clone)]
 pub struct OnboardingWizardState {
+    /// Selected lighting mode for generated firmware
+    pub lighting_mode: LightingMode,
+
     /// Current wizard step
     pub current_step: WizardStep,
     /// User inputs collected so far
@@ -105,6 +108,7 @@ impl OnboardingWizardState {
     #[must_use]
     pub fn new() -> Self {
         Self {
+            lighting_mode: LightingMode::QmkDefault,
             current_step: WizardStep::Welcome,
             inputs: HashMap::new(),
             input_buffer: String::new(),
@@ -270,7 +274,11 @@ impl OnboardingWizardState {
             config.set_layout(layout.clone());
         }
 
+        // Persist selected lighting mode into build config
+        config.build.lighting_mode = self.lighting_mode.clone();
+
         Ok(config)
+
     }
 }
 
@@ -450,11 +458,20 @@ fn render_layout_selection(f: &mut Frame, state: &OnboardingWizardState, area: R
     f.render_widget(list, area);
 }
 
-fn render_confirmation(f: &mut Frame, state: &OnboardingWizardState, area: Rect, theme: &crate::tui::theme::Theme) {
+fn render_confirmation(
+    f: &mut Frame,
+    state: &OnboardingWizardState,
+    area: Rect,
+    theme: &crate::tui::theme::Theme,
+) {
     let default_value = "<not set>".to_string();
     let qmk_path = state.inputs.get("qmk_path").unwrap_or(&default_value);
     let keyboard = state.inputs.get("keyboard").unwrap_or(&default_value);
     let layout = state.inputs.get("layout").unwrap_or(&default_value);
+    let lighting_label = match state.lighting_mode {
+        LightingMode::QmkDefault => "QMK default (no layout colors)",
+        LightingMode::LayoutStatic => "Static layout colors (layer 0)",
+    };
 
     let text = vec![
         Line::from(""),
@@ -472,8 +489,12 @@ fn render_confirmation(f: &mut Frame, state: &OnboardingWizardState, area: Rect,
             Span::styled("Layout:    ", Style::default().fg(theme.primary)),
             Span::raw(layout),
         ]),
+        Line::from(vec![
+            Span::styled("Lighting:  ", Style::default().fg(theme.primary)),
+            Span::raw(lighting_label),
+        ]),
         Line::from(""),
-        Line::from("Press Enter to save configuration, or Backspace to go back."),
+        Line::from("Press Enter to save configuration, or Esc to go back."),
     ];
 
     let paragraph = Paragraph::new(text)
@@ -481,6 +502,7 @@ fn render_confirmation(f: &mut Frame, state: &OnboardingWizardState, area: Rect,
         .block(Block::default().borders(Borders::ALL).title("Confirmation"));
     f.render_widget(paragraph, area);
 }
+
 
 fn render_instructions(f: &mut Frame, state: &OnboardingWizardState, area: Rect, theme: &crate::tui::theme::Theme) {
     let instructions = match state.current_step {
@@ -490,7 +512,7 @@ fn render_instructions(f: &mut Frame, state: &OnboardingWizardState, area: Rect,
             "Type to filter  |  ↑↓: Navigate  |  Enter: Select  |  Esc: Clear filter/Back"
         }
         WizardStep::LayoutSelection => "↑↓: Navigate  |  Enter: Select  |  Esc: Back",
-        WizardStep::Confirmation => "Enter: Save & Exit  |  Esc: Back",
+        WizardStep::Confirmation => "Enter: Save & Exit  |  L: Toggle lighting mode  |  Esc: Back",
     };
 
     let paragraph = Paragraph::new(instructions)
@@ -586,6 +608,12 @@ pub fn handle_input(state: &mut OnboardingWizardState, key: KeyEvent) -> Result<
             KeyCode::Enter => {
                 state.next_step()?;
                 return Ok(true); // Complete and exit
+            }
+            KeyCode::Char('l') | KeyCode::Char('L') => {
+                state.lighting_mode = match state.lighting_mode {
+                    LightingMode::QmkDefault => LightingMode::LayoutStatic,
+                    LightingMode::LayoutStatic => LightingMode::QmkDefault,
+                };
             }
             KeyCode::Esc => {
                 state.previous_step();

@@ -1,7 +1,7 @@
 # Spec: Per-Key RGB Export from Layout Colors
 
 **Feature ID:** 005-per-key-rgb-export  
-**Status:** Planning  
+**Status:** Implemented (v1)  
 **Created:** 2025-11-26  
 **Updated:** 2025-11-26  
 **Priority:** High
@@ -29,7 +29,7 @@ As a result, when users flash the generated firmware, the keyboard boots with wh
 - Replacing or forking the QMK RGB matrix implementation.
 - Changing Vial's core behavior or protocol.
 
-## Current Behavior
+## Current Behavior (Before v1)
 
 - TUI renders key colors using `Layout::resolve_key_color` and displays source indicators (`i`, `k`, `L`, `d`) purely for visualization.
 - Layout colors are stored in Markdown syntax (`{#RRGGBB}` and `@category-id`) and parsed back correctly.
@@ -39,103 +39,137 @@ As a result, when users flash the generated firmware, the keyboard boots with wh
   - Generates a minimal `config.h` which may copy Vial unlock macros from a base keymap.
 - The bundled QMK fork under `vial-qmk-keebart/` supports RGB matrix, Vial, and VialRGB, but the generated keymaps do not take advantage of this to express layout colors.
 
-## Desired Behavior
+## Implemented Behavior (v1)
 
 When a user enables layout-driven lighting (via TUI/config):
 
-- The generator computes static per-key colors in **LED index order** from the current layout and keyboard geometry.
-- The generated keymap directory contains additional C code (or extended `keymap.c`) that:
-  - Exposes a color array matching `RGB_MATRIX_LED_COUNT` and LED indices.
-  - Uses standard QMK hooks (e.g. `rgb_matrix_indicators_user()` or `_kb`) to set each LED to its layout color when RGB Matrix is active.
-- `vial.json` advertises that lighting is present (using an appropriate `"lighting"` value) so that tooling can treat the keyboard as RGB-capable.
+- The generator computes static per-key colors in **LED index order** from the current layout and keyboard geometry using `generate_layer_colors_by_led`.
+- The generated `keymap.c` contains an additional static RGB matrix section that:
+  - Defines a `layout_colors[RGB_MATRIX_LED_COUNT][3]` array in LED index order derived from layer 0 colors.
+  - Implements `rgb_matrix_indicators_user()` to set each LED to its layout color when RGB Matrix is active.
+- `vial.json` advertises lighting support when `lighting_mode = "layout_static"` by setting an appropriate value in the `"lighting"` field (currently `"qmk_rgblight"`).
 - All of this is controlled by an opt-in **lighting mode** in the `Config`, defaulting to current behavior (no layout-driven lighting).
 
-## Design Constraints
-
-- All behavior (including lighting mode) must be controlled via the TUI and configuration files that `keyboard_tui` owns; users should not need to manually edit C files or JSON inside the QMK/Vial tree.
-- We MUST NOT modify existing tracked source files in the `vial-qmk-keebart` submodule (e.g., `quantum/*.c`, `quantum/*.h`, base keyboard `config.h`, `rules.mk`, or `info.json`).
-- All new lighting integration must be implemented by generating or updating files only under the keymap-specific directory, e.g. `vial-qmk-keebart/keyboards/{keyboard}/keymaps/{keymap}/`.
-- The design should allow the `vial-qmk-keebart` submodule to be updated freely; regenerating firmware from the TUI should re-apply layout and lighting on top of the updated QMK tree without manual conflict resolution.
-
-## Solution Overview
-
-We will introduce an opt-in **lighting mode** and a new firmware generation path that:
-
-1. Converts the existing layout color model into a per-LED color array in LED index order, for one or more layers.
-2. Embeds this array into C code in the generated keymap directory.
-3. Hooks into QMK's RGB Matrix callbacks to apply those colors as a static effect.
-4. Updates `vial.json` and `config.h` to reflect lighting capabilities without touching the base keyboard or QMK core.
+## Design Overview
 
 ### Lighting Mode
 
-Add a new configuration option, tentatively named `lighting_mode`, with values such as:
+Configuration now includes an explicit `lighting_mode` option in `Config.build` with the following values:
 
 - `"qmk_default"` (default): do not generate any extra lighting code; preserve existing RGB behavior.
 - `"layout_static"`: generate a static per-key RGB scheme based on layout colors and apply it via QMK hooks.
 
-This will live in `Config` / `BuildConfig` and be editable via the TUI's configuration dialogs.
+This option:
+
+- Is serialized in `config.toml` via `Config` / `BuildConfig`.
+- Has a default of `qmk_default` for backward compatibility.
+- Is editable via:
+  - The onboarding wizard (confirmation step, `L` to toggle before saving).
+  - A runtime lighting configuration dialog in the main TUI (opened with `Ctrl+R`).
+  - A one-time suggestion popup that appears before firmware generation/build when the base layer has non-default colors but `lighting_mode` is still `qmk_default`.
 
 ### Color-to-LED Mapping
 
-We already have:
+The implementation uses existing primitives:
 
 - `Layout::resolve_key_color(layer_idx, key)` for final color decision per key.
 - `VisualLayoutMapping::visual_to_led_index(row, col)` to map visual coordinates to LED indices.
 
-We will add a helper in firmware generation that:
+A new helper in firmware generation:
 
-- Iterates keys for a given layer.
-- Resolves each key's color.
-- Maps each key's visual position to LED index.
-- Produces `Vec<RgbColor>` where `index == LED index`.
+- `generate_layer_colors_by_led(layer_idx)`:
+  - Iterates keys for the specified layer.
+  - Resolves each key's color via `resolve_key_color`.
+  - Maps each key's visual position to LED index.
+  - Produces `Vec<RgbColor>` where `index == LED index`.
 
-This function will be reused for:
-
-- Generating C arrays for QMK.
-- Potential future integrations (e.g., VialRGB direct mode, debug views).
+This function is used to build the static C color array and can be reused by future lighting integrations.
 
 ### QMK Integration (v1: Static RGB Matrix Effect)
 
-We will implement the simplest robust path first:
+In the generated `keymap.c`, v1 adds a conditional static RGB section:
 
-- In the generated keymap directory, add or extend C code so that when `RGB_MATRIX_ENABLE` is defined:
-  - A static array of colors is defined, e.g. `const rgb_t layout_colors[RGB_MATRIX_LED_COUNT];` or equivalent.
-  - `rgb_matrix_indicators_user()` (or `_kb`) is implemented to set each LED's color from that array on each update.
+- Wrapped in `#ifdef RGB_MATRIX_ENABLE` so it only applies when RGB Matrix is configured for the keyboard.
+- Declares:
+  - `static const uint8_t PROGMEM layout_colors[RGB_MATRIX_LED_COUNT][3];` where each entry is `[R, G, B]` for that LED.
+- Implements:
 
-Design considerations:
+  ```c
+  bool rgb_matrix_indicators_user(void) {
+      for (uint8_t i = 0; i < RGB_MATRIX_LED_COUNT; i++) {
+          uint8_t r = layout_colors[i][0];
+          uint8_t g = layout_colors[i][1];
+          uint8_t b = layout_colors[i][2];
+          rgb_matrix_set_color(i, r, g, b);
+      }
+      return true;
+  }
+  ```
 
-- Colors may be stored in RGB (directly from `RgbColor`) or pre-converted to HSV, depending on which is simpler and more stable across QMK versions.
-- The implementation must:
-  - Respect the active layer in a minimal way (at least layer 0 in v1; multi-layer could be added later).
-  - Avoid conflicting with user-selected modes where possible (document that `layout_static` prefers a static base mode).
+- This section is only emitted when `lighting_mode = layout_static`.
 
-### Vial Integration (Future Work)
+The implementation is intentionally simple and layer-0-only for v1; multi-layer or accent-only behavior can be added in later phases without breaking compatibility.
 
-The bundled QMK fork includes `quantum/vialrgb.c` and `RGB_MATRIX_EFFECT_VIALRGB_DIRECT`, which enable host-driven per-LED colors. For v1 we will not attempt to fully integrate with VialRGB; instead we:
+### Vial Integration (v1)
 
-- Ensure `vial.json` accurately reports that lighting exists when `lighting_mode = "layout_static"`.
-- Leave deeper Vial-driven lighting control (e.g., Vial editing the same colors) as follow-up work.
+For v1, `vial.json` is updated to better reflect lighting capability:
+
+- When `lighting_mode = "qmk_default"`, `"lighting"` remains `"none"`.
+- When `lighting_mode = "layout_static"`, `"lighting"` is set to `"qmk_rgblight"` to indicate QMK RGB lighting support based on the static effect.
+
+Deeper VialRGB integration (e.g., host-driven per-LED control synchronized with TUI colors) is explicitly left as future work.
+
+## TUI Integration
+
+- **Onboarding wizard** (`src/tui/onboarding_wizard.rs`):
+  - The wizard state tracks `lighting_mode`.
+  - On the confirmation step, `L` toggles between `qmk_default` and `layout_static`, and the selected mode is shown alongside the chosen keyboard/layout.
+  - `build_config()` writes the chosen `lighting_mode` into `Config.build.lighting_mode`.
+
+- **Runtime lighting dialog** (`src/tui/config_dialogs.rs`, `src/tui/mod.rs`):
+  - New `LightingConfigDialogState` holds the current mode and provides a human-readable label.
+  - `Ctrl+R` opens a small popup that displays the current mode and lets the user toggle with `L` and confirm with `Enter`.
+  - On confirmation, the new mode is written back to `Config` and saved atomically; a status message confirms success or reports any error.
+
+- **Lighting suggestion popup** (`src/tui/mod.rs`, `src/tui/status_bar.rs`):
+  - Before firmware generation/build, a heuristic checks whether the base layer uses non-default colors while `lighting_mode` is still `qmk_default`.
+  - If so, a one-time popup is shown offering:
+    - `E` to enable layout static lighting and regenerate.
+    - `K` to keep QMK default lighting.
+    - `Esc` to dismiss.
+  - The popup is only shown once per session, and contextual help/status text explains the choices.
+
+## Design Constraints
+
+- All behavior (including lighting mode) is controlled via the TUI and configuration files that `keyboard_tui` owns; users do not need to manually edit C or JSON in the QMK/Vial tree.
+- The implementation does not modify tracked source files in the `vial-qmk-keebart` submodule (e.g., `quantum/*.c`, base keyboard `config.h`, `rules.mk`, or `info.json`).
+- All new lighting integration is implemented by generating or updating files only under the keymap-specific directory, e.g. `vial-qmk-keebart/keyboards/{keyboard}/keymaps/{keymap}/` and the timestamped archive directory.
+- The design allows the `vial-qmk-keebart` submodule to be updated; regenerating firmware from the TUI re-applies layout and lighting on top of the updated QMK tree.
 
 ## Risks and Trade-offs
 
-- **Hardware diversity:** Different boards may have custom RGB configurations; using standard QMK hooks in keymaps is usually safe, but we must avoid assumptions about drivers.
-- **Performance:** Setting every LED's color on each scan may cost CPU time on older MCUs. We may need to optimize to only update on changes (e.g., when layer or layout changes).
-- **User expectations:** Some users prefer animated effects. Making layout-based lighting opt-in and clearly documented avoids surprising changes to default behavior.
-- **Schema assumptions:** We must confirm the correct `"lighting"` values for `vial.json` to avoid misrepresenting capabilities.
+- **Hardware diversity:** Different boards may have custom RGB configurations; using standard QMK hooks in keymaps is usually safe, but assumptions are kept minimal by relying on `RGB_MATRIX_ENABLE` and existing keyboard geometry.
+- **Performance:** Setting every LED's color on each scan may cost CPU time on older MCUs; v1 chooses simplicity over optimization. Future iterations can add caching or change-detection if needed.
+- **User expectations:** Some users prefer animated effects. Making layout-based lighting opt-in and surfacing the mode clearly in the TUI avoids surprising changes to default behavior.
+- **Schema assumptions:** `"lighting": "qmk_rgblight"` is used as a pragmatic value for Vial; future work may refine this if the upstream schema or capabilities change.
 
-## Acceptance Criteria
+## Acceptance Criteria (v1)
 
 1. With `lighting_mode = "qmk_default"`:
-   - Generated `keymap.c`, `vial.json`, and `config.h` match current behavior (no additional lighting code, `"lighting": "none"`).
-   - Firmware builds and runs exactly as before.
+   - Generated `keymap.c`, `vial.json`, and `config.h` match previous behavior (no additional lighting code, `"lighting": "none"`).
+   - Firmware builds and runs as before.
 
 2. With `lighting_mode = "layout_static"` and a keyboard that has RGB Matrix support:
-   - Firmware generation produces additional C code in the keymap folder implementing a static RGB effect.
-   - After flashing, the keyboard shows a static color scheme that matches the layout's colors for the base layer.
+   - Firmware generation produces additional C code in the keymap folder implementing a static RGB effect for layer 0.
+   - After flashing, the keyboard shows a static color scheme that matches the layout's base layer colors.
    - No core files in `vial-qmk-keebart` have been modified.
 
-3. The TUI exposes a way to configure or at least display the current lighting mode.
+3. The TUI exposes and updates `lighting_mode` via:
+   - Onboarding wizard (confirmation step).
+   - Runtime lighting dialog (`Ctrl+R`).
+   - Optional suggestion popup when colored layouts are used with `qmk_default`.
 
-4. Tests cover:
-   - Correct mapping from layout colors to LED index order.
-   - Presence and basic structure of the generated lighting code when `layout_static` is enabled.
+4. Tests cover at least:
+   - Correct mapping from layout colors to LED index order (via `generate_layer_colors_by_led`).
+   - Presence/absence and basic structure of the generated lighting code when `layout_static` is enabled/disabled.
+   - Correct `"lighting"` field values in `vial.json` for each mode.

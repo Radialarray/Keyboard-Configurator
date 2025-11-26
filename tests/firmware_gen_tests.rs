@@ -157,6 +157,7 @@ fn create_test_config(temp_dir: &TempDir) -> Config {
             keymap: "test_keymap".to_string(),
             output_format: "uf2".to_string(),
             output_dir: temp_dir.path().to_path_buf(),
+            lighting_mode: keyboard_tui::config::LightingMode::QmkDefault,
         },
         ui: Default::default(),
     }

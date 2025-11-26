@@ -3,10 +3,11 @@
 //! This module generates QMK C code and Vial JSON configuration
 //! from keyboard layouts using the LED index order.
 
-use crate::config::Config;
+use crate::config::{Config, LightingMode};
 use crate::models::keyboard_geometry::KeyboardGeometry;
 use crate::models::layout::Layout;
 use crate::models::visual_layout_mapping::VisualLayoutMapping;
+use crate::models::RgbColor;
 use anyhow::{Context, Result};
 use serde_json::json;
 use std::fs;
@@ -131,6 +132,47 @@ impl<'a> FirmwareGenerator<'a> {
         code.push('\n');
         code.push_str(&self.generate_conditional_encoder_map()?);
 
+        // Add optional static RGB matrix section when lighting_mode is enabled
+        if matches!(self.config.build.lighting_mode, LightingMode::LayoutStatic) {
+            code.push('\n');
+            code.push_str(&self.generate_static_rgb_matrix_section()?);
+        }
+
+        Ok(code)
+    }
+
+    /// Generates a static RGB matrix section using layout colors when enabled.
+    fn generate_static_rgb_matrix_section(&self) -> Result<String> {
+        let mut code = String::new();
+
+        code.push_str("#ifdef RGB_MATRIX_ENABLE\n");
+        code.push_str("// Static per-key RGB colors generated from layout colors (layer 0).\n");
+
+        let colors = self.generate_layer_colors_by_led(0)?;
+        code.push_str(&format!(
+            "static const uint8_t PROGMEM layout_colors[RGB_MATRIX_LED_COUNT][3] = {{\n"
+        ));
+
+        for (idx, color) in colors.iter().enumerate() {
+            code.push_str(&format!(
+                "    /* LED {:3} */ {{{:3}, {:3}, {:3}}},\n",
+                idx, color.r, color.g, color.b
+            ));
+        }
+
+        code.push_str("};\n\n");
+
+        code.push_str("bool rgb_matrix_indicators_user(void) {\n");
+        code.push_str("    for (uint8_t i = 0; i < RGB_MATRIX_LED_COUNT; i++) {\n");
+        code.push_str("        uint8_t r = layout_colors[i][0];\n");
+        code.push_str("        uint8_t g = layout_colors[i][1];\n");
+        code.push_str("        uint8_t b = layout_colors[i][2];\n");
+        code.push_str("        rgb_matrix_set_color(i, r, g, b);\n");
+        code.push_str("    }\n");
+        code.push_str("    return true;\n");
+        code.push_str("}\n");
+        code.push_str("#endif // RGB_MATRIX_ENABLE\n");
+
         Ok(code)
     }
 
@@ -169,7 +211,7 @@ impl<'a> FirmwareGenerator<'a> {
 
     /// Generates key assignments for a layer ordered by LED index.
     ///
-    /// This is the critical transformation: visual position → matrix → LED order.
+    /// This is the critical transformation: visual position  matrix  LED order.
     fn generate_layer_keys_by_led(
         &self,
         layer: &crate::models::layer::Layer,
@@ -181,7 +223,7 @@ impl<'a> FirmwareGenerator<'a> {
         for key in &layer.keys {
             let visual_pos = key.position;
 
-            // Visual → Matrix
+            // Visual  Matrix
             let matrix_pos = self
                 .mapping
                 .visual_to_matrix_pos(visual_pos.row, visual_pos.col)
@@ -192,7 +234,7 @@ impl<'a> FirmwareGenerator<'a> {
                     )
                 })?;
 
-            // Matrix → LED
+            // Matrix  LED
             let led_idx = self
                 .mapping
                 .visual_to_led_index(visual_pos.row, visual_pos.col)
@@ -210,14 +252,62 @@ impl<'a> FirmwareGenerator<'a> {
         Ok(keys_by_led)
     }
 
+    /// Generates per-LED colors for a given layer ordered by LED index.
+    fn generate_layer_colors_by_led(&self, layer_idx: usize) -> Result<Vec<RgbColor>> {
+        let led_count = self.mapping.key_count();
+        let mut colors_by_led = vec![RgbColor::default(); led_count];
+
+        let layer = self
+            .layout
+            .layers
+            .get(layer_idx)
+            .context("Layer index out of bounds when generating colors")?;
+
+        for key in &layer.keys {
+            let visual_pos = key.position;
+
+            let matrix_pos = self
+                .mapping
+                .visual_to_matrix_pos(visual_pos.row, visual_pos.col)
+                .with_context(|| {
+                    format!(
+                        "Failed to map visual position ({}, {}) to matrix for colors",
+                        visual_pos.row, visual_pos.col
+                    )
+                })?;
+
+            let led_idx = self
+                .mapping
+                .visual_to_led_index(visual_pos.row, visual_pos.col)
+                .with_context(|| {
+                    format!(
+                        "Failed to map matrix position ({}, {}) to LED index for colors",
+                        matrix_pos.0, matrix_pos.1
+                    )
+                })?;
+
+            let color = self.layout.resolve_key_color(layer_idx, key);
+            colors_by_led[led_idx as usize] = color;
+        }
+
+        Ok(colors_by_led)
+    }
+
     /// Generates vial.json configuration.
+
     ///
     /// Creates a Vial JSON file with layout definition and metadata.
     fn generate_vial_json(&self) -> Result<String> {
+        let lighting_value = match self.config.build.lighting_mode {
+            LightingMode::QmkDefault => "none",
+            // For now, advertise standard QMK RGB matrix lighting when using layout_static.
+            LightingMode::LayoutStatic => "qmk_rgblight",
+        };
+
         let vial_config = json!({
             "name": self.layout.metadata.name,
             "vendor_product_id": "0xFEED:0x0000", // Default, should be overridden
-            "lighting": "none",
+            "lighting": lighting_value,
             "matrix": {
                 "rows": self.geometry.matrix_rows,
                 "cols": self.geometry.matrix_cols
@@ -514,5 +604,43 @@ mod tests {
         let first_key = &layout_vec[0];
         assert!(first_key.is_array());
         assert_eq!(first_key.as_array().unwrap().len(), 6);
+    }
+
+    #[test]
+    fn test_generate_layer_colors_by_led() {
+        let (layout, geometry, mapping, mut config) = create_test_setup();
+        // Ensure lighting mode is default for this helper test
+        config.build.lighting_mode = crate::config::LightingMode::QmkDefault;
+        let generator = FirmwareGenerator::new(&layout, &geometry, &mapping, &config);
+
+        let colors = generator.generate_layer_colors_by_led(0).unwrap();
+        assert_eq!(colors.len(), 2);
+        assert_eq!(colors[0], RgbColor::new(255, 255, 255));
+        assert_eq!(colors[1], RgbColor::new(255, 255, 255));
+    }
+
+    #[test]
+    fn test_generate_static_rgb_matrix_section_included_for_layout_static() {
+        let (layout, geometry, mapping, mut config) = create_test_setup();
+        config.build.lighting_mode = crate::config::LightingMode::LayoutStatic;
+        let generator = FirmwareGenerator::new(&layout, &geometry, &mapping, &config);
+
+        let keymap_c = generator.generate_keymap_c().unwrap();
+        assert!(keymap_c.contains("#ifdef RGB_MATRIX_ENABLE"));
+        assert!(keymap_c.contains("layout_colors"));
+        assert!(keymap_c.contains("rgb_matrix_indicators_user"));
+    }
+
+    #[test]
+    fn test_generate_static_rgb_matrix_section_omitted_for_qmk_default() {
+        let (layout, geometry, mapping, mut config) = create_test_setup();
+        config.build.lighting_mode = crate::config::LightingMode::QmkDefault;
+        let generator = FirmwareGenerator::new(&layout, &geometry, &mapping, &config);
+
+        let keymap_c = generator.generate_keymap_c().unwrap();
+        // Encoder section is always present; static RGB section should be absent
+        assert!(keymap_c.contains("#ifdef ENCODER_MAP_ENABLE"));
+        assert!(!keymap_c.contains("layout_colors"));
+        assert!(!keymap_c.contains("rgb_matrix_indicators_user"));
     }
 }
