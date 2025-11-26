@@ -66,7 +66,7 @@ impl<'a> FirmwareGenerator<'a> {
     /// Generates keymap.c C code.
     ///
     /// Creates a QMK keymap file with PROGMEM arrays for each layer.
-    /// Keys are ordered by LED index as required by QMK.
+    /// Keys are ordered by info.json layout index (physical layout order).
     fn generate_keymap_c(&self) -> Result<String> {
         let mut code = String::new();
 
@@ -94,21 +94,21 @@ impl<'a> FirmwareGenerator<'a> {
                 layer_idx, self.config.build.layout
             ));
 
-            // Generate keys in LED order
-            let keys_by_led = self.generate_layer_keys_by_led(layer)?;
+            // Generate keys in physical layout order (info.json layout index)
+            let keys = self.generate_layer_keys_by_layout(layer)?;
 
             // Format keys (wrap at reasonable line length)
-            let keys_str = keys_by_led.join(", ");
+            let keys_str = keys.join(", ");
             if keys_str.len() > 80 {
                 // Multi-line formatting
                 code.push_str("\n        ");
-                for (idx, keycode) in keys_by_led.iter().enumerate() {
+                for (idx, keycode) in keys.iter().enumerate() {
                     code.push_str(keycode);
-                    if idx < keys_by_led.len() - 1 {
+                    if idx < keys.len() - 1 {
                         code.push_str(", ");
                     }
                     // Line wrap every 6 keys
-                    if (idx + 1) % 6 == 0 && idx < keys_by_led.len() - 1 {
+                    if (idx + 1) % 6 == 0 && idx < keys.len() - 1 {
                         code.push_str("\n        ");
                     }
                 }
@@ -172,9 +172,56 @@ impl<'a> FirmwareGenerator<'a> {
         Ok(code)
     }
 
+    /// Generates key assignments for a layer ordered by info.json layout index.
+    ///
+    /// Each position in the returned vector corresponds to a key in
+    /// `KeyboardGeometry.keys` (info.json layout order). This order is used
+    /// when calling the QMK `LAYOUT_*` macro so that switch wiring matches
+    /// the physical layout definition, independent of LED ordering.
+    fn generate_layer_keys_by_layout(
+        &self,
+        layer: &crate::models::layer::Layer,
+    ) -> Result<Vec<String>> {
+        use crate::models::layer::Position;
+        use std::collections::HashMap;
+
+        let key_count = self.geometry.key_count();
+        let mut keys_by_layout = vec![String::from("KC_NO"); key_count];
+
+        // Build lookup from visual position -> keycode for this layer
+        let mut keycodes_by_visual: HashMap<Position, &str> = HashMap::new();
+        for key in &layer.keys {
+            keycodes_by_visual.insert(key.position, key.keycode.as_str());
+        }
+
+        // Walk geometry in info.json layout order
+        for (idx, key_geom) in self.geometry.keys.iter().enumerate() {
+            let (row, col) = key_geom.matrix_position;
+
+            // Matrix -> Visual
+            let visual_pos = self
+                .mapping
+                .matrix_to_visual_pos(row, col)
+                .with_context(|| {
+                    format!(
+                        "Failed to map matrix position ({}, {}) to visual position",
+                        row, col
+                    )
+                })?;
+
+            if let Some(&kc) = keycodes_by_visual.get(&visual_pos) {
+                keys_by_layout[idx] = kc.to_string();
+            }
+        }
+
+        Ok(keys_by_layout)
+    }
+
     /// Generates key assignments for a layer ordered by LED index.
     ///
-    /// This is the critical transformation: visual position -> matrix -> LED order.
+    /// This is the critical transformation for RGB: visual position ->
+    /// matrix -> LED order. It is used when generating per-LED color
+    /// tables, but not for keymap argument ordering.
     fn generate_layer_keys_by_led(
         &self,
         layer: &crate::models::layer::Layer,
@@ -186,7 +233,7 @@ impl<'a> FirmwareGenerator<'a> {
         for key in &layer.keys {
             let visual_pos = key.position;
 
-            // Visual  Matrix
+            // Visual -> Matrix
             let matrix_pos = self
                 .mapping
                 .visual_to_matrix_pos(visual_pos.row, visual_pos.col)
@@ -197,7 +244,7 @@ impl<'a> FirmwareGenerator<'a> {
                     )
                 })?;
 
-            // Matrix  LED
+            // Matrix -> LED
             let led_idx = self
                 .mapping
                 .visual_to_led_index(visual_pos.row, visual_pos.col)
