@@ -13,6 +13,7 @@ use ratatui::{
 };
 use std::path::PathBuf;
 
+use crate::config::LightingMode;
 use crate::parser::keyboard_json::{
     extract_layout_variants, parse_keyboard_info_json, scan_keyboards, LayoutVariant,
 };
@@ -169,6 +170,40 @@ impl KeyboardPickerState {
 impl Default for KeyboardPickerState {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Lighting mode configuration dialog state
+#[derive(Debug, Clone)]
+pub struct LightingConfigDialogState {
+    /// Currently selected lighting mode
+    pub lighting_mode: LightingMode,
+}
+
+impl LightingConfigDialogState {
+    /// Creates a new dialog initialized from current mode
+    #[must_use]
+    pub const fn new(current_mode: LightingMode) -> Self {
+        Self {
+            lighting_mode: current_mode,
+        }
+    }
+
+    /// Human-readable label for current mode
+    #[must_use]
+    pub const fn mode_label(&self) -> &'static str {
+        match self.lighting_mode {
+            LightingMode::QmkDefault => "QMK default (no layout colors)",
+            LightingMode::LayoutStatic => "Static layout colors (layer 0)",
+        }
+    }
+
+    /// Toggle between available modes
+    pub fn toggle(&mut self) {
+        self.lighting_mode = match self.lighting_mode {
+            LightingMode::QmkDefault => LightingMode::LayoutStatic,
+            LightingMode::LayoutStatic => LightingMode::QmkDefault,
+        };
     }
 }
 
@@ -348,6 +383,50 @@ pub fn render_keyboard_picker(f: &mut Frame, state: &KeyboardPickerState, theme:
 
 use super::Theme;
 
+/// Renders the lighting configuration dialog
+pub fn render_lighting_config_dialog(
+    f: &mut Frame,
+    state: &LightingConfigDialogState,
+    theme: &Theme,
+) {
+    let area = centered_rect(60, 30, f.size());
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(2)
+        .constraints([
+            Constraint::Length(3), // Title
+            Constraint::Length(3), // Current mode
+            Constraint::Length(3), // Instructions
+        ])
+        .split(area);
+
+    // Title
+    let title = Paragraph::new("Lighting Mode")
+        .style(
+            Style::default()
+                .fg(theme.primary)
+                .add_modifier(Modifier::BOLD),
+        )
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::ALL));
+    f.render_widget(title, chunks[0]);
+
+    // Current mode line
+    let mode_text = format!("Current: {}", state.mode_label());
+    let mode = Paragraph::new(mode_text)
+        .style(Style::default().fg(theme.text))
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::ALL));
+    f.render_widget(mode, chunks[1]);
+
+    // Instructions
+    let instructions = Paragraph::new("L: Toggle mode  |  Enter: Apply  |  Esc: Cancel")
+        .style(Style::default().fg(theme.text_muted))
+        .alignment(Alignment::Center);
+    f.render_widget(instructions, chunks[2]);
+}
+
 /// Renders the layout picker dialog
 pub fn render_layout_picker(
     f: &mut Frame,
@@ -472,6 +551,21 @@ pub fn handle_layout_picker_input(state: &mut LayoutPickerState, key: KeyEvent) 
         }
         KeyCode::Enter => state.get_selected(),
         KeyCode::Esc => Some(String::new()), // Empty string signals cancel
+        _ => None,
+    }
+}
+
+/// Handles input for lighting configuration dialog
+pub fn handle_lighting_config_input(
+    state: &mut LightingConfigDialogState,
+    key: KeyEvent,
+) -> Option<LightingMode> {
+    match key.code {
+        KeyCode::Char('l') | KeyCode::Char('L') => {
+            state.toggle();
+            None
+        }
+        KeyCode::Enter => Some(state.lighting_mode.clone()),
         _ => None,
     }
 }

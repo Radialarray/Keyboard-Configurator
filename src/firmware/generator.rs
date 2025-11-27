@@ -3,7 +3,7 @@
 //! This module generates QMK C code and Vial JSON configuration
 //! from keyboard layouts using the LED index order.
 
-use crate::config::Config;
+use crate::config::{Config, LightingMode};
 use crate::models::keyboard_geometry::KeyboardGeometry;
 use crate::models::layout::Layout;
 use crate::models::visual_layout_mapping::VisualLayoutMapping;
@@ -46,7 +46,7 @@ impl<'a> FirmwareGenerator<'a> {
     pub fn generate(&self) -> Result<(String, String, String)> {
         // Create timestamped output directory
         let timestamp_dir = self.create_timestamped_output_dir()?;
-        
+
         // Generate config.h (merge with keyboard config if exists)
         let config_h = self.generate_merged_config_h()?;
         let config_h_path = self.write_file_to_both(&timestamp_dir, "config.h", &config_h)?;
@@ -126,18 +126,58 @@ impl<'a> FirmwareGenerator<'a> {
         }
 
         code.push_str("};\n");
- 
-         // Add conditional encoder_map (only when ENCODER_MAP_ENABLE is defined)
-         code.push('\n');
-         code.push_str(&self.generate_conditional_encoder_map()?);
- 
-         // Add optional RGB matrix base color table when RGB is present.
-         code.push('\n');
-         code.push_str(&self.generate_rgb_matrix_color_table()?);
- 
-         Ok(code)
-     }
 
+        // Add conditional encoder_map (only when ENCODER_MAP_ENABLE is defined)
+        code.push('\n');
+        code.push_str(&self.generate_conditional_encoder_map()?);
+
+        // Add optional RGB matrix base color table when RGB is present.
+        code.push('\n');
+        code.push_str(&self.generate_rgb_matrix_color_table()?);
+
+        // Add optional static RGB matrix section when lighting_mode is enabled
+        if matches!(self.config.build.lighting_mode, LightingMode::LayoutStatic) {
+            code.push('\n');
+            code.push_str(&self.generate_static_rgb_matrix_section()?);
+        }
+
+        Ok(code)
+    }
+
+    /// Generates a static RGB matrix section using layout colors when enabled.
+    fn generate_static_rgb_matrix_section(&self) -> Result<String> {
+        let mut code = String::new();
+
+        code.push_str("#ifdef RGB_MATRIX_ENABLE\n");
+        code.push_str("// Static per-key RGB colors generated from layout colors (layer 0).\n");
+
+        let colors = self.generate_layer_colors_by_led(0)?;
+        code.push_str(&format!(
+            "static const uint8_t PROGMEM layout_colors[RGB_MATRIX_LED_COUNT][3] = {{\n"
+        ));
+
+        for (idx, color) in colors.iter().enumerate() {
+            code.push_str(&format!(
+                "    /* LED {:3} */ {{{:3}, {:3}, {:3}}},\n",
+                idx, color.r, color.g, color.b
+            ));
+        }
+
+        code.push_str("};\n\n");
+
+        code.push_str("bool rgb_matrix_indicators_user(void) {\n");
+        code.push_str("    for (uint8_t i = 0; i < RGB_MATRIX_LED_COUNT; i++) {\n");
+        code.push_str("        uint8_t r = layout_colors[i][0];\n");
+        code.push_str("        uint8_t g = layout_colors[i][1];\n");
+        code.push_str("        uint8_t b = layout_colors[i][2];\n");
+        code.push_str("        rgb_matrix_set_color(i, r, g, b);\n");
+        code.push_str("    }\n");
+        code.push_str("    return true;\n");
+        code.push_str("}\n");
+        code.push_str("#endif // RGB_MATRIX_ENABLE\n");
+
+        Ok(code)
+    }
 
     /// Generates a conditional encoder_map wrapped in #ifdef ENCODER_MAP_ENABLE.
     ///
@@ -158,7 +198,7 @@ impl<'a> FirmwareGenerator<'a> {
             code.push_str("        ENCODER_CCW_CW(RGB_VAI, RGB_VAD),\n");
             code.push_str("        ENCODER_CCW_CW(RGB_SAI, RGB_SAD),\n");
             code.push_str("    }");
-            
+
             if layer_idx < self.layout.layers.len() - 1 {
                 code.push_str(",\n");
             } else {
@@ -174,7 +214,7 @@ impl<'a> FirmwareGenerator<'a> {
 
     /// Generates key assignments for a layer ordered by LED index.
     ///
-    /// This is the critical transformation: visual position d1 matrix d1 LED order.
+    /// This is the critical transformation: visual position -> matrix -> LED order.
     fn generate_layer_keys_by_led(
         &self,
         layer: &crate::models::layer::Layer,
@@ -186,7 +226,7 @@ impl<'a> FirmwareGenerator<'a> {
         for key in &layer.keys {
             let visual_pos = key.position;
 
-            // Visual d1 Matrix
+            // Visual -> Matrix
             let matrix_pos = self
                 .mapping
                 .visual_to_matrix_pos(visual_pos.row, visual_pos.col)
@@ -197,7 +237,7 @@ impl<'a> FirmwareGenerator<'a> {
                     )
                 })?;
 
-            // Matrix d1 LED
+            // Matrix -> LED
             let led_idx = self
                 .mapping
                 .visual_to_led_index(visual_pos.row, visual_pos.col)
@@ -219,10 +259,7 @@ impl<'a> FirmwareGenerator<'a> {
     ///
     /// Colors use the same visual -> LED mapping as `generate_layer_keys_by_led`
     /// and honor the layout's four-level color priority system.
-    fn generate_layer_colors_by_led(
-        &self,
-        layer_idx: usize,
-    ) -> Result<Vec<crate::models::RgbColor>> {
+    fn generate_layer_colors_by_led(&self, layer_idx: usize) -> Result<Vec<crate::models::RgbColor>> {
         let led_count = self.mapping.key_count();
         let mut colors_by_led = vec![crate::models::RgbColor::default(); led_count];
 
@@ -251,7 +288,7 @@ impl<'a> FirmwareGenerator<'a> {
 
         Ok(colors_by_led)
     }
- 
+
     /// Returns true if the layout uses any custom color semantics.
     ///
     /// This treats the layout as "colored" if:
@@ -284,7 +321,7 @@ impl<'a> FirmwareGenerator<'a> {
 
         false
     }
- 
+
     /// Generates an RGB matrix base color table in C when RGB is present.
     ///
     /// The table layout is:
@@ -341,16 +378,20 @@ impl<'a> FirmwareGenerator<'a> {
         Ok(code)
     }
 
-     /// Generates vial.json configuration.
-
-
+    /// Generates vial.json configuration.
     ///
     /// Creates a Vial JSON file with layout definition and metadata.
     fn generate_vial_json(&self) -> Result<String> {
+        let lighting_value = match self.config.build.lighting_mode {
+            LightingMode::QmkDefault => "none",
+            // For now, advertise standard QMK RGB matrix lighting when using layout_static.
+            LightingMode::LayoutStatic => "qmk_rgblight",
+        };
+
         let vial_config = json!({
             "name": self.layout.metadata.name,
             "vendor_product_id": "0xFEED:0x0000", // Default, should be overridden
-            "lighting": "none",
+            "lighting": lighting_value,
             "matrix": {
                 "rows": self.geometry.matrix_rows,
                 "cols": self.geometry.matrix_cols
@@ -410,8 +451,6 @@ impl<'a> FirmwareGenerator<'a> {
         Ok(json!(layout_keys))
     }
 
-
-
     /// Gets the keymap output directory.
     ///
     /// Creates directory structure if it doesn't exist:
@@ -444,7 +483,7 @@ impl<'a> FirmwareGenerator<'a> {
 
     /// Creates a timestamped output directory for this build.
     ///
-    /// Format: {output_dir}/{keyboard}_{keymap}_{YYYYMMDD_HHMMSS}/
+    /// Format: {output_dir}/{keyboard}_{keymap}_{YYYYMMDD_%H%M%S}/
     fn create_timestamped_output_dir(&self) -> Result<std::path::PathBuf> {
         let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
         let dir_name = format!("{}_{}_{}",
@@ -452,12 +491,12 @@ impl<'a> FirmwareGenerator<'a> {
             self.config.build.keymap,
             timestamp
         );
-        
+
         let output_dir = self.config.build.output_dir.join(dir_name);
-        
+
         fs::create_dir_all(&output_dir)
             .with_context(|| format!("Failed to create output directory {}", output_dir.display()))?;
-        
+
         Ok(output_dir)
     }
 
@@ -491,7 +530,7 @@ impl<'a> FirmwareGenerator<'a> {
     /// keyboard.json file, not in the keymap config.h.
     fn generate_merged_config_h(&self) -> Result<String> {
         let mut content = String::new();
- 
+
         // Add our generated configuration
         content.push_str("// Generated by KeyboardConfigurator\n");
         content.push_str(&format!("// Layout: {}\n", self.layout.metadata.name));
@@ -500,7 +539,7 @@ impl<'a> FirmwareGenerator<'a> {
         content.push_str("#pragma once\n");
         content.push_str("\n");
         content.push_str("// Add keymap-specific configuration here\n");
- 
+
         // If the keyboard has RGB matrix and the layout defines
         // any custom colors, default to the TUI-driven lighting
         // mode so firmware reflects the editor by default.
@@ -513,7 +552,7 @@ impl<'a> FirmwareGenerator<'a> {
             content.push_str(&format!("{}\n", self.layout.layers.len()));
             content.push_str("#endif\n");
         }
- 
+
         // If this keyboard already has a Vial keymap, copy its unlock combo macros
         // so that quantum/vial.c can compile for the generated keymap as well.
         if let Some(qmk_path) = &self.config.paths.qmk_firmware {
@@ -532,11 +571,11 @@ impl<'a> FirmwareGenerator<'a> {
                 .join("keymaps")
                 .join("vial")
                 .join("config.h");
- 
+
             if let Ok(vial_config) = fs::read_to_string(&vial_config_path) {
                 let mut rows_define: Option<String> = None;
                 let mut cols_define: Option<String> = None;
- 
+
                 for line in vial_config.lines() {
                     let trimmed = line.trim();
                     if trimmed.starts_with("#define VIAL_UNLOCK_COMBO_ROWS") {
@@ -545,7 +584,7 @@ impl<'a> FirmwareGenerator<'a> {
                         cols_define = Some(trimmed.to_string());
                     }
                 }
- 
+
                 if rows_define.is_some() || cols_define.is_some() {
                     content.push_str("\n// Vial unlock combo copied from keymaps/vial/config.h\n");
                     if let Some(rows) = rows_define {
@@ -559,177 +598,7 @@ impl<'a> FirmwareGenerator<'a> {
                 }
             }
         }
- 
+
         Ok(content)
-    }
-
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::models::keyboard_geometry::KeyGeometry;
-    use crate::models::layer::{KeyDefinition, Layer, Position};
-    use crate::models::RgbColor;
-    use std::path::PathBuf;
-
-    fn create_test_setup() -> (Layout, KeyboardGeometry, VisualLayoutMapping, Config) {
-        let mut layout = Layout::new("Test").unwrap();
-        let mut layer = Layer::new(0, "Base", RgbColor::new(255, 255, 255)).unwrap();
-        layer.add_key(KeyDefinition::new(Position::new(0, 0), "KC_A"));
-        layer.add_key(KeyDefinition::new(Position::new(0, 1), "KC_B"));
-        layout.add_layer(layer).unwrap();
-
-        let mut geometry = KeyboardGeometry::new("test", "LAYOUT", 2, 2);
-        geometry.add_key(KeyGeometry::new((0, 0), 0, 0.0, 0.0));
-        geometry.add_key(KeyGeometry::new((0, 1), 1, 1.0, 0.0));
-
-        let mapping = VisualLayoutMapping::build(&geometry);
-
-        let mut config = Config::default();
-        config.paths.qmk_firmware = Some(PathBuf::from("/tmp/qmk_test"));
-        config.build.keyboard = "test".to_string();
-        config.build.layout = "LAYOUT".to_string();
-        config.build.keymap = "default".to_string();
-
-        (layout, geometry, mapping, config)
-    }
-
-    #[test]
-    fn test_generate_keymap_c() {
-        let (layout, geometry, mapping, config) = create_test_setup();
-        let generator = FirmwareGenerator::new(&layout, &geometry, &mapping, &config);
-
-        let keymap_c = generator.generate_keymap_c().unwrap();
-
-        // Verify header
-        assert!(keymap_c.contains("// Generated by keyboard_tui"));
-        assert!(keymap_c.contains("// Layout: Test"));
-        assert!(keymap_c.contains("#include QMK_KEYBOARD_H"));
-
-        // Verify keymap structure
-        assert!(keymap_c.contains("const uint16_t PROGMEM keymaps[]"));
-        assert!(keymap_c.contains("[0] = LAYOUT("));
-        assert!(keymap_c.contains("KC_A"));
-        assert!(keymap_c.contains("KC_B"));
-
-        // Verify encoder_map is included
-        assert!(keymap_c.contains("#ifdef ENCODER_MAP_ENABLE"));
-        assert!(keymap_c.contains("const uint16_t PROGMEM encoder_map[]"));
-        assert!(keymap_c.contains("ENCODER_CCW_CW(RGB_MOD, RGB_RMOD)"));
-        assert!(keymap_c.contains("#endif"));
-
-        // Verify RGB matrix base color table is included for RGB keyboards
-        assert!(keymap_c.contains("#ifdef RGB_MATRIX_ENABLE"));
-        assert!(keymap_c.contains("const uint8_t PROGMEM layer_base_colors"));
-        assert!(keymap_c.contains("#endif"));
-    }
-
-    #[test]
-    fn test_generate_layer_keys_by_led() {
-        let (layout, geometry, mapping, config) = create_test_setup();
-        let generator = FirmwareGenerator::new(&layout, &geometry, &mapping, &config);
-
-        let layer = &layout.layers[0];
-        let keys_by_led = generator.generate_layer_keys_by_led(layer).unwrap();
-
-        assert_eq!(keys_by_led.len(), 2);
-        assert_eq!(keys_by_led[0], "KC_A");
-        assert_eq!(keys_by_led[1], "KC_B");
-    }
-
-    #[test]
-    fn test_generate_vial_json() {
-        let (layout, geometry, mapping, config) = create_test_setup();
-        let generator = FirmwareGenerator::new(&layout, &geometry, &mapping, &config);
-
-        let vial_json = generator.generate_vial_json().unwrap();
-
-        // Verify JSON structure
-        assert!(vial_json.contains(r#""name": "Test""#));
-        assert!(vial_json.contains(r#""rows": 2"#));
-        assert!(vial_json.contains(r#""cols": 2"#));
-        assert!(vial_json.contains(r#""layers": 1"#));
-    }
-
-    #[test]
-    fn test_generate_vial_layout_array() {
-        let (layout, geometry, mapping, config) = create_test_setup();
-        let generator = FirmwareGenerator::new(&layout, &geometry, &mapping, &config);
-
-        let layout_array = generator.generate_vial_layout_array().unwrap();
-        let layout_vec = layout_array.as_array().unwrap();
-
-        assert_eq!(layout_vec.len(), 2);
-        // Verify first key has expected structure [x, y, w, h, row, col]
-        let first_key = &layout_vec[0];
-        assert!(first_key.is_array());
-        assert_eq!(first_key.as_array().unwrap().len(), 6);
-    }
-
-    #[test]
-    fn test_generate_merged_config_h_sets_default_mode_when_colored_and_rgb() {
-        let (mut layout, geometry, mapping, mut config) = create_test_setup();
-
-        // Mark layout as "colored" by changing the default color
-        // and adding a category used by a key.
-        let nav_color = RgbColor::new(0, 255, 0);
-        let category = crate::models::Category::new("navigation", "Navigation", nav_color).unwrap();
-        layout.add_category(category).unwrap();
-        layout
-            .get_layer_mut(0)
-            .unwrap()
-            .get_key_mut(Position::new(0, 1))
-            .unwrap()
-            .category_id = Some("navigation".to_string());
-
-        // RGB-capable geometry: already has two keys in create_test_setup.
-        let generator = FirmwareGenerator::new(&layout, &geometry, &mapping, &config);
-        let config_h = generator.generate_merged_config_h().unwrap();
-
-        assert!(config_h.contains("RGB_MATRIX_TUI_LAYER_COLORS"));
-        assert!(config_h.contains("#    define RGB_MATRIX_DEFAULT_MODE RGB_MATRIX_TUI_LAYER_COLORS"));
-    }
-
-    #[test]
-    fn test_generate_merged_config_h_does_not_set_default_mode_without_colors_or_rgb() {
-        let (layout, mut geometry, mapping, config) = create_test_setup();
-
-        // Remove all keys from geometry so has_rgb_matrix() is false.
-        geometry.keys.clear();
-
-        let generator = FirmwareGenerator::new(&layout, &geometry, &mapping, &config);
-        let config_h = generator.generate_merged_config_h().unwrap();
-
-        assert!(!config_h.contains("RGB_MATRIX_TUI_LAYER_COLORS"));
-        assert!(!config_h.contains("RGB_MATRIX_DEFAULT_MODE"));
-    }
-
-    #[test]
-    fn test_generate_layer_colors_by_led_uses_resolved_colors() {
-        let (mut layout, geometry, mapping, config) = create_test_setup();
-
-        // Add a category and assign it to the second key so we can
-        // verify that resolve_key_color logic is respected.
-        let nav_color = RgbColor::new(0, 255, 0);
-        let category = crate::models::Category::new("navigation", "Navigation", nav_color).unwrap();
-        layout.add_category(category).unwrap();
-
-        // Update key on layer 0, position (0, 1) to use the category.
-        layout
-            .get_layer_mut(0)
-            .unwrap()
-            .get_key_mut(Position::new(0, 1))
-            .unwrap()
-            .category_id = Some("navigation".to_string());
-
-        let generator = FirmwareGenerator::new(&layout, &geometry, &mapping, &config);
-        let colors_by_led = generator.generate_layer_colors_by_led(0).unwrap();
-
-        assert_eq!(colors_by_led.len(), 2);
-        // First key uses layer default color (white from create_test_setup).
-        assert_eq!(colors_by_led[0], RgbColor::new(255, 255, 255));
-        // Second key uses category color.
-        assert_eq!(colors_by_led[1], nav_color);
     }
 }

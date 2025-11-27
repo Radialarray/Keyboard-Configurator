@@ -256,6 +256,11 @@ impl HelpOverlayState {
                 Span::styled("Ctrl+Y", Style::default().fg(theme.success)),
                 Span::styled("               Switch keyboard layout variant", Style::default().fg(theme.text)),
             ]),
+            Line::from(vec![
+                Span::styled("  ", Style::default().fg(theme.text)),
+                Span::styled("Ctrl+R", Style::default().fg(theme.success)),
+                Span::styled("               Toggle lighting mode (QMK default / layout static)", Style::default().fg(theme.text)),
+            ]),
             Line::from(""),
             Line::from(vec![
                 Span::styled("  ", Style::default().fg(theme.text)),
