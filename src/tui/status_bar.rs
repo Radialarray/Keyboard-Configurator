@@ -94,8 +94,11 @@ impl StatusBar {
                 "Tab: Next field | Enter: Save | Esc: Cancel | Type: Edit"
             }
             Some(PopupType::UnsavedChangesPrompt) => "y: Save and quit | n: Discard | Esc: Cancel",
-            Some(PopupType::LayoutPicker) => "↑↓: Navigate | Enter: Select | Esc: Cancel",
+            Some(PopupType::LayoutPicker) => "[A[B: Navigate | Enter: Select | Esc: Cancel",
+            Some(PopupType::LightingConfig) => "L: Toggle mode | Enter: Apply | Esc: Cancel",
+            Some(PopupType::LightingSuggestion) => "E: Enable static lighting | K: Keep default | Esc: Dismiss",
             None => {
+
                 // Main keyboard editing mode
                 "↑↓←→/hjkl: Navigate | Enter: Edit key | x/Del: Clear | Tab: Layer | Ctrl+S: Save | Ctrl+Q: Quit | ?: Help"
             }
