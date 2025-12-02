@@ -416,6 +416,53 @@ fn handle_keycodes_input(
                 .map(|kc| kc.code.clone());
 
             if let Some(keycode) = selected_keycode_opt {
+                // Check for parameterized keycodes that need multi-stage input
+                match keycode.as_str() {
+                    "LT()" => {
+                        // Layer-Tap: need layer, then tap keycode
+                        use super::{ParameterizedKeycodeType, PendingKeycodeState};
+                        state.pending_keycode = PendingKeycodeState::new();
+                        state.pending_keycode.keycode_type = Some(ParameterizedKeycodeType::LayerTap);
+                        state.layer_picker_state = LayerPickerState::with_prefix("LT");
+                        state.active_popup = Some(PopupType::LayerPicker);
+                        state.keycode_picker_state.reset();
+                        state.set_status("Select layer for LT (tap for keycode, hold for layer)");
+                        return Ok(false);
+                    }
+                    "MT()" => {
+                        // Mod-Tap: need modifier, then tap keycode
+                        use super::{ParameterizedKeycodeType, PendingKeycodeState};
+                        state.pending_keycode = PendingKeycodeState::new();
+                        state.pending_keycode.keycode_type = Some(ParameterizedKeycodeType::ModTap);
+                        state.active_popup = Some(PopupType::ModifierPicker);
+                        state.keycode_picker_state.reset();
+                        state.set_status("Select modifier(s) for MT");
+                        return Ok(false);
+                    }
+                    "LM()" => {
+                        // Layer-Mod: need layer, then modifier
+                        use super::{ParameterizedKeycodeType, PendingKeycodeState};
+                        state.pending_keycode = PendingKeycodeState::new();
+                        state.pending_keycode.keycode_type = Some(ParameterizedKeycodeType::LayerMod);
+                        state.layer_picker_state = LayerPickerState::with_prefix("LM");
+                        state.active_popup = Some(PopupType::LayerPicker);
+                        state.keycode_picker_state.reset();
+                        state.set_status("Select layer for LM (layer with modifier active)");
+                        return Ok(false);
+                    }
+                    "SH_T()" => {
+                        // Swap-Hands-Tap: need tap keycode only
+                        use super::{ParameterizedKeycodeType, PendingKeycodeState};
+                        state.pending_keycode = PendingKeycodeState::new();
+                        state.pending_keycode.keycode_type = Some(ParameterizedKeycodeType::SwapHandsTap);
+                        state.active_popup = Some(PopupType::TapKeycodePicker);
+                        state.keycode_picker_state = KeycodePickerState::new();
+                        state.set_status("Select tap keycode for SH_T (hold to swap hands)");
+                        return Ok(false);
+                    }
+                    _ => {}
+                }
+
                 // Check if this is a layer-switching keycode (MO, TG, TO, etc.)
                 if let Some(layer_type) = LayerKeycodeType::from_keycode(&keycode) {
                     // Switch to layer picker for selecting which layer
@@ -493,7 +540,7 @@ fn handle_keycodes_input(
 }
 
 /// Get filtered keycodes based on current search and category
-fn get_filtered_keycodes(state: &AppState) -> Vec<&crate::keycode_db::KeycodeDefinition> {
+pub fn get_filtered_keycodes(state: &AppState) -> Vec<&crate::keycode_db::KeycodeDefinition> {
     let categories = state.keycode_db.categories();
     let category_index = state.keycode_picker_state.category_index;
     
@@ -509,6 +556,116 @@ fn get_filtered_keycodes(state: &AppState) -> Vec<&crate::keycode_db::KeycodeDef
             .search_in_category(&state.keycode_picker_state.search, cat_id)
     } else {
         state.keycode_db.search(&state.keycode_picker_state.search)
+    }
+}
+
+/// Handle navigation-only input for keycode picker (used by TapKeycodePicker)
+/// This handles all input except Enter (which is handled by caller)
+pub fn handle_navigation(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
+    let total_categories = state.keycode_db.categories().len() + 1;
+    
+    match state.keycode_picker_state.focus {
+        PickerFocus::Sidebar => {
+            match key.code {
+                KeyCode::Up => {
+                    if state.keycode_picker_state.category_index > 0 {
+                        state.keycode_picker_state.category_index -= 1;
+                        state.keycode_picker_state.selected = 0;
+                    }
+                    Ok(false)
+                }
+                KeyCode::Down => {
+                    if state.keycode_picker_state.category_index < total_categories - 1 {
+                        state.keycode_picker_state.category_index += 1;
+                        state.keycode_picker_state.selected = 0;
+                    }
+                    Ok(false)
+                }
+                KeyCode::Home => {
+                    state.keycode_picker_state.category_index = 0;
+                    state.keycode_picker_state.selected = 0;
+                    Ok(false)
+                }
+                KeyCode::End => {
+                    state.keycode_picker_state.category_index = total_categories - 1;
+                    state.keycode_picker_state.selected = 0;
+                    Ok(false)
+                }
+                KeyCode::Tab | KeyCode::Right => {
+                    state.keycode_picker_state.focus = PickerFocus::Keycodes;
+                    Ok(false)
+                }
+                KeyCode::Char(c) if c.is_ascii_digit() => {
+                    let idx = c.to_digit(10).unwrap() as usize;
+                    if idx < total_categories {
+                        state.keycode_picker_state.category_index = idx;
+                        state.keycode_picker_state.selected = 0;
+                    }
+                    Ok(false)
+                }
+                _ => Ok(false),
+            }
+        }
+        PickerFocus::Keycodes => {
+            match key.code {
+                KeyCode::Left => {
+                    state.keycode_picker_state.focus = PickerFocus::Sidebar;
+                    Ok(false)
+                }
+                KeyCode::Tab if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                    state.keycode_picker_state.focus = PickerFocus::Sidebar;
+                    Ok(false)
+                }
+                KeyCode::Tab => {
+                    state.keycode_picker_state.focus = PickerFocus::Sidebar;
+                    Ok(false)
+                }
+                KeyCode::Up => {
+                    if state.keycode_picker_state.selected > 0 {
+                        state.keycode_picker_state.selected -= 1;
+                    }
+                    Ok(false)
+                }
+                KeyCode::Down => {
+                    let keycodes = get_filtered_keycodes(state);
+                    if state.keycode_picker_state.selected < keycodes.len().saturating_sub(1) {
+                        state.keycode_picker_state.selected += 1;
+                    }
+                    Ok(false)
+                }
+                KeyCode::Home => {
+                    state.keycode_picker_state.selected = 0;
+                    Ok(false)
+                }
+                KeyCode::End => {
+                    let keycodes = get_filtered_keycodes(state);
+                    state.keycode_picker_state.selected = keycodes.len().saturating_sub(1);
+                    Ok(false)
+                }
+                KeyCode::PageUp => {
+                    state.keycode_picker_state.selected = 
+                        state.keycode_picker_state.selected.saturating_sub(10);
+                    Ok(false)
+                }
+                KeyCode::PageDown => {
+                    let keycodes = get_filtered_keycodes(state);
+                    state.keycode_picker_state.selected = 
+                        (state.keycode_picker_state.selected + 10).min(keycodes.len().saturating_sub(1));
+                    Ok(false)
+                }
+                KeyCode::Char(c) => {
+                    state.keycode_picker_state.search.push(c);
+                    state.keycode_picker_state.selected = 0;
+                    Ok(false)
+                }
+                KeyCode::Backspace => {
+                    state.keycode_picker_state.search.pop();
+                    state.keycode_picker_state.selected = 0;
+                    Ok(false)
+                }
+                _ => Ok(false),
+            }
+        }
     }
 }
 

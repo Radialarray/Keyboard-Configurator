@@ -2362,6 +2362,13 @@
       "pattern": "HYPR_T\\(([A-Z0-9_]+)\\)"
     },
     {
+      "code": "MT()",
+      "name": "Mod-Tap (Custom)",
+      "category": "mod_tap",
+      "pattern": "MT\\((MOD_[A-Z_|]+),\\s*([A-Z0-9_]+)\\)",
+      "description": "Hold for modifier(s), tap for keycode"
+    },
+    {
       "code": "QK_LEAD",
       "name": "Leader Key",
       "category": "advanced",
@@ -2941,6 +2948,13 @@
       "aliases": [
         "QK_SWAP_HANDS_ONE_SHOT"
       ]
+    },
+    {
+      "code": "SH_T()",
+      "name": "Swap Hands Tap",
+      "category": "advanced",
+      "pattern": "SH_T\\(([A-Z0-9_]+)\\)",
+      "description": "Hold to swap hands, tap for keycode"
     },
     {
       "code": "CM_ON",
