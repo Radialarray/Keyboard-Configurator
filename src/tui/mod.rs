@@ -296,13 +296,16 @@ impl AppState {
         let keycode_db = KeycodeDb::load().context("Failed to load keycode database")?;
         let theme = Theme::from_name(&config.ui.theme);
 
+        // Initialize selected position to first valid key position
+        let selected_position = mapping.get_first_position().unwrap_or(Position { row: 0, col: 0 });
+
         Ok(Self {
             layout,
             source_path,
             dirty: false,
             theme,
             current_layer: 0,
-            selected_position: Position { row: 0, col: 0 },
+            selected_position,
             active_popup: None,
             status_message: "Press ? for help".to_string(),
             error_message: None,
@@ -433,8 +436,8 @@ impl AppState {
         // Add KC_NO keys for new positions, keep existing keys where they still fit
         self.adjust_layers_to_geometry()?;
 
-        // Reset selection to (0, 0) to avoid out-of-bounds
-        self.selected_position = Position { row: 0, col: 0 };
+        // Reset selection to first valid position
+        self.selected_position = self.mapping.get_first_position().unwrap_or(Position { row: 0, col: 0 });
 
         Ok(())
     }
@@ -1229,31 +1232,29 @@ fn handle_main_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool>
 
         // Navigation - Arrow keys
         (KeyCode::Up, _) => {
-            if state.selected_position.row > 0 {
-                state.selected_position.row -= 1;
+            if let Some(new_pos) = state.mapping.find_position_up(state.selected_position) {
+                state.selected_position = new_pos;
                 state.clear_error();
             }
             Ok(false)
         }
         (KeyCode::Down, _) => {
-            // Check bounds based on geometry
-            if state.selected_position.row < 3 {
-                state.selected_position.row += 1;
+            if let Some(new_pos) = state.mapping.find_position_down(state.selected_position) {
+                state.selected_position = new_pos;
                 state.clear_error();
             }
             Ok(false)
         }
         (KeyCode::Left, _) => {
-            if state.selected_position.col > 0 {
-                state.selected_position.col -= 1;
+            if let Some(new_pos) = state.mapping.find_position_left(state.selected_position) {
+                state.selected_position = new_pos;
                 state.clear_error();
             }
             Ok(false)
         }
         (KeyCode::Right, _) => {
-            // Check bounds based on geometry
-            if state.selected_position.col < 13 {
-                state.selected_position.col += 1;
+            if let Some(new_pos) = state.mapping.find_position_right(state.selected_position) {
+                state.selected_position = new_pos;
                 state.clear_error();
             }
             Ok(false)
@@ -1261,22 +1262,22 @@ fn handle_main_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool>
 
         // Navigation - VIM style (hjkl)
         (KeyCode::Char('h'), _) => {
-            if state.selected_position.col > 0 {
-                state.selected_position.col -= 1;
+            if let Some(new_pos) = state.mapping.find_position_left(state.selected_position) {
+                state.selected_position = new_pos;
                 state.clear_error();
             }
             Ok(false)
         }
         (KeyCode::Char('j'), _) => {
-            if state.selected_position.row < 3 {
-                state.selected_position.row += 1;
+            if let Some(new_pos) = state.mapping.find_position_down(state.selected_position) {
+                state.selected_position = new_pos;
                 state.clear_error();
             }
             Ok(false)
         }
         (KeyCode::Char('k'), _) => {
-            if state.selected_position.row > 0 {
-                state.selected_position.row -= 1;
+            if let Some(new_pos) = state.mapping.find_position_up(state.selected_position) {
+                state.selected_position = new_pos;
                 state.clear_error();
             }
             Ok(false)
@@ -1298,8 +1299,8 @@ fn handle_main_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool>
             Ok(false)
         }
         (KeyCode::Char('l'), _) => {
-            if state.selected_position.col < 13 {
-                state.selected_position.col += 1;
+            if let Some(new_pos) = state.mapping.find_position_right(state.selected_position) {
+                state.selected_position = new_pos;
                 state.clear_error();
             }
             Ok(false)
