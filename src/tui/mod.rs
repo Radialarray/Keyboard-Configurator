@@ -15,6 +15,7 @@ pub mod layer_manager;
 pub mod layer_picker;
 pub mod layout_picker;
 pub mod metadata_editor;
+pub mod modifier_picker;
 #[allow(dead_code)]
 pub mod onboarding_wizard;
 pub mod settings_manager;
@@ -55,6 +56,7 @@ pub use keycode_picker::KeycodePickerState;
 pub use layer_manager::LayerManagerState;
 pub use layer_picker::LayerPickerState;
 pub use metadata_editor::MetadataEditorState;
+pub use modifier_picker::ModifierPickerState;
 pub use settings_manager::SettingsManagerState;
 pub use status_bar::StatusBar;
 pub use template_browser::TemplateBrowserState;
@@ -339,6 +341,8 @@ pub struct AppState {
     pub layer_picker_state: LayerPickerState,
     /// Pending parameterized keycode state (for multi-stage keycode building)
     pub pending_keycode: PendingKeycodeState,
+    /// Modifier picker component state
+    pub modifier_picker_state: ModifierPickerState,
 
     // System resources
     /// Keycode database
@@ -424,6 +428,7 @@ impl AppState {
             settings_manager_state: SettingsManagerState::new(),
             layer_picker_state: LayerPickerState::new(),
             pending_keycode: PendingKeycodeState::new(),
+            modifier_picker_state: ModifierPickerState::new(),
             keycode_db,
             geometry,
             mapping,
@@ -797,8 +802,11 @@ fn render_popup(f: &mut Frame, popup_type: &PopupType, state: &AppState) {
             keycode_picker::render_keycode_picker(f, state);
         }
         PopupType::ModifierPicker => {
-            // TODO: Phase 6 - implement modifier picker
-            // For now, close the popup
+            modifier_picker::render_modifier_picker(
+                f,
+                &state.modifier_picker_state,
+                &state.theme,
+            );
         }
     }
 }
@@ -1296,13 +1304,77 @@ fn handle_tap_keycode_picker_input(state: &mut AppState, key: event::KeyEvent) -
 
 /// Handle input for modifier picker (for MT/LM keycodes)
 fn handle_modifier_picker_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
-    // TODO: Phase 6 - implement modifier picker
-    // For now, just handle Esc to cancel
     match key.code {
         KeyCode::Esc => {
             state.pending_keycode.reset();
+            state.modifier_picker_state.reset();
             state.active_popup = None;
             state.set_status("Cancelled");
+            Ok(false)
+        }
+        KeyCode::Up => {
+            state.modifier_picker_state.focus_up();
+            Ok(false)
+        }
+        KeyCode::Down => {
+            state.modifier_picker_state.focus_down();
+            Ok(false)
+        }
+        KeyCode::Left => {
+            state.modifier_picker_state.focus_left();
+            Ok(false)
+        }
+        KeyCode::Right => {
+            state.modifier_picker_state.focus_right();
+            Ok(false)
+        }
+        KeyCode::Char(' ') => {
+            // Toggle the focused modifier
+            state.modifier_picker_state.toggle_focused();
+            Ok(false)
+        }
+        KeyCode::Enter => {
+            // Confirm selection - need at least one modifier
+            if !state.modifier_picker_state.has_selection() {
+                state.set_error("Select at least one modifier");
+                return Ok(false);
+            }
+
+            let mod_string = state.modifier_picker_state.to_mod_string();
+
+            match &state.pending_keycode.keycode_type {
+                Some(ParameterizedKeycodeType::ModTap) => {
+                    // MT: Store modifier as param1, go to tap keycode picker
+                    state.pending_keycode.param1 = Some(mod_string);
+                    state.active_popup = Some(PopupType::TapKeycodePicker);
+                    state.keycode_picker_state = KeycodePickerState::new();
+                    state.modifier_picker_state.reset();
+                    state.set_status("Select tap keycode for MT");
+                }
+                Some(ParameterizedKeycodeType::LayerMod) => {
+                    // LM: Store modifier as param2, build and assign
+                    state.pending_keycode.param2 = Some(mod_string);
+                    
+                    if let Some(final_keycode) = state.pending_keycode.build_keycode() {
+                        if let Some(key) = state.get_selected_key_mut() {
+                            key.keycode = final_keycode.clone();
+                            state.mark_dirty();
+                            state.set_status(format!("Assigned: {}", final_keycode));
+                        }
+                    }
+                    
+                    state.pending_keycode.reset();
+                    state.modifier_picker_state.reset();
+                    state.active_popup = None;
+                }
+                _ => {
+                    // Unexpected state - cancel
+                    state.pending_keycode.reset();
+                    state.modifier_picker_state.reset();
+                    state.active_popup = None;
+                    state.set_error("Unexpected state");
+                }
+            }
             Ok(false)
         }
         _ => Ok(false),
