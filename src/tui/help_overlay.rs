@@ -206,18 +206,33 @@ impl HelpOverlayState {
             ]),
             Line::from(vec![
                 Span::styled("  ", Style::default().fg(theme.text)),
+                Span::styled("↑/↓", Style::default().fg(theme.success)),
+                Span::styled("                 Navigate categories/keycodes", Style::default().fg(theme.text)),
+            ]),
+            Line::from(vec![
+                Span::styled("  ", Style::default().fg(theme.text)),
+                Span::styled("Tab/←/→", Style::default().fg(theme.success)),
+                Span::styled("             Switch between sidebar & list", Style::default().fg(theme.text)),
+            ]),
+            Line::from(vec![
+                Span::styled("  ", Style::default().fg(theme.text)),
+                Span::styled("0-9", Style::default().fg(theme.success)),
+                Span::styled("                 Jump to category (in sidebar)", Style::default().fg(theme.text)),
+            ]),
+            Line::from(vec![
+                Span::styled("  ", Style::default().fg(theme.text)),
                 Span::styled("Type", Style::default().fg(theme.success)),
-                Span::styled("                Search keycodes", Style::default().fg(theme.text)),
+                Span::styled("                Search keycodes (in list)", Style::default().fg(theme.text)),
             ]),
             Line::from(vec![
                 Span::styled("  ", Style::default().fg(theme.text)),
-                Span::styled("1-6", Style::default().fg(theme.success)),
-                Span::styled("                 Filter by category", Style::default().fg(theme.text)),
+                Span::styled("Page Up/Down", Style::default().fg(theme.success)),
+                Span::styled("        Scroll by page", Style::default().fg(theme.text)),
             ]),
             Line::from(vec![
                 Span::styled("  ", Style::default().fg(theme.text)),
-                Span::styled("Up/Down", Style::default().fg(theme.success)),
-                Span::styled("             Navigate list", Style::default().fg(theme.text)),
+                Span::styled("Home/End", Style::default().fg(theme.success)),
+                Span::styled("            Jump to top/bottom", Style::default().fg(theme.text)),
             ]),
             Line::from(vec![
                 Span::styled("  ", Style::default().fg(theme.text)),
