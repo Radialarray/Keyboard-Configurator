@@ -107,6 +107,12 @@ impl StatusBar {
             Some(PopupType::SettingsManager) => {
                 "↑↓: Navigate | Enter: Change | Esc: Close"
             }
+            Some(PopupType::TapKeycodePicker) => {
+                "↑↓: Navigate | Enter: Select tap keycode | Esc: Cancel"
+            }
+            Some(PopupType::ModifierPicker) => {
+                "↑↓←→: Navigate | Space: Toggle | Enter: Confirm | Esc: Cancel"
+            }
             None => {
                 // Main keyboard editing mode
                 "↑↓←→/hjkl: Navigate | Enter: Edit key | x/Del: Clear | Tab: Layer | Ctrl+S: Save | Ctrl+Q: Quit | ?: Help"

@@ -80,6 +80,76 @@ pub enum CategoryPickerContext {
     Layer,
 }
 
+/// Type of parameterized keycode being built
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParameterizedKeycodeType {
+    /// LT(layer, kc) - Hold for layer, tap for keycode
+    LayerTap,
+    /// MT(mod, kc) - Hold for modifier, tap for keycode
+    ModTap,
+    /// LM(layer, mod) - Layer with modifier active
+    LayerMod,
+    /// SH_T(kc) - Hold to swap hands, tap for keycode
+    SwapHandsTap,
+}
+
+/// State for building parameterized keycodes through multi-stage picker flow
+#[derive(Debug, Clone, Default)]
+pub struct PendingKeycodeState {
+    /// The keycode type being built (e.g., "LT", "MT", "LM")
+    pub keycode_type: Option<ParameterizedKeycodeType>,
+    /// First parameter (layer UUID for LT/LM, modifier bits for MT)
+    pub param1: Option<String>,
+    /// Second parameter (tap keycode for LT/MT, modifier for LM)
+    pub param2: Option<String>,
+}
+
+impl PendingKeycodeState {
+    /// Create a new empty pending keycode state
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            keycode_type: None,
+            param1: None,
+            param2: None,
+        }
+    }
+
+    /// Reset the pending state
+    pub fn reset(&mut self) {
+        self.keycode_type = None;
+        self.param1 = None;
+        self.param2 = None;
+    }
+
+    /// Build the final keycode string from collected parameters
+    #[must_use]
+    pub fn build_keycode(&self) -> Option<String> {
+        match &self.keycode_type {
+            Some(ParameterizedKeycodeType::LayerTap) => {
+                let layer = self.param1.as_ref()?;
+                let keycode = self.param2.as_ref()?;
+                Some(format!("LT({}, {})", layer, keycode))
+            }
+            Some(ParameterizedKeycodeType::ModTap) => {
+                let modifier = self.param1.as_ref()?;
+                let keycode = self.param2.as_ref()?;
+                Some(format!("MT({}, {})", modifier, keycode))
+            }
+            Some(ParameterizedKeycodeType::LayerMod) => {
+                let layer = self.param1.as_ref()?;
+                let modifier = self.param2.as_ref()?;
+                Some(format!("LM({}, {})", layer, modifier))
+            }
+            Some(ParameterizedKeycodeType::SwapHandsTap) => {
+                let keycode = self.param1.as_ref()?;
+                Some(format!("SH_T({})", keycode))
+            }
+            None => None,
+        }
+    }
+}
+
 /// State for the template save dialog.
 #[derive(Debug, Clone)]
 pub struct TemplateSaveDialogState {
@@ -201,6 +271,10 @@ pub enum PopupType {
     SetupWizard,
     /// Settings manager popup
     SettingsManager,
+    /// Tap keycode picker for parameterized keycodes (second stage of LT/MT)
+    TapKeycodePicker,
+    /// Modifier picker for MT/LM keycodes
+    ModifierPicker,
 }
 
 /// Application state - single source of truth
@@ -263,6 +337,8 @@ pub struct AppState {
     pub settings_manager_state: SettingsManagerState,
     /// Layer picker component state
     pub layer_picker_state: LayerPickerState,
+    /// Pending parameterized keycode state (for multi-stage keycode building)
+    pub pending_keycode: PendingKeycodeState,
 
     // System resources
     /// Keycode database
@@ -347,6 +423,7 @@ impl AppState {
             wizard_state: onboarding_wizard::OnboardingWizardState::new(),
             settings_manager_state: SettingsManagerState::new(),
             layer_picker_state: LayerPickerState::new(),
+            pending_keycode: PendingKeycodeState::new(),
             keycode_db,
             geometry,
             mapping,
@@ -714,6 +791,15 @@ fn render_popup(f: &mut Frame, popup_type: &PopupType, state: &AppState) {
                 &state.theme,
             );
         }
+        PopupType::TapKeycodePicker => {
+            // Reuse keycode picker rendering with custom title context
+            // The title will show "Select Tap Keycode" based on pending_keycode state
+            keycode_picker::render_keycode_picker(f, state);
+        }
+        PopupType::ModifierPicker => {
+            // TODO: Phase 6 - implement modifier picker
+            // For now, close the popup
+        }
     }
 }
 
@@ -919,6 +1005,8 @@ fn handle_popup_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool
         Some(PopupType::LayoutPicker) => handle_layout_picker_input(state, key),
         Some(PopupType::SetupWizard) => handle_setup_wizard_input(state, key),
         Some(PopupType::SettingsManager) => handle_settings_manager_input(state, key),
+        Some(PopupType::TapKeycodePicker) => handle_tap_keycode_picker_input(state, key),
+        Some(PopupType::ModifierPicker) => handle_modifier_picker_input(state, key),
         _ => {
             // Escape closes any popup
             if key.code == KeyCode::Esc {
@@ -1090,6 +1178,10 @@ fn handle_layout_picker_input(state: &mut AppState, key: event::KeyEvent) -> Res
 fn handle_layer_picker_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
     match key.code {
         KeyCode::Esc => {
+            // Check if this was part of a parameterized keycode flow
+            if state.pending_keycode.keycode_type.is_some() {
+                state.pending_keycode.reset();
+            }
             state.active_popup = None;
             state.layer_picker_state.reset();
             state.set_status("Layer selection cancelled");
@@ -1106,16 +1198,40 @@ fn handle_layer_picker_input(state: &mut AppState, key: event::KeyEvent) -> Resu
             Ok(false)
         }
         KeyCode::Enter => {
-            // Get the selected layer and build the keycode
+            // Get the selected layer
             let selected_idx = state.layer_picker_state.selected;
             if let Some(layer) = state.layout.layers.get(selected_idx) {
-                let keycode = state.layer_picker_state.build_keycode(layer);
+                let layer_ref = format!("@{}", layer.id);
                 
-                // Assign to the selected key
-                if let Some(key) = state.get_selected_key_mut() {
-                    key.keycode = keycode.clone();
-                    state.mark_dirty();
-                    state.set_status(format!("Assigned: {}", keycode));
+                // Check if we're in a parameterized keycode flow
+                match &state.pending_keycode.keycode_type {
+                    Some(ParameterizedKeycodeType::LayerTap) => {
+                        // LT: Store layer, go to tap keycode picker
+                        state.pending_keycode.param1 = Some(layer_ref);
+                        state.active_popup = Some(PopupType::TapKeycodePicker);
+                        state.keycode_picker_state = KeycodePickerState::new();
+                        state.layer_picker_state.reset();
+                        state.set_status("Select tap keycode for LT");
+                        return Ok(false);
+                    }
+                    Some(ParameterizedKeycodeType::LayerMod) => {
+                        // LM: Store layer, go to modifier picker
+                        state.pending_keycode.param1 = Some(layer_ref);
+                        state.active_popup = Some(PopupType::ModifierPicker);
+                        state.layer_picker_state.reset();
+                        state.set_status("Select modifier(s) for LM");
+                        return Ok(false);
+                    }
+                    _ => {
+                        // Regular layer keycode (MO, TG, TO, etc.) - assign directly
+                        let keycode = state.layer_picker_state.build_keycode(layer);
+                        
+                        if let Some(key) = state.get_selected_key_mut() {
+                            key.keycode = keycode.clone();
+                            state.mark_dirty();
+                            state.set_status(format!("Assigned: {}", keycode));
+                        }
+                    }
                 }
             }
             
@@ -1125,6 +1241,79 @@ fn handle_layer_picker_input(state: &mut AppState, key: event::KeyEvent) -> Resu
         }
         _ => Ok(false),
     }
+}
+
+/// Handle input for tap keycode picker (second stage of LT/MT/SH_T)
+fn handle_tap_keycode_picker_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
+    match key.code {
+        KeyCode::Esc => {
+            // Cancel the whole parameterized keycode flow
+            state.pending_keycode.reset();
+            state.active_popup = None;
+            state.keycode_picker_state = KeycodePickerState::new();
+            state.set_status("Cancelled");
+            Ok(false)
+        }
+        KeyCode::Enter => {
+            // Get the selected keycode
+            let keycodes = keycode_picker::get_filtered_keycodes(state);
+            if let Some(kc) = keycodes.get(state.keycode_picker_state.selected) {
+                // Only allow basic keycodes for tap action (no parameterized keycodes)
+                if is_basic_keycode(&kc.code) {
+                    // Store as param2 (tap keycode) for LT/MT, or param1 for SH_T
+                    match &state.pending_keycode.keycode_type {
+                        Some(ParameterizedKeycodeType::SwapHandsTap) => {
+                            state.pending_keycode.param1 = Some(kc.code.clone());
+                        }
+                        _ => {
+                            state.pending_keycode.param2 = Some(kc.code.clone());
+                        }
+                    }
+                    
+                    // Build and assign the final keycode
+                    if let Some(final_keycode) = state.pending_keycode.build_keycode() {
+                        if let Some(key) = state.get_selected_key_mut() {
+                            key.keycode = final_keycode.clone();
+                            state.mark_dirty();
+                            state.set_status(format!("Assigned: {}", final_keycode));
+                        }
+                    }
+                    
+                    // Reset and close
+                    state.pending_keycode.reset();
+                    state.active_popup = None;
+                    state.keycode_picker_state = KeycodePickerState::new();
+                } else {
+                    state.set_error("Only basic keycodes allowed for tap action");
+                }
+            }
+            Ok(false)
+        }
+        // Delegate navigation to standard keycode picker
+        _ => keycode_picker::handle_navigation(state, key),
+    }
+}
+
+/// Handle input for modifier picker (for MT/LM keycodes)
+fn handle_modifier_picker_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
+    // TODO: Phase 6 - implement modifier picker
+    // For now, just handle Esc to cancel
+    match key.code {
+        KeyCode::Esc => {
+            state.pending_keycode.reset();
+            state.active_popup = None;
+            state.set_status("Cancelled");
+            Ok(false)
+        }
+        _ => Ok(false),
+    }
+}
+
+/// Check if a keycode is a basic keycode (not parameterized)
+fn is_basic_keycode(code: &str) -> bool {
+    // Basic keycodes: KC_A-Z, KC_0-9, KC_F1-24, navigation, symbols, etc.
+    // Exclude: layer keycodes, mod-taps, parameterized keycodes
+    !code.contains('(') && !code.contains('@')
 }
 
 /// Handle input for setup wizard
