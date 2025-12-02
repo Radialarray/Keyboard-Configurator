@@ -159,6 +159,138 @@ impl VisualLayoutMapping {
     pub fn get_all_visual_positions(&self) -> Vec<Position> {
         self.visual_to_matrix.keys().copied().collect()
     }
+
+    /// Checks if a visual position is valid (has a physical key).
+    #[must_use]
+    pub fn is_valid_position(&self, pos: Position) -> bool {
+        self.visual_to_matrix.contains_key(&pos)
+    }
+
+    /// Finds the nearest valid position when moving up from the current position.
+    ///
+    /// If current row - 1 has a key in same column, returns that.
+    /// Otherwise searches for nearest key in same row, preferring left.
+    #[must_use]
+    pub fn find_position_up(&self, current: Position) -> Option<Position> {
+        if current.row == 0 {
+            return None;
+        }
+
+        // Try same column first
+        let target_row = current.row - 1;
+        let same_col = Position::new(target_row, current.col);
+        if self.is_valid_position(same_col) {
+            return Some(same_col);
+        }
+
+        // Find nearest valid position in target row
+        self.find_nearest_in_row(target_row, current.col)
+    }
+
+    /// Finds the nearest valid position when moving down from the current position.
+    #[must_use]
+    pub fn find_position_down(&self, current: Position) -> Option<Position> {
+        let target_row = current.row + 1;
+
+        // Try same column first
+        let same_col = Position::new(target_row, current.col);
+        if self.is_valid_position(same_col) {
+            return Some(same_col);
+        }
+
+        // Find nearest valid position in target row
+        self.find_nearest_in_row(target_row, current.col)
+    }
+
+    /// Finds the nearest valid position when moving left from the current position.
+    #[must_use]
+    pub fn find_position_left(&self, current: Position) -> Option<Position> {
+        if current.col == 0 {
+            return None;
+        }
+
+        // Search leftward for next valid position in same row
+        for col in (0..current.col).rev() {
+            let pos = Position::new(current.row, col);
+            if self.is_valid_position(pos) {
+                return Some(pos);
+            }
+        }
+        None
+    }
+
+    /// Finds the nearest valid position when moving right from the current position.
+    #[must_use]
+    pub fn find_position_right(&self, current: Position) -> Option<Position> {
+        // Search rightward for next valid position in same row
+        // Use a reasonable max column (split keyboards can have up to 14 columns)
+        for col in (current.col + 1)..=20 {
+            let pos = Position::new(current.row, col);
+            if self.is_valid_position(pos) {
+                return Some(pos);
+            }
+        }
+        None
+    }
+
+    /// Finds the nearest valid position in a row, closest to target column.
+    fn find_nearest_in_row(&self, row: u8, target_col: u8) -> Option<Position> {
+        let mut best: Option<Position> = None;
+        let mut best_distance = u8::MAX;
+
+        for pos in self.visual_to_matrix.keys() {
+            if pos.row == row {
+                let distance = if pos.col >= target_col {
+                    pos.col - target_col
+                } else {
+                    target_col - pos.col
+                };
+
+                if distance < best_distance {
+                    best_distance = distance;
+                    best = Some(*pos);
+                }
+            }
+        }
+
+        best
+    }
+
+    /// Returns the bounds of valid positions (max row, max col).
+    #[must_use]
+    pub fn get_bounds(&self) -> (u8, u8) {
+        let mut max_row = 0u8;
+        let mut max_col = 0u8;
+
+        for pos in self.visual_to_matrix.keys() {
+            max_row = max_row.max(pos.row);
+            max_col = max_col.max(pos.col);
+        }
+
+        (max_row, max_col)
+    }
+
+    /// Returns the first valid position (top-left most key).
+    ///
+    /// Used to initialize cursor position when loading a layout.
+    #[must_use]
+    pub fn get_first_position(&self) -> Option<Position> {
+        let mut first: Option<Position> = None;
+
+        for pos in self.visual_to_matrix.keys() {
+            match first {
+                None => first = Some(*pos),
+                Some(current) => {
+                    // Prefer top-left: lower row first, then lower col
+                    if pos.row < current.row || (pos.row == current.row && pos.col < current.col) {
+                        first = Some(*pos);
+                    }
+                }
+            }
+        }
+
+        first
+    }
 }
 
 impl Default for VisualLayoutMapping {
