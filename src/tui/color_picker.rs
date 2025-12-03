@@ -333,6 +333,8 @@ fn render_palette_mode(f: &mut Frame, state: &super::AppState) {
         Span::raw(" Switch Step  "),
         Span::styled("c", Style::default().fg(theme.accent)),
         Span::raw(" Custom RGB  "),
+        Span::styled("x", Style::default().fg(theme.accent)),
+        Span::raw(" Clear  "),
         Span::styled("Enter", Style::default().fg(theme.accent)),
         Span::raw(" Apply  "),
         Span::styled("Esc", Style::default().fg(theme.accent)),
@@ -605,6 +607,8 @@ fn render_rgb_mode(f: &mut Frame, state: &super::AppState) {
         Span::raw(" Channel  "),
         Span::styled("p", Style::default().fg(theme.accent)),
         Span::raw(" Palette  "),
+        Span::styled("x", Style::default().fg(theme.accent)),
+        Span::raw(" Clear  "),
         Span::styled("Enter", Style::default().fg(theme.accent)),
         Span::raw(" Apply  "),
         Span::styled("Esc", Style::default().fg(theme.accent)),
@@ -661,6 +665,11 @@ fn handle_palette_input(state: &mut super::AppState, key: KeyEvent) -> anyhow::R
         }
         KeyCode::Enter => {
             apply_color(state);
+            Ok(false)
+        }
+        KeyCode::Char('x') | KeyCode::Delete => {
+            // Clear/reset the color
+            clear_color(state);
             Ok(false)
         }
         KeyCode::Char('c') | KeyCode::Char('C') => {
@@ -727,6 +736,11 @@ fn handle_rgb_input(state: &mut super::AppState, key: KeyEvent) -> anyhow::Resul
         }
         KeyCode::Enter => {
             apply_color(state);
+            Ok(false)
+        }
+        KeyCode::Char('x') | KeyCode::Delete => {
+            // Clear/reset the color
+            clear_color(state);
             Ok(false)
         }
         KeyCode::Char('p') | KeyCode::Char('P') => {
@@ -823,6 +837,42 @@ fn apply_color(state: &mut super::AppState) {
                     state.color_picker_context = None;
                 }
             }
+        }
+        None => {
+            state.set_error("No color context set");
+            state.active_popup = None;
+            state.color_picker_context = None;
+        }
+    }
+}
+
+/// Clear/reset the color based on context
+fn clear_color(state: &mut super::AppState) {
+    match state.color_picker_context {
+        Some(super::ColorPickerContext::IndividualKey) => {
+            // Clear individual key color override - key will inherit layer default
+            if let Some(key) = state.get_selected_key_mut() {
+                key.color_override = None;
+                state.mark_dirty();
+                state.set_status("Cleared key color (using layer default)");
+            }
+            state.active_popup = None;
+            state.color_picker_context = None;
+        }
+        Some(super::ColorPickerContext::LayerDefault) => {
+            // Reset layer default to white
+            let default_color = crate::models::RgbColor::new(255, 255, 255);
+            if let Some(layer) = state.layout.layers.get_mut(state.current_layer) {
+                layer.default_color = default_color;
+                state.mark_dirty();
+                state.set_status("Reset layer color to white");
+            }
+            state.active_popup = None;
+            state.color_picker_context = None;
+        }
+        Some(super::ColorPickerContext::Category) => {
+            // Categories must have a color - clearing is not allowed
+            state.set_error("Categories must have a color");
         }
         None => {
             state.set_error("No color context set");
