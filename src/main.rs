@@ -61,6 +61,14 @@ fn run_onboarding_wizard() -> Result<()> {
                         let config = wizard_state.build_config()?;
                         config.save()?;
 
+                        // Get the layout name from wizard inputs
+                        let layout_name = wizard_state.inputs.get("layout_name")
+                            .cloned()
+                            .unwrap_or_else(|| {
+                                // Fallback to keyboard-based name if not set
+                                format!("{}_layout", config.build.keyboard.replace('/', "_"))
+                            });
+
                         // Restore terminal before continuing
                         tui::restore_terminal(terminal)?;
 
@@ -69,8 +77,8 @@ fn run_onboarding_wizard() -> Result<()> {
                         println!("Generating default layout and launching editor...");
                         println!();
 
-                        // Launch the editor with default layout
-                        launch_editor_with_default_layout(&config)?;
+                        // Launch the editor with default layout using the user-specified name
+                        launch_editor_with_default_layout(&config, &layout_name)?;
                         return Ok(());
                     } else {
                         // User cancelled
@@ -85,7 +93,7 @@ fn run_onboarding_wizard() -> Result<()> {
 }
 
 /// Creates a default layout from QMK keyboard info and launches the editor
-fn launch_editor_with_default_layout(config: &config::Config) -> Result<()> {
+fn launch_editor_with_default_layout(config: &config::Config, layout_file_name: &str) -> Result<()> {
     // Get QMK path from config
     let qmk_path = config
         .paths
@@ -93,19 +101,33 @@ fn launch_editor_with_default_layout(config: &config::Config) -> Result<()> {
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("QMK firmware path not set in configuration"))?;
 
-    // Parse keyboard info.json
-    let keyboard_info =
-        parser::keyboard_json::parse_keyboard_info_json(qmk_path, &config.build.keyboard)?;
+    // Get the base keyboard name (without any variant subdirectory)
+    // This mirrors the logic in AppState::rebuild_geometry()
+    let base_keyboard = tui::AppState::extract_base_keyboard(&config.build.keyboard);
 
-    // Try to get RGB matrix mapping from variant keyboard.json
-    let matrix_to_led = parser::keyboard_json::parse_variant_keyboard_json(qmk_path, &config.build.keyboard)
+    // Parse keyboard info.json using the base keyboard path
+    let keyboard_info =
+        parser::keyboard_json::parse_keyboard_info_json(qmk_path, &base_keyboard)?;
+
+    // Get the key count for the selected layout to determine the correct variant
+    let layout_def = keyboard_info.layouts.get(&config.build.layout)
+        .ok_or_else(|| anyhow::anyhow!("Layout '{}' not found in keyboard info.json", config.build.layout))?;
+    let key_count = layout_def.layout.len();
+
+    // Determine the correct keyboard variant based on key count
+    // This is critical for split keyboards where different variants have different key counts
+    let variant_path = config.build.determine_keyboard_variant(qmk_path, &base_keyboard, key_count)
+        .unwrap_or_else(|_| base_keyboard.clone());
+
+    // Try to get RGB matrix mapping from the variant's keyboard.json
+    let matrix_to_led = parser::keyboard_json::parse_variant_keyboard_json(qmk_path, &variant_path)
         .and_then(|variant| variant.rgb_matrix)
         .map(|rgb_config| parser::keyboard_json::build_matrix_to_led_map(&rgb_config));
 
     // Build geometry from the selected layout with RGB matrix mapping if available
     let geometry = parser::keyboard_json::build_keyboard_geometry_with_rgb(
         &keyboard_info,
-        &config.build.keyboard,
+        &base_keyboard,
         &config.build.layout,
         matrix_to_led.as_ref(),
     )?;
@@ -113,41 +135,51 @@ fn launch_editor_with_default_layout(config: &config::Config) -> Result<()> {
     // Build visual mapping
     let mapping = models::VisualLayoutMapping::build(&geometry);
 
-    // Create a default layout with empty keys
-    let layout_name = format!("{} Layout", config.build.keyboard);
-    let mut layout = models::Layout::new(&layout_name)?;
+    // Create a default layout with the user-specified name
+    let mut layout = models::Layout::new(layout_file_name)?;
+
+    // Store the layout variant in metadata for future reference
+    layout.metadata.layout_variant = Some(config.build.layout.clone());
 
     // Add a default base layer with KC_TRNS for all positions
-    let base_layer = create_default_layer(0, "Base", &geometry)?;
+    let base_layer = create_default_layer(0, "Base", &mapping)?;
     layout.add_layer(base_layer)?;
 
-    // Suggest a save path in the config directory
+    // Create save path using the user-specified layout name
     let layouts_dir = config::Config::config_dir()?.join("layouts");
     std::fs::create_dir_all(&layouts_dir)?;
 
-    let suggested_filename = format!(
-        "{}_{}.md",
-        config.build.keyboard.replace('/', "_"),
-        chrono::Local::now().format("%Y%m%d")
-    );
-    let suggested_path = layouts_dir.join(suggested_filename);
+    // Sanitize the filename: remove/replace problematic characters
+    let sanitized_name = layout_file_name
+        .replace('/', "_")
+        .replace('\\', "_")
+        .replace(':', "_")
+        .replace(' ', "_");
+    
+    let layout_path = layouts_dir.join(format!("{}.md", sanitized_name));
 
-    println!("Opening editor with default layout...");
-    println!("Suggested save location: {}", suggested_path.display());
+    // Save the layout immediately so it can be found on restart
+    parser::save_markdown_layout(&layout, &layout_path)?;
+
+    println!("Layout saved to: {}", layout_path.display());
     println!();
+
+    // Update config with the determined variant path before creating AppState
+    let mut updated_config = config.clone();
+    updated_config.build.keyboard = variant_path;
 
     // Initialize TUI with the generated layout
     let mut terminal = tui::setup_terminal()?;
     let mut app_state = tui::AppState::new(
         layout,
-        Some(suggested_path),
+        Some(layout_path),
         geometry,
         mapping,
-        config.clone(),
+        updated_config,
     )?;
 
-    // Mark as dirty since it's a new unsaved layout
-    app_state.dirty = true;
+    // Layout is clean since we just saved it
+    app_state.dirty = false;
 
     // Run main TUI loop
     let result = tui::run_tui(&mut app_state, &mut terminal);
@@ -165,9 +197,9 @@ fn launch_editor_with_default_layout(config: &config::Config) -> Result<()> {
 fn create_default_layer(
     number: u8,
     name: &str,
-    geometry: &models::KeyboardGeometry,
+    mapping: &models::VisualLayoutMapping,
 ) -> Result<models::Layer> {
-    use models::layer::{KeyDefinition, Position};
+    use models::layer::KeyDefinition;
 
     let mut layer = models::Layer::new(
         number,
@@ -175,11 +207,10 @@ fn create_default_layer(
         models::RgbColor::new(128, 128, 128), // Default gray color
     )?;
 
-    // Add KC_TRNS for each key position in the geometry
-    for key_geo in &geometry.keys {
-        let (matrix_row, matrix_col) = key_geo.matrix_position;
-        let position = Position::new(matrix_row, matrix_col);
-        let key = KeyDefinition::new(position, "KC_TRNS".to_string());
+    // Add KC_TRNS for each visual position in the mapping
+    // This ensures keys use visual positions (not matrix positions) for proper rendering
+    for pos in mapping.get_all_visual_positions() {
+        let key = KeyDefinition::new(pos, "KC_TRNS".to_string());
         layer.add_key(key);
     }
 
@@ -216,9 +247,8 @@ fn run_layout_picker(config: &config::Config) -> Result<()> {
 
                     match action {
                         tui::layout_picker::PickerAction::CreateNew => {
-                            println!("Creating new layout...");
-                            println!();
-                            launch_editor_with_default_layout(config)?;
+                            // Run wizard to let user select keyboard, layout, and name
+                            run_new_layout_wizard(config)?;
                             return Ok(());
                         }
                         tui::layout_picker::PickerAction::LoadLayout(path) => {
@@ -295,6 +325,73 @@ fn run_layout_picker(config: &config::Config) -> Result<()> {
                             println!("Layout selection cancelled.");
                             return Ok(());
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Runs a wizard for creating a new layout (skips QMK path since config exists)
+fn run_new_layout_wizard(config: &config::Config) -> Result<()> {
+    use crossterm::event::{self, Event};
+    use std::time::Duration;
+
+    // Initialize terminal
+    let mut terminal = tui::setup_terminal()?;
+    let mut wizard_state = tui::onboarding_wizard::OnboardingWizardState::new_for_new_layout(config)?;
+
+    // Run wizard loop
+    loop {
+        // Re-detect OS theme on each loop iteration to respond to system theme changes
+        let theme = tui::Theme::detect();
+
+        terminal.draw(|f| {
+            tui::onboarding_wizard::render(f, &wizard_state, &theme);
+        })?;
+
+        // Poll for events with timeout
+        if event::poll(Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
+                let should_exit = tui::onboarding_wizard::handle_input(&mut wizard_state, key)?;
+
+                if should_exit {
+                    if wizard_state.is_complete {
+                        // Get values from wizard
+                        let keyboard = wizard_state.inputs.get("keyboard")
+                            .cloned()
+                            .unwrap_or_else(|| config.build.keyboard.clone());
+                        let layout_variant = wizard_state.inputs.get("layout")
+                            .cloned()
+                            .unwrap_or_else(|| config.build.layout.clone());
+                        let layout_name = wizard_state.inputs.get("layout_name")
+                            .cloned()
+                            .unwrap_or_else(|| format!("{}_layout", keyboard.replace('/', "_")));
+
+                        // Update config with new keyboard/layout if changed
+                        let mut updated_config = config.clone();
+                        updated_config.build.keyboard = keyboard;
+                        updated_config.build.layout = layout_variant;
+                        
+                        // Save updated config
+                        if let Err(e) = updated_config.save() {
+                            eprintln!("Warning: Failed to save config: {}", e);
+                        }
+
+                        // Restore terminal before continuing
+                        tui::restore_terminal(terminal)?;
+
+                        println!("Creating new layout...");
+                        println!();
+
+                        // Launch the editor with the new layout
+                        launch_editor_with_default_layout(&updated_config, &layout_name)?;
+                        return Ok(());
+                    } else {
+                        // User cancelled - return to layout picker
+                        tui::restore_terminal(terminal)?;
+                        println!("Layout creation cancelled.");
+                        return Ok(());
                     }
                 }
             }
