@@ -127,6 +127,8 @@ pub struct OnboardingWizardState {
     pub error_message: Option<String>,
     /// Whether the wizard is complete
     pub is_complete: bool,
+    /// Whether this is a keyboard-only change (skip other config steps)
+    pub keyboard_change_only: bool,
 }
 
 impl OnboardingWizardState {
@@ -144,7 +146,40 @@ impl OnboardingWizardState {
             layout_selected_index: 0,
             error_message: None,
             is_complete: false,
+            keyboard_change_only: false,
         }
+    }
+
+    /// Creates a wizard state starting at keyboard selection step.
+    /// 
+    /// This is used when changing keyboard from settings - skips QMK path setup
+    /// and completes after layout selection (skips output path, format, etc.).
+    /// 
+    /// # Arguments
+    /// * `qmk_path` - The already-configured QMK firmware path
+    /// 
+    /// # Returns
+    /// * `Ok(Self)` - Wizard state ready for keyboard selection
+    /// * `Err` - If keyboard scanning fails
+    pub fn new_for_keyboard_selection(qmk_path: &std::path::Path) -> Result<Self> {
+        let keyboards = scan_keyboards(qmk_path)?;
+        
+        let mut inputs = HashMap::new();
+        inputs.insert("qmk_path".to_string(), qmk_path.to_string_lossy().to_string());
+        
+        Ok(Self {
+            current_step: WizardStep::KeyboardSelection,
+            inputs,
+            input_buffer: String::new(),
+            available_keyboards: keyboards,
+            keyboard_filter: String::new(),
+            keyboard_selected_index: 0,
+            available_layouts: Vec::new(),
+            layout_selected_index: 0,
+            error_message: None,
+            is_complete: false,
+            keyboard_change_only: true,
+        })
     }
 
     /// Gets the filtered list of keyboards based on current filter
@@ -248,6 +283,12 @@ impl OnboardingWizardState {
 
                 let layout = self.available_layouts[self.layout_selected_index].clone();
                 self.inputs.insert("layout".to_string(), layout);
+                
+                // If this is a keyboard-only change, we're done
+                if self.keyboard_change_only {
+                    self.is_complete = true;
+                    return Ok(());
+                }
                 
                 // Pre-populate layout name from keyboard if not already set
                 if !self.inputs.contains_key("layout_name") {
@@ -776,10 +817,13 @@ pub fn handle_input(state: &mut OnboardingWizardState, key: KeyEvent) -> Result<
                 state.keyboard_selected_index = 0;
             }
             KeyCode::Esc => {
-                // If filter is active, clear it; otherwise go back
+                // If filter is active, clear it
                 if !state.keyboard_filter.is_empty() {
                     state.keyboard_filter.clear();
                     state.keyboard_selected_index = 0;
+                } else if state.keyboard_change_only {
+                    // In keyboard_change_only mode, Esc exits the wizard
+                    return Ok(true);
                 } else {
                     state.previous_step();
                 }
@@ -799,8 +843,16 @@ pub fn handle_input(state: &mut OnboardingWizardState, key: KeyEvent) -> Result<
             }
             KeyCode::Enter => {
                 state.next_step()?;
+                // If keyboard_change_only mode completed, signal exit
+                if state.is_complete {
+                    return Ok(true);
+                }
             }
             KeyCode::Esc => {
+                // In keyboard_change_only mode, Esc exits the wizard
+                if state.keyboard_change_only {
+                    return Ok(true);
+                }
                 state.previous_step();
             }
             _ => {}

@@ -19,6 +19,15 @@ use super::Theme;
 /// Setting group for organization
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SettingGroup {
+    // === Global Settings (stored in config.toml) ===
+    /// Path configuration settings
+    Paths,
+    /// Firmware build settings
+    Build,
+    /// UI preferences
+    Ui,
+    
+    // === Per-Layout Settings (stored in layout .md file) ===
     /// General layout settings
     General,
     /// RGB lighting settings
@@ -31,32 +40,70 @@ impl SettingGroup {
     /// Returns all groups in display order.
     #[must_use]
     pub const fn all() -> &'static [SettingGroup] {
-        &[SettingGroup::General, SettingGroup::Rgb, SettingGroup::TapHold]
+        &[
+            // Global settings first
+            SettingGroup::Paths,
+            SettingGroup::Build,
+            SettingGroup::Ui,
+            // Per-layout settings
+            SettingGroup::General,
+            SettingGroup::Rgb,
+            SettingGroup::TapHold,
+        ]
     }
 
     /// Returns display name.
     #[must_use]
     pub const fn display_name(&self) -> &'static str {
         match self {
-            Self::General => "General",
-            Self::Rgb => "RGB Lighting",
-            Self::TapHold => "Tap-Hold",
+            Self::Paths => "Paths [Global]",
+            Self::Build => "Build [Global]",
+            Self::Ui => "UI [Global]",
+            Self::General => "General [Layout]",
+            Self::Rgb => "RGB Lighting [Layout]",
+            Self::TapHold => "Tap-Hold [Layout]",
         }
+    }
+
+    /// Returns whether this is a global setting (stored in config.toml)
+    #[must_use]
+    pub const fn is_global(&self) -> bool {
+        matches!(self, Self::Paths | Self::Build | Self::Ui)
     }
 }
 
 /// Available settings that can be configured
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SettingItem {
-    // === General Settings ===
+    // === Paths Settings (Global) ===
+    /// QMK firmware directory path
+    QmkFirmwarePath,
+
+    // === Build Settings (Global) ===
+    /// Target keyboard
+    Keyboard,
+    /// Layout variant
+    LayoutVariant,
+    /// Keymap name
+    KeymapName,
+    /// Output format (uf2, hex, bin)
+    OutputFormat,
+    /// Build output directory
+    OutputDir,
+
+    // === UI Settings (Global) ===
+    /// Display help on startup
+    ShowHelpOnStartup,
+
+    // === General Settings (Per-Layout) ===
     /// Behavior for keys without color on current layer
     InactiveKeyBehavior,
 
-    // === RGB Settings ===
+    // === RGB Settings (Per-Layout) ===
     /// RGB Matrix timeout (auto-off after inactivity)
     RgbTimeout,
 
-    // === Tap-Hold Settings ===
+    // === Tap-Hold Settings (Per-Layout) ===
     /// Preset for common tap-hold configurations
     TapHoldPreset,
     /// Base timing for tap vs hold decision
@@ -80,8 +127,21 @@ impl SettingItem {
     #[must_use]
     pub const fn all() -> &'static [SettingItem] {
         &[
+            // Paths (Global)
+            SettingItem::QmkFirmwarePath,
+            // Build (Global)
+            SettingItem::Keyboard,
+            SettingItem::LayoutVariant,
+            SettingItem::KeymapName,
+            SettingItem::OutputFormat,
+            SettingItem::OutputDir,
+            // UI (Global)
+            SettingItem::ShowHelpOnStartup,
+            // General (Per-Layout)
             SettingItem::InactiveKeyBehavior,
+            // RGB (Per-Layout)
             SettingItem::RgbTimeout,
+            // Tap-Hold (Per-Layout)
             SettingItem::TapHoldPreset,
             SettingItem::TappingTerm,
             SettingItem::QuickTapTerm,
@@ -97,6 +157,13 @@ impl SettingItem {
     #[must_use]
     pub const fn group(&self) -> SettingGroup {
         match self {
+            Self::QmkFirmwarePath => SettingGroup::Paths,
+            Self::Keyboard
+            | Self::LayoutVariant
+            | Self::KeymapName
+            | Self::OutputFormat
+            | Self::OutputDir => SettingGroup::Build,
+            Self::ShowHelpOnStartup => SettingGroup::Ui,
             Self::InactiveKeyBehavior => SettingGroup::General,
             Self::RgbTimeout => SettingGroup::Rgb,
             Self::TapHoldPreset
@@ -114,6 +181,13 @@ impl SettingItem {
     #[must_use]
     pub const fn display_name(&self) -> &'static str {
         match self {
+            Self::QmkFirmwarePath => "QMK Firmware Path",
+            Self::Keyboard => "Keyboard",
+            Self::LayoutVariant => "Layout Variant",
+            Self::KeymapName => "Keymap Name",
+            Self::OutputFormat => "Output Format",
+            Self::OutputDir => "Output Directory",
+            Self::ShowHelpOnStartup => "Show Help on Startup",
             Self::InactiveKeyBehavior => "Inactive Key Behavior",
             Self::RgbTimeout => "RGB Timeout",
             Self::TapHoldPreset => "Preset",
@@ -131,6 +205,13 @@ impl SettingItem {
     #[must_use]
     pub const fn description(&self) -> &'static str {
         match self {
+            Self::QmkFirmwarePath => "Path to QMK firmware directory (required for builds)",
+            Self::Keyboard => "Target keyboard for firmware builds",
+            Self::LayoutVariant => "Physical layout variant (e.g., LAYOUT_split_3x6_3)",
+            Self::KeymapName => "Name of the keymap (e.g., 'default', 'mymap')",
+            Self::OutputFormat => "Firmware output format: uf2, hex, or bin",
+            Self::OutputDir => "Directory where built firmware will be saved",
+            Self::ShowHelpOnStartup => "Display help overlay when application starts",
             Self::InactiveKeyBehavior => {
                 "How to display keys without a color on the current layer"
             }
@@ -144,6 +225,12 @@ impl SettingItem {
             Self::FlowTapTerm => "Rapid typing window to prevent accidental modifiers",
             Self::ChordalHold => "Use opposite-hand rule for tap-hold (great for HRM)",
         }
+    }
+
+    /// Returns whether this is a global setting (stored in config.toml)
+    #[must_use]
+    pub const fn is_global(&self) -> bool {
+        self.group().is_global()
     }
 }
 
@@ -184,6 +271,25 @@ pub enum ManagerMode {
         setting: SettingItem,
         /// Current value
         value: bool,
+    },
+    /// Editing a string value (keymap name, etc.)
+    EditingString {
+        /// Which setting is being edited
+        setting: SettingItem,
+        /// Current value
+        value: String,
+    },
+    /// Selecting output format (uf2, hex, bin)
+    SelectingOutputFormat {
+        /// Currently highlighted option index
+        selected_option: usize,
+    },
+    /// Editing a path (QMK path, output dir)
+    EditingPath {
+        /// Which setting is being edited
+        setting: SettingItem,
+        /// Current value
+        value: String,
     },
 }
 
@@ -280,7 +386,8 @@ impl SettingsManagerState {
         match &mut self.mode {
             ManagerMode::SelectingInactiveKeyBehavior { selected_option }
             | ManagerMode::SelectingTapHoldPreset { selected_option }
-            | ManagerMode::SelectingHoldMode { selected_option } => {
+            | ManagerMode::SelectingHoldMode { selected_option }
+            | ManagerMode::SelectingOutputFormat { selected_option } => {
                 if *selected_option > 0 {
                     *selected_option -= 1;
                 } else {
@@ -299,7 +406,8 @@ impl SettingsManagerState {
         match &mut self.mode {
             ManagerMode::SelectingInactiveKeyBehavior { selected_option }
             | ManagerMode::SelectingTapHoldPreset { selected_option }
-            | ManagerMode::SelectingHoldMode { selected_option } => {
+            | ManagerMode::SelectingHoldMode { selected_option }
+            | ManagerMode::SelectingOutputFormat { selected_option } => {
                 *selected_option = (*selected_option + 1) % option_count;
             }
             ManagerMode::TogglingBoolean { value, .. } => {
@@ -386,6 +494,70 @@ impl SettingsManagerState {
         }
     }
 
+    /// Start editing a string value
+    pub fn start_editing_string(&mut self, setting: SettingItem, current: String) {
+        self.mode = ManagerMode::EditingString {
+            setting,
+            value: current,
+        };
+    }
+
+    /// Start editing a path value
+    pub fn start_editing_path(&mut self, setting: SettingItem, current: String) {
+        self.mode = ManagerMode::EditingPath {
+            setting,
+            value: current,
+        };
+    }
+
+    /// Start selecting output format
+    pub fn start_selecting_output_format(&mut self, selected: usize) {
+        self.mode = ManagerMode::SelectingOutputFormat {
+            selected_option: selected,
+        };
+    }
+
+    /// Handle character input for string/path editing
+    pub fn handle_string_char_input(&mut self, c: char) {
+        match &mut self.mode {
+            ManagerMode::EditingString { value, .. } | ManagerMode::EditingPath { value, .. } => {
+                value.push(c);
+            }
+            _ => {}
+        }
+    }
+
+    /// Handle backspace for string/path editing
+    pub fn handle_string_backspace(&mut self) {
+        match &mut self.mode {
+            ManagerMode::EditingString { value, .. } | ManagerMode::EditingPath { value, .. } => {
+                value.pop();
+            }
+            _ => {}
+        }
+    }
+
+    /// Get the current string value being edited
+    #[must_use]
+    pub fn get_string_value(&self) -> Option<&str> {
+        match &self.mode {
+            ManagerMode::EditingString { value, .. } | ManagerMode::EditingPath { value, .. } => {
+                Some(value)
+            }
+            _ => None,
+        }
+    }
+
+    /// Get the selected output format index
+    #[must_use]
+    pub fn get_output_format_selected(&self) -> Option<usize> {
+        if let ManagerMode::SelectingOutputFormat { selected_option } = &self.mode {
+            Some(*selected_option)
+        } else {
+            None
+        }
+    }
+
     /// Cancel current operation and return to browsing
     pub fn cancel(&mut self) {
         self.mode = ManagerMode::Browsing;
@@ -412,6 +584,7 @@ pub fn render_settings_manager(
     inactive_key_behavior: InactiveKeyBehavior,
     tap_hold_settings: &TapHoldSettings,
     rgb_timeout_ms: u32,
+    config: &crate::config::Config,
     theme: &Theme,
 ) {
     // Center the dialog (80% width, 80% height)
@@ -448,7 +621,7 @@ pub fn render_settings_manager(
 
     match &state.mode {
         ManagerMode::Browsing => {
-            render_settings_list(f, inner_area, state, inactive_key_behavior, tap_hold_settings, rgb_timeout_ms, theme);
+            render_settings_list(f, inner_area, state, inactive_key_behavior, tap_hold_settings, rgb_timeout_ms, config, theme);
         }
         ManagerMode::SelectingInactiveKeyBehavior { selected_option } => {
             render_inactive_behavior_selector(f, inner_area, *selected_option, theme);
@@ -465,6 +638,15 @@ pub fn render_settings_manager(
         ManagerMode::TogglingBoolean { setting, value } => {
             render_boolean_toggle(f, inner_area, *setting, *value, theme);
         }
+        ManagerMode::EditingString { setting, value } => {
+            render_string_editor(f, inner_area, *setting, value, theme);
+        }
+        ManagerMode::SelectingOutputFormat { selected_option } => {
+            render_output_format_selector(f, inner_area, *selected_option, theme);
+        }
+        ManagerMode::EditingPath { setting, value } => {
+            render_path_editor(f, inner_area, *setting, value, theme);
+        }
     }
 }
 
@@ -476,6 +658,7 @@ fn render_settings_list(
     inactive_key_behavior: InactiveKeyBehavior,
     tap_hold_settings: &TapHoldSettings,
     rgb_timeout_ms: u32,
+    config: &crate::config::Config,
     theme: &Theme,
 ) {
     // Split area for list and help text
@@ -519,7 +702,7 @@ fn render_settings_list(
         };
 
         // Get current value for this setting
-        let value = get_setting_value_display(*setting, inactive_key_behavior, tap_hold_settings, rgb_timeout_ms);
+        let value = get_setting_value_display(*setting, inactive_key_behavior, tap_hold_settings, rgb_timeout_ms, config);
 
         let marker = if display_index == state.selected {
             "▶ "
@@ -580,9 +763,34 @@ fn get_setting_value_display(
     inactive_key_behavior: InactiveKeyBehavior,
     tap_hold: &TapHoldSettings,
     rgb_timeout_ms: u32,
+    config: &crate::config::Config,
 ) -> String {
     match setting {
+        // Global: Paths
+        SettingItem::QmkFirmwarePath => config
+            .paths
+            .qmk_firmware
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "<not set>".to_string()),
+        // Global: Build
+        SettingItem::Keyboard => config.build.keyboard.clone(),
+        SettingItem::LayoutVariant => config.build.layout.clone(),
+        SettingItem::KeymapName => config.build.keymap.clone(),
+        SettingItem::OutputFormat => config.build.output_format.clone(),
+        SettingItem::OutputDir => config.build.output_dir.display().to_string(),
+        // Global: UI
+        SettingItem::ShowHelpOnStartup => {
+            if config.ui.show_help_on_startup {
+                "On"
+            } else {
+                "Off"
+            }
+            .to_string()
+        }
+        // Per-Layout: General
         SettingItem::InactiveKeyBehavior => inactive_key_behavior.display_name().to_string(),
+        // Per-Layout: RGB
         SettingItem::RgbTimeout => {
             if rgb_timeout_ms == 0 {
                 "Disabled".to_string()
@@ -594,6 +802,7 @@ fn get_setting_value_display(
                 format!("{}ms", rgb_timeout_ms)
             }
         }
+        // Per-Layout: Tap-Hold
         SettingItem::TapHoldPreset => tap_hold.preset.display_name().to_string(),
         SettingItem::TappingTerm => format!("{}ms", tap_hold.tapping_term),
         SettingItem::QuickTapTerm => match tap_hold.quick_tap_term {
@@ -759,7 +968,7 @@ fn render_enum_selector(
     f.render_widget(help_widget, chunks[2]);
 }
 
-/// Render numeric value editor
+/// Render numeric editor for integer values
 fn render_numeric_editor(
     f: &mut Frame,
     area: Rect,
@@ -773,8 +982,9 @@ fn render_numeric_editor(
         .direction(ratatui::layout::Direction::Vertical)
         .constraints([
             Constraint::Length(2), // Title
-            Constraint::Min(6),    // Value display
-            Constraint::Length(5), // Help
+            Constraint::Length(3), // Input field
+            Constraint::Min(2),    // Description + range
+            Constraint::Length(4), // Help
         ])
         .split(area);
 
@@ -788,43 +998,36 @@ fn render_numeric_editor(
         );
     f.render_widget(title_text, chunks[0]);
 
-    // Determine unit based on setting type
-    let unit = match setting {
-        SettingItem::RgbTimeout => "sec",
-        _ => "ms",
-    };
+    // Input field with cursor
+    let display_value = format!("{}▌", value);
+    let input_block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.primary))
+        .title("Value");
+    let input_text = Paragraph::new(display_value)
+        .style(Style::default().fg(theme.text))
+        .block(input_block);
+    f.render_widget(input_text, chunks[1]);
 
-    // Value display
-    let value_text = vec![
+    // Description and range
+    let desc = vec![
+        Line::from(setting.description()),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("Current value: ", Style::default().fg(theme.text_muted)),
-            Span::styled(
-                format!("{value}{unit}"),
-                Style::default()
-                    .fg(theme.success)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ]),
-        Line::from(""),
-        Line::from(vec![Span::styled(
-            format!("Range: {min}{unit} - {max}{unit}"),
+        Line::from(Span::styled(
+            format!("Range: {} to {}", min, max),
             Style::default().fg(theme.text_muted),
-        )]),
+        )),
     ];
 
-    let value_paragraph = Paragraph::new(value_text)
-        .block(Block::default().borders(Borders::ALL).title("Value"))
-        .alignment(Alignment::Center);
-
-    f.render_widget(value_paragraph, chunks[1]);
+    let desc_text = Paragraph::new(desc)
+        .alignment(Alignment::Center)
+        .wrap(ratatui::widgets::Wrap { trim: true })
+        .style(Style::default().fg(theme.text_muted));
+    f.render_widget(desc_text, chunks[2]);
 
     // Help text
     let help = vec![
-        Line::from(""),
         Line::from(vec![
-            Span::styled("0-9", Style::default().fg(theme.primary)),
-            Span::raw(": Type value  "),
             Span::styled("↑/↓", Style::default().fg(theme.primary)),
             Span::raw(": ±10  "),
         ]),
@@ -842,8 +1045,248 @@ fn render_numeric_editor(
         .alignment(Alignment::Center)
         .style(Style::default().fg(theme.text_muted));
 
+    f.render_widget(help_widget, chunks[3]);
+}
+
+/// Render string editor (for keymap name, etc.)
+fn render_string_editor(
+    f: &mut Frame,
+    area: Rect,
+    setting: SettingItem,
+    value: &str,
+    theme: &Theme,
+) {
+    let chunks = ratatui::layout::Layout::default()
+        .direction(ratatui::layout::Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // Title
+            Constraint::Length(3), // Input field
+            Constraint::Min(2),    // Description
+            Constraint::Length(4), // Help
+        ])
+        .split(area);
+
+    // Title
+    let title_text = Paragraph::new(setting.display_name())
+        .alignment(Alignment::Center)
+        .style(
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        );
+    f.render_widget(title_text, chunks[0]);
+
+    // Input field with cursor
+    let display_value = format!("{}▌", value);
+    let input_block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.primary))
+        .title("Value");
+    let input_text = Paragraph::new(display_value)
+        .style(Style::default().fg(theme.text))
+        .block(input_block);
+    f.render_widget(input_text, chunks[1]);
+
+    // Description
+    let desc_text = Paragraph::new(setting.description())
+        .alignment(Alignment::Center)
+        .wrap(ratatui::widgets::Wrap { trim: true })
+        .style(Style::default().fg(theme.text_muted));
+    f.render_widget(desc_text, chunks[2]);
+
+    // Help text
+    let help = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Enter", Style::default().fg(theme.primary)),
+            Span::raw(": Apply  "),
+            Span::styled("Esc", Style::default().fg(theme.primary)),
+            Span::raw(": Cancel  "),
+            Span::styled("Backspace", Style::default().fg(theme.primary)),
+            Span::raw(": Delete"),
+        ]),
+    ];
+
+    let help_widget = Paragraph::new(help)
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(theme.text_muted));
+
+    f.render_widget(help_widget, chunks[3]);
+}
+
+/// Render output format selector
+fn render_output_format_selector(
+    f: &mut Frame,
+    area: Rect,
+    selected_option: usize,
+    theme: &Theme,
+) {
+    let chunks = ratatui::layout::Layout::default()
+        .direction(ratatui::layout::Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // Title
+            Constraint::Min(5),    // Options
+            Constraint::Length(4), // Help
+        ])
+        .split(area);
+
+    // Title
+    let title_text = Paragraph::new("Output Format")
+        .alignment(Alignment::Center)
+        .style(
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        );
+    f.render_widget(title_text, chunks[0]);
+
+    // Options
+    let options = ["uf2", "hex", "bin"];
+    let items: Vec<ListItem> = options
+        .iter()
+        .enumerate()
+        .map(|(idx, label)| {
+            let selected = idx == selected_option;
+            let style = if selected {
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.text)
+            };
+
+            let marker = if selected { "▶ " } else { "  " };
+            let description = match *label {
+                "uf2" => " (USB Flashing Format - RP2040, etc.)",
+                "hex" => " (Intel HEX - AVR, etc.)",
+                "bin" => " (Raw binary)",
+                _ => "",
+            };
+
+            ListItem::new(Line::from(vec![
+                Span::styled(marker, Style::default().fg(theme.primary)),
+                Span::styled(*label, style),
+                Span::styled(description, Style::default().fg(theme.text_muted)),
+            ]))
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title("Format"))
+        .highlight_style(Style::default().bg(theme.surface));
+
+    f.render_widget(list, chunks[1]);
+
+    // Help text
+    let help = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("↑/↓", Style::default().fg(theme.primary)),
+            Span::raw(": Select  "),
+            Span::styled("Enter", Style::default().fg(theme.primary)),
+            Span::raw(": Apply  "),
+            Span::styled("Esc", Style::default().fg(theme.primary)),
+            Span::raw(": Cancel"),
+        ]),
+    ];
+
+    let help_widget = Paragraph::new(help)
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(theme.text_muted));
+
     f.render_widget(help_widget, chunks[2]);
 }
+
+/// Render path editor (for QMK path, output directory, etc.)
+fn render_path_editor(
+    f: &mut Frame,
+    area: Rect,
+    setting: SettingItem,
+    value: &str,
+    theme: &Theme,
+) {
+    let chunks = ratatui::layout::Layout::default()
+        .direction(ratatui::layout::Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // Title
+            Constraint::Length(3), // Input field
+            Constraint::Min(2),    // Description + current path
+            Constraint::Length(4), // Help
+        ])
+        .split(area);
+
+    // Title
+    let title_text = Paragraph::new(setting.display_name())
+        .alignment(Alignment::Center)
+        .style(
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        );
+    f.render_widget(title_text, chunks[0]);
+
+    // Input field with cursor
+    let display_value = format!("{}▌", value);
+    let input_block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.primary))
+        .title("Path");
+    let input_text = Paragraph::new(display_value)
+        .style(Style::default().fg(theme.text))
+        .block(input_block);
+    f.render_widget(input_text, chunks[1]);
+
+    // Description and path validation hint
+    let path_exists = std::path::Path::new(value).exists();
+    let status_line = if value.is_empty() {
+        Line::from(Span::styled(
+            "Enter a path",
+            Style::default().fg(theme.text_muted),
+        ))
+    } else if path_exists {
+        Line::from(Span::styled(
+            "✓ Path exists",
+            Style::default().fg(theme.primary),
+        ))
+    } else {
+        Line::from(Span::styled(
+            "⚠ Path does not exist (will be created if needed)",
+            Style::default().fg(theme.warning),
+        ))
+    };
+
+    let desc = vec![
+        Line::from(setting.description()),
+        Line::from(""),
+        status_line,
+    ];
+
+    let desc_text = Paragraph::new(desc)
+        .alignment(Alignment::Center)
+        .wrap(ratatui::widgets::Wrap { trim: true })
+        .style(Style::default().fg(theme.text_muted));
+    f.render_widget(desc_text, chunks[2]);
+
+    // Help text
+    let help = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Enter", Style::default().fg(theme.primary)),
+            Span::raw(": Apply  "),
+            Span::styled("Esc", Style::default().fg(theme.primary)),
+            Span::raw(": Cancel  "),
+            Span::styled("Backspace", Style::default().fg(theme.primary)),
+            Span::raw(": Delete"),
+        ]),
+    ];
+
+    let help_widget = Paragraph::new(help)
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(theme.text_muted));
+
+    f.render_widget(help_widget, chunks[3]);
+}
+
 
 /// Render boolean toggle
 fn render_boolean_toggle(
