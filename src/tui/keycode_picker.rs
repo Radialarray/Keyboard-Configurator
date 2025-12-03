@@ -17,9 +17,9 @@ use super::{AppState, LayerPickerState, ParameterizedKeycodeType, PendingKeycode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PickerFocus {
     /// Category sidebar has focus
-    #[default]
     Sidebar,
-    /// Keycode list has focus
+    /// Keycode list has focus (default - allows immediate search)
+    #[default]
     Keycodes,
 }
 
@@ -52,7 +52,7 @@ impl KeycodePickerState {
             search: String::new(),
             selected: 0,
             category_index: 0,
-            focus: PickerFocus::Sidebar,
+            focus: PickerFocus::Keycodes,
             sidebar_scroll: 0,
         }
     }
@@ -62,7 +62,7 @@ impl KeycodePickerState {
         self.search.clear();
         self.selected = 0;
         self.category_index = 0;
-        self.focus = PickerFocus::Sidebar;
+        self.focus = PickerFocus::Keycodes;
         self.sidebar_scroll = 0;
     }
 }
