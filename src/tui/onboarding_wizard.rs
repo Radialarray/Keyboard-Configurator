@@ -182,6 +182,44 @@ impl OnboardingWizardState {
         })
     }
 
+    /// Creates a wizard state for creating a new layout.
+    /// 
+    /// This starts at keyboard selection but goes through all steps
+    /// (keyboard, layout, layout name, output path, confirmation).
+    /// Used when "Create New Layout" is selected from the layout picker.
+    /// 
+    /// # Arguments
+    /// * `config` - The existing configuration with QMK path already set
+    /// 
+    /// # Returns
+    /// * `Ok(Self)` - Wizard state ready for keyboard selection
+    /// * `Err` - If keyboard scanning fails
+    pub fn new_for_new_layout(config: &Config) -> Result<Self> {
+        let qmk_path = config.paths.qmk_firmware.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("QMK firmware path not configured"))?;
+        
+        let keyboards = scan_keyboards(qmk_path)?;
+        
+        let mut inputs = HashMap::new();
+        inputs.insert("qmk_path".to_string(), qmk_path.to_string_lossy().to_string());
+        // Pre-populate output path from existing config
+        inputs.insert("output_path".to_string(), config.build.output_dir.display().to_string());
+        
+        Ok(Self {
+            current_step: WizardStep::KeyboardSelection,
+            inputs,
+            input_buffer: String::new(),
+            available_keyboards: keyboards,
+            keyboard_filter: String::new(),
+            keyboard_selected_index: 0,
+            available_layouts: Vec::new(),
+            layout_selected_index: 0,
+            error_message: None,
+            is_complete: false,
+            keyboard_change_only: false, // Go through all steps
+        })
+    }
+
     /// Gets the filtered list of keyboards based on current filter
     fn get_filtered_keyboards(&self) -> Vec<String> {
         if self.keyboard_filter.is_empty() {
