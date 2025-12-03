@@ -44,12 +44,12 @@
     {
       "id": "mod_tap",
       "name": "Mod-Tap",
-      "description": "Hold for modifier, tap for key"
+      "description": "Tap for key, hold for modifier (home row mods)"
     },
     {
       "id": "layers",
       "name": "Layers",
-      "description": "MO, TG, TO, LT, OSL layer switching"
+      "description": "Layer switching (use LT for tap+hold)"
     },
     {
       "id": "one_shot",
@@ -2172,6 +2172,7 @@
       "name": "Ctrl-Tap",
       "category": "mod_tap",
       "pattern": "LCTL_T\\(([A-Z0-9_]+)\\)",
+      "description": "Tap: key, Hold: Left Ctrl",
       "aliases": [
         "CTL_T()"
       ]
@@ -2181,6 +2182,7 @@
       "name": "Shift-Tap",
       "category": "mod_tap",
       "pattern": "LSFT_T\\(([A-Z0-9_]+)\\)",
+      "description": "Tap: key, Hold: Left Shift",
       "aliases": [
         "SFT_T()"
       ]
@@ -2190,6 +2192,7 @@
       "name": "Alt-Tap",
       "category": "mod_tap",
       "pattern": "LALT_T\\(([A-Z0-9_]+)\\)",
+      "description": "Tap: key, Hold: Left Alt/Option",
       "aliases": [
         "ALT_T()",
         "LOPT_T()",
@@ -2201,6 +2204,7 @@
       "name": "GUI-Tap",
       "category": "mod_tap",
       "pattern": "LGUI_T\\(([A-Z0-9_]+)\\)",
+      "description": "Tap: key, Hold: Left GUI/Cmd/Win",
       "aliases": [
         "GUI_T()",
         "LCMD_T()",
@@ -2213,19 +2217,22 @@
       "code": "RCTL_T()",
       "name": "RCtrl-Tap",
       "category": "mod_tap",
-      "pattern": "RCTL_T\\(([A-Z0-9_]+)\\)"
+      "pattern": "RCTL_T\\(([A-Z0-9_]+)\\)",
+      "description": "Tap: key, Hold: Right Ctrl"
     },
     {
       "code": "RSFT_T()",
       "name": "RShift-Tap",
       "category": "mod_tap",
-      "pattern": "RSFT_T\\(([A-Z0-9_]+)\\)"
+      "pattern": "RSFT_T\\(([A-Z0-9_]+)\\)",
+      "description": "Tap: key, Hold: Right Shift"
     },
     {
       "code": "RALT_T()",
       "name": "RAlt-Tap",
       "category": "mod_tap",
       "pattern": "RALT_T\\(([A-Z0-9_]+)\\)",
+      "description": "Tap: key, Hold: Right Alt/AltGr",
       "aliases": [
         "ROPT_T()",
         "ALGR_T()"
@@ -2236,6 +2243,7 @@
       "name": "RGUI-Tap",
       "category": "mod_tap",
       "pattern": "RGUI_T\\(([A-Z0-9_]+)\\)",
+      "description": "Tap: key, Hold: Right GUI/Cmd/Win",
       "aliases": [
         "RCMD_T()",
         "RWIN_T()"
@@ -2366,7 +2374,7 @@
       "name": "Mod-Tap (Custom)",
       "category": "mod_tap",
       "pattern": "MT\\((MOD_[A-Z_|]+),\\s*([A-Z0-9_]+)\\)",
-      "description": "Hold for modifier(s), tap for keycode"
+      "description": "Tap: keycode, Hold: modifier(s) - for home row mods"
     },
     {
       "code": "QK_LEAD",
@@ -2610,63 +2618,63 @@
       "name": "Momentary Layer",
       "category": "layers",
       "pattern": "MO\\((@?[\\w-]+)\\)",
-      "description": "Hold to activate layer"
+      "description": "Hold: activate layer (no tap action)"
     },
     {
       "code": "TG()",
       "name": "Toggle Layer",
       "category": "layers",
       "pattern": "TG\\((@?[\\w-]+)\\)",
-      "description": "Toggle layer on/off"
+      "description": "Press: toggle layer on/off"
     },
     {
       "code": "TO()",
       "name": "Switch to Layer",
       "category": "layers",
       "pattern": "TO\\((@?[\\w-]+)\\)",
-      "description": "Switch to layer"
+      "description": "Press: switch to layer (deactivates others)"
     },
     {
       "code": "DF()",
       "name": "Default Layer",
       "category": "layers",
       "pattern": "DF\\((@?[\\w-]+)\\)",
-      "description": "Set default layer"
+      "description": "Press: set as base/default layer"
     },
     {
       "code": "OSL()",
       "name": "One-Shot Layer",
       "category": "layers",
       "pattern": "OSL\\((@?[\\w-]+)\\)",
-      "description": "Activate layer for next keypress only"
+      "description": "Press: activate layer for next keypress only"
     },
     {
       "code": "TT()",
       "name": "Tap-Toggle Layer",
       "category": "layers",
       "pattern": "TT\\((@?[\\w-]+)\\)",
-      "description": "Tap to toggle, hold to activate"
+      "description": "Tap: toggle layer, Hold: momentary"
     },
     {
       "code": "LT()",
       "name": "Layer-Tap",
       "category": "layers",
       "pattern": "LT\\((@?[\\w-]+),\\s*([A-Z0-9_]+)\\)",
-      "description": "Tap for keycode, hold for layer"
+      "description": "Tap: keycode, Hold: layer (dual-function)"
     },
     {
       "code": "PDF()",
       "name": "Persistent Default",
       "category": "layers",
       "pattern": "PDF\\((@?[\\w-]+)\\)",
-      "description": "Set default layer in EEPROM"
+      "description": "Set default layer (persists in EEPROM)"
     },
     {
       "code": "LM()",
       "name": "Layer-Mod",
       "category": "layers",
       "pattern": "LM\\((@?[\\w-]+),\\s*(MOD_[A-Z]+)\\)",
-      "description": "Layer with modifier active"
+      "description": "Hold: layer + modifier together"
     },
     {
       "code": "KC_TRNS",

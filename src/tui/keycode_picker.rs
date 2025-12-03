@@ -11,7 +11,7 @@ use ratatui::{
 };
 
 use super::layer_picker::LayerKeycodeType;
-use super::{AppState, LayerPickerState, PopupType};
+use super::{AppState, LayerPickerState, ParameterizedKeycodeType, PendingKeycodeState, PopupType};
 
 /// Which pane has focus in the keycode picker
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -420,7 +420,6 @@ fn handle_keycodes_input(
                 match keycode.as_str() {
                     "LT()" => {
                         // Layer-Tap: need layer, then tap keycode
-                        use super::{ParameterizedKeycodeType, PendingKeycodeState};
                         state.pending_keycode = PendingKeycodeState::new();
                         state.pending_keycode.keycode_type = Some(ParameterizedKeycodeType::LayerTap);
                         state.layer_picker_state = LayerPickerState::with_prefix("LT");
@@ -431,7 +430,6 @@ fn handle_keycodes_input(
                     }
                     "MT()" => {
                         // Mod-Tap: need modifier, then tap keycode
-                        use super::{ParameterizedKeycodeType, PendingKeycodeState};
                         state.pending_keycode = PendingKeycodeState::new();
                         state.pending_keycode.keycode_type = Some(ParameterizedKeycodeType::ModTap);
                         state.active_popup = Some(PopupType::ModifierPicker);
@@ -441,7 +439,6 @@ fn handle_keycodes_input(
                     }
                     "LM()" => {
                         // Layer-Mod: need layer, then modifier
-                        use super::{ParameterizedKeycodeType, PendingKeycodeState};
                         state.pending_keycode = PendingKeycodeState::new();
                         state.pending_keycode.keycode_type = Some(ParameterizedKeycodeType::LayerMod);
                         state.layer_picker_state = LayerPickerState::with_prefix("LM");
@@ -452,7 +449,6 @@ fn handle_keycodes_input(
                     }
                     "SH_T()" => {
                         // Swap-Hands-Tap: need tap keycode only
-                        use super::{ParameterizedKeycodeType, PendingKeycodeState};
                         state.pending_keycode = PendingKeycodeState::new();
                         state.pending_keycode.keycode_type = Some(ParameterizedKeycodeType::SwapHandsTap);
                         state.active_popup = Some(PopupType::TapKeycodePicker);
@@ -474,6 +470,18 @@ fn handle_keycodes_input(
                         layer_type.prefix(),
                         layer_type.description()
                     ));
+                    return Ok(false);
+                }
+
+                // Check if this is a simple mod-tap keycode (LCTL_T(), LSFT_T(), etc.)
+                // These end with "_T()" and need a tap keycode parameter
+                if let Some(prefix) = get_simple_mod_tap_prefix(&keycode) {
+                    state.pending_keycode = PendingKeycodeState::new();
+                    state.pending_keycode.keycode_type = Some(ParameterizedKeycodeType::SimpleModTap);
+                    state.pending_keycode.param1 = Some(prefix.clone());
+                    state.active_popup = Some(PopupType::TapKeycodePicker);
+                    state.keycode_picker_state = KeycodePickerState::new();
+                    state.set_status(format!("Select tap keycode for {}", prefix));
                     return Ok(false);
                 }
 
@@ -688,4 +696,55 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+/// Check if a keycode is a simple mod-tap (e.g., LCTL_T(), LSFT_T()) that needs a tap keycode.
+/// Returns the prefix (e.g., "LCTL_T") if it is, None otherwise.
+fn get_simple_mod_tap_prefix(keycode: &str) -> Option<String> {
+    // List of all simple mod-tap prefixes that take a single keycode parameter
+    const SIMPLE_MOD_TAP_PREFIXES: &[&str] = &[
+        // Single modifiers (left)
+        "LCTL_T", "CTL_T",
+        "LSFT_T", "SFT_T", 
+        "LALT_T", "ALT_T", "LOPT_T", "OPT_T",
+        "LGUI_T", "GUI_T", "LCMD_T", "LWIN_T", "CMD_T", "WIN_T",
+        // Single modifiers (right)
+        "RCTL_T",
+        "RSFT_T",
+        "RALT_T", "ROPT_T", "ALGR_T",
+        "RGUI_T", "RCMD_T", "RWIN_T",
+        // Combo modifiers (left)
+        "LCS_T",   // Ctrl+Shift
+        "LCA_T",   // Ctrl+Alt
+        "LCG_T",   // Ctrl+GUI
+        "LSA_T",   // Shift+Alt
+        "LSG_T",   // Shift+GUI
+        "LAG_T",   // Alt+GUI
+        "LCSG_T",  // Ctrl+Shift+GUI
+        "LCAG_T",  // Ctrl+Alt+GUI
+        "LSAG_T",  // Shift+Alt+GUI
+        // Combo modifiers (right)
+        "RCS_T",
+        "RCA_T",
+        "RCG_T",
+        "RSA_T",
+        "RSG_T",
+        "RAG_T",
+        "RCSG_T",
+        "RCAG_T",
+        "RSAG_T",
+        // Special combos
+        "MEH_T",   // Ctrl+Shift+Alt
+        "HYPR_T",  // Ctrl+Shift+Alt+GUI
+    ];
+
+    // Check if keycode matches pattern PREFIX_T() or PREFIX()
+    for prefix in SIMPLE_MOD_TAP_PREFIXES {
+        let pattern = format!("{}()", prefix);
+        if keycode == pattern {
+            return Some(prefix.to_string());
+        }
+    }
+    
+    None
 }
