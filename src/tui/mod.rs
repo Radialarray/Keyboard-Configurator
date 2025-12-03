@@ -87,12 +87,15 @@ pub enum CategoryPickerContext {
 pub enum ParameterizedKeycodeType {
     /// LT(layer, kc) - Hold for layer, tap for keycode
     LayerTap,
-    /// MT(mod, kc) - Hold for modifier, tap for keycode
+    /// MT(mod, kc) - Hold for modifier, tap for keycode (custom modifier combo)
     ModTap,
     /// LM(layer, mod) - Layer with modifier active
     LayerMod,
     /// SH_T(kc) - Hold to swap hands, tap for keycode
     SwapHandsTap,
+    /// Simple mod-tap like LCTL_T(kc), LSFT_T(kc) - modifier is fixed, only need tap keycode
+    /// param1 stores the prefix (e.g., "LCTL_T", "LGUI_T")
+    SimpleModTap,
 }
 
 /// State for building parameterized keycodes through multi-stage picker flow
@@ -146,6 +149,12 @@ impl PendingKeycodeState {
             Some(ParameterizedKeycodeType::SwapHandsTap) => {
                 let keycode = self.param1.as_ref()?;
                 Some(format!("SH_T({})", keycode))
+            }
+            Some(ParameterizedKeycodeType::SimpleModTap) => {
+                // param1 is the prefix (e.g., "LCTL_T"), param2 is the tap keycode
+                let prefix = self.param1.as_ref()?;
+                let keycode = self.param2.as_ref()?;
+                Some(format!("{}({})", prefix, keycode))
             }
             None => None,
         }
