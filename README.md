@@ -36,12 +36,29 @@ Test Results: 109/110 tests passing (99% pass rate)
 
 ## Installation
 
+### Pre-built Binary (macOS)
+
+Download the latest release from GitHub:
+
+```bash
+# Download the binary
+curl -LO https://github.com/Radialarray/Keyboard-Configurator/releases/latest/download/keyboard_tui
+
+# Make it executable
+chmod +x keyboard_tui
+
+# Move to your PATH (optional)
+mv keyboard_tui /usr/local/bin/
+```
+
+Or visit the [Releases page](https://github.com/Radialarray/Keyboard-Configurator/releases) to download manually.
+
 ### From Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/keyboard_tui.git
-cd keyboard_tui
+git clone https://github.com/Radialarray/Keyboard-Configurator.git
+cd Keyboard-Configurator
 
 # Initialize QMK submodule
 git submodule update --init --recursive vial-qmk-keebart
