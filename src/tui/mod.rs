@@ -391,6 +391,8 @@ pub struct AppState {
     // Control flags
     /// Whether application should exit
     pub should_quit: bool,
+    /// Whether to return to settings manager after picker closes
+    pub return_to_settings_after_picker: bool,
 }
 
 impl AppState {
@@ -469,6 +471,7 @@ impl AppState {
             config,
             build_state: None,
             should_quit: false,
+            return_to_settings_after_picker: false,
         })
     }
 
@@ -838,6 +841,7 @@ fn render_popup(f: &mut Frame, popup_type: &PopupType, state: &AppState) {
                 state.layout.inactive_key_behavior,
                 &state.layout.tap_hold_settings,
                 state.layout.rgb_timeout_ms,
+                &state.config,
                 &state.theme,
             );
         }
@@ -1207,20 +1211,36 @@ fn handle_layout_picker_input(state: &mut AppState, key: event::KeyEvent) -> Res
     {
         if selected.is_empty() {
             // User cancelled
-            state.active_popup = None;
-            state.set_status("Layout selection cancelled");
+            if state.return_to_settings_after_picker {
+                state.return_to_settings_after_picker = false;
+                state.active_popup = Some(PopupType::SettingsManager);
+                state.set_status("Layout selection cancelled");
+            } else {
+                state.active_popup = None;
+                state.set_status("Layout selection cancelled");
+            }
             return Ok(false);
         }
 
         // User selected a layout - rebuild geometry and mapping
         match state.rebuild_geometry(&selected) {
             Ok(()) => {
-                state.active_popup = None;
-                state.set_status(format!("Switched to layout: {selected}"));
+                if state.return_to_settings_after_picker {
+                    state.return_to_settings_after_picker = false;
+                    state.active_popup = Some(PopupType::SettingsManager);
+                    state.set_status(format!("Switched to layout: {selected}"));
+                } else {
+                    state.active_popup = None;
+                    state.set_status(format!("Switched to layout: {selected}"));
+                }
                 state.mark_dirty(); // Config change requires save
             }
             Err(e) => {
                 state.set_error(format!("Failed to switch layout: {e}"));
+                if state.return_to_settings_after_picker {
+                    state.return_to_settings_after_picker = false;
+                    state.active_popup = Some(PopupType::SettingsManager);
+                }
             }
         }
     }
@@ -1441,28 +1461,69 @@ fn handle_setup_wizard_input(state: &mut AppState, key: event::KeyEvent) -> Resu
             if should_exit {
                 // Wizard completed or cancelled
                 if state.wizard_state.is_complete {
-                    // Build and save the new config
-                    match state.wizard_state.build_config() {
-                        Ok(new_config) => {
-                            // Update the app config
-                            state.config = new_config;
-                            
-                            // Save the config
-                            if let Err(e) = state.config.save() {
-                                state.set_error(format!("Failed to save configuration: {e}"));
-                            } else {
-                                state.set_status("Configuration saved successfully");
+                    // Check if this was a keyboard-only change
+                    if state.wizard_state.keyboard_change_only {
+                        // Only update keyboard and layout fields
+                        if let Some(keyboard) = state.wizard_state.inputs.get("keyboard") {
+                            state.config.build.keyboard = keyboard.clone();
+                        }
+                        if let Some(layout) = state.wizard_state.inputs.get("layout") {
+                            state.config.build.layout = layout.clone();
+                        }
+                        
+                        // Save the config
+                        if let Err(e) = state.config.save() {
+                            state.set_error(format!("Failed to save configuration: {e}"));
+                        } else {
+                            // Rebuild geometry for new keyboard/layout
+                            let layout_name = state.config.build.layout.clone();
+                            match state.rebuild_geometry(&layout_name) {
+                                Ok(()) => {
+                                    state.set_status(format!(
+                                        "Keyboard changed to: {}",
+                                        state.config.build.keyboard
+                                    ));
+                                }
+                                Err(e) => {
+                                    state.set_error(format!("Failed to rebuild geometry: {e}"));
+                                }
                             }
                         }
-                        Err(e) => {
-                            state.set_error(format!("Failed to build configuration: {e}"));
+                        
+                        // Return to settings manager
+                        state.active_popup = Some(PopupType::SettingsManager);
+                    } else {
+                        // Full wizard - build and save the new config
+                        match state.wizard_state.build_config() {
+                            Ok(new_config) => {
+                                // Update the app config
+                                state.config = new_config;
+                                
+                                // Save the config
+                                if let Err(e) = state.config.save() {
+                                    state.set_error(format!("Failed to save configuration: {e}"));
+                                } else {
+                                    state.set_status("Configuration saved successfully");
+                                }
+                            }
+                            Err(e) => {
+                                state.set_error(format!("Failed to build configuration: {e}"));
+                            }
                         }
+                        state.active_popup = None;
                     }
                 } else {
-                    state.set_status("Setup wizard cancelled");
+                    // Wizard cancelled
+                    if state.wizard_state.keyboard_change_only {
+                        // Return to settings manager
+                        state.active_popup = Some(PopupType::SettingsManager);
+                        state.set_status("Keyboard selection cancelled");
+                    } else {
+                        state.active_popup = None;
+                        state.set_status("Setup wizard cancelled");
+                    }
                 }
                 
-                state.active_popup = None;
                 // Reset wizard state for next time
                 state.wizard_state = onboarding_wizard::OnboardingWizardState::new();
             }
@@ -1572,6 +1633,91 @@ fn handle_settings_manager_input(state: &mut AppState, key: event::KeyEvent) -> 
                                 current_secs,
                                 0,
                                 600, // Max 10 minutes in seconds
+                            );
+                        }
+                        // Global settings
+                        SettingItem::QmkFirmwarePath => {
+                            state.settings_manager_state.start_editing_path(
+                                *setting,
+                                state.config.paths.qmk_firmware.clone()
+                                    .map(|p| p.to_string_lossy().to_string())
+                                    .unwrap_or_default(),
+                            );
+                        }
+                        SettingItem::Keyboard => {
+                            // Check if QMK path is configured
+                            let qmk_path = if let Some(path) = &state.config.paths.qmk_firmware {
+                                path.clone()
+                            } else {
+                                state.set_error("QMK firmware path not configured. Set it first.");
+                                return Ok(false);
+                            };
+
+                            // Start wizard directly at keyboard selection step
+                            match onboarding_wizard::OnboardingWizardState::new_for_keyboard_selection(&qmk_path) {
+                                Ok(wizard_state) => {
+                                    state.wizard_state = wizard_state;
+                                    state.active_popup = Some(PopupType::SetupWizard);
+                                    state.settings_manager_state.cancel();
+                                    state.set_status("Select keyboard - Type to filter, Enter to select");
+                                }
+                                Err(e) => {
+                                    state.set_error(format!("Failed to scan keyboards: {}", e));
+                                }
+                            }
+                        }
+                        SettingItem::LayoutVariant => {
+                            // Trigger layout variant picker - same as Ctrl+Y
+                            // Mark that we came from settings so we return there
+                            state.return_to_settings_after_picker = true;
+                            
+                            // Load available layouts for current keyboard
+                            let qmk_path = if let Some(path) = &state.config.paths.qmk_firmware {
+                                path.clone()
+                            } else {
+                                state.set_error("QMK firmware path not configured");
+                                return Ok(false);
+                            };
+
+                            // Extract base keyboard path
+                            let base_keyboard = AppState::extract_base_keyboard(&state.config.build.keyboard);
+
+                            if let Err(e) = state
+                                .layout_picker_state
+                                .load_layouts(&qmk_path, &base_keyboard)
+                            {
+                                state.set_error(format!("Failed to load layouts: {e}"));
+                                return Ok(false);
+                            }
+
+                            state.active_popup = Some(PopupType::LayoutPicker);
+                            state.set_status("Select layout variant - ↑↓: Navigate, Enter: Select");
+                        }
+                        SettingItem::KeymapName => {
+                            state.settings_manager_state.start_editing_string(
+                                *setting,
+                                state.config.build.keymap.clone(),
+                            );
+                        }
+                        SettingItem::OutputFormat => {
+                            let current_format = &state.config.build.output_format;
+                            let selected = match current_format.as_str() {
+                                "hex" => 1,
+                                "bin" => 2,
+                                _ => 0, // uf2
+                            };
+                            state.settings_manager_state.start_selecting_output_format(selected);
+                        }
+                        SettingItem::OutputDir => {
+                            state.settings_manager_state.start_editing_path(
+                                *setting,
+                                state.config.build.output_dir.to_string_lossy().to_string(),
+                            );
+                        }
+                        SettingItem::ShowHelpOnStartup => {
+                            state.settings_manager_state.start_toggling_boolean(
+                                *setting,
+                                state.config.ui.show_help_on_startup,
                             );
                         }
                     }
@@ -1733,6 +1879,94 @@ fn handle_settings_manager_input(state: &mut AppState, key: event::KeyEvent) -> 
                 _ => Ok(false),
             }
         }
+        ManagerMode::EditingString { setting, .. } => {
+            let setting = *setting;
+            match key.code {
+                KeyCode::Esc => {
+                    state.settings_manager_state.cancel();
+                    state.set_status("Cancelled");
+                    Ok(false)
+                }
+                KeyCode::Char(c) => {
+                    state.settings_manager_state.handle_string_char_input(c);
+                    Ok(false)
+                }
+                KeyCode::Backspace => {
+                    state.settings_manager_state.handle_string_backspace();
+                    Ok(false)
+                }
+                KeyCode::Enter => {
+                    if let Some(value) = state.settings_manager_state.get_string_value() {
+                        apply_string_setting(state, setting, value.to_string())?;
+                        state.settings_manager_state.cancel();
+                    }
+                    Ok(false)
+                }
+                _ => Ok(false),
+            }
+        }
+        ManagerMode::SelectingOutputFormat { .. } => {
+            match key.code {
+                KeyCode::Esc => {
+                    state.settings_manager_state.cancel();
+                    state.set_status("Cancelled");
+                    Ok(false)
+                }
+                KeyCode::Up => {
+                    state.settings_manager_state.option_previous(3);
+                    Ok(false)
+                }
+                KeyCode::Down => {
+                    state.settings_manager_state.option_next(3);
+                    Ok(false)
+                }
+                KeyCode::Enter => {
+                    if let Some(selected_idx) = state.settings_manager_state.get_output_format_selected() {
+                        let format = match selected_idx {
+                            0 => "uf2",
+                            1 => "hex",
+                            2 => "bin",
+                            _ => "uf2",
+                        };
+                        state.config.build.output_format = format.to_string();
+                        if let Err(e) = state.config.save() {
+                            state.set_status(format!("Failed to save config: {}", e));
+                        } else {
+                            state.set_status(format!("Output format set to: {}", format));
+                        }
+                        state.settings_manager_state.cancel();
+                    }
+                    Ok(false)
+                }
+                _ => Ok(false),
+            }
+        }
+        ManagerMode::EditingPath { setting, .. } => {
+            let setting = *setting;
+            match key.code {
+                KeyCode::Esc => {
+                    state.settings_manager_state.cancel();
+                    state.set_status("Cancelled");
+                    Ok(false)
+                }
+                KeyCode::Char(c) => {
+                    state.settings_manager_state.handle_string_char_input(c);
+                    Ok(false)
+                }
+                KeyCode::Backspace => {
+                    state.settings_manager_state.handle_string_backspace();
+                    Ok(false)
+                }
+                KeyCode::Enter => {
+                    if let Some(value) = state.settings_manager_state.get_string_value() {
+                        apply_path_setting(state, setting, value.to_string())?;
+                        state.settings_manager_state.cancel();
+                    }
+                    Ok(false)
+                }
+                _ => Ok(false),
+            }
+        }
     }
 }
 
@@ -1804,8 +2038,62 @@ fn apply_boolean_setting(state: &mut AppState, setting: settings_manager::Settin
             let display = if value { "On" } else { "Off" };
             state.set_status(format!("Chordal hold set to: {}", display));
         }
+        SettingItem::ShowHelpOnStartup => {
+            state.config.ui.show_help_on_startup = value;
+            if let Err(e) = state.config.save() {
+                state.set_status(format!("Failed to save config: {}", e));
+            } else {
+                let display = if value { "On" } else { "Off" };
+                state.set_status(format!("Show help on startup set to: {}", display));
+            }
+        }
         _ => {}
     }
+}
+
+/// Apply a string setting value
+fn apply_string_setting(state: &mut AppState, setting: settings_manager::SettingItem, value: String) -> Result<()> {
+    use settings_manager::SettingItem;
+
+    match setting {
+        SettingItem::KeymapName => {
+            let keymap = if value.is_empty() { "default".to_string() } else { value.clone() };
+            state.config.build.keymap = keymap.clone();
+            if let Err(e) = state.config.save() {
+                state.set_status(format!("Failed to save config: {}", e));
+            } else {
+                state.set_status(format!("Keymap name set to: {}", keymap));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// Apply a path setting value
+fn apply_path_setting(state: &mut AppState, setting: settings_manager::SettingItem, value: String) -> Result<()> {
+    use settings_manager::SettingItem;
+
+    match setting {
+        SettingItem::QmkFirmwarePath => {
+            state.config.paths.qmk_firmware = if value.is_empty() { None } else { Some(std::path::PathBuf::from(&value)) };
+            if let Err(e) = state.config.save() {
+                state.set_status(format!("Failed to save config: {}", e));
+            } else {
+                state.set_status(format!("QMK firmware path set to: {}", if value.is_empty() { "(not set)" } else { &value }));
+            }
+        }
+        SettingItem::OutputDir => {
+            state.config.build.output_dir = std::path::PathBuf::from(&value);
+            if let Err(e) = state.config.save() {
+                state.set_status(format!("Failed to save config: {}", e));
+            } else {
+                state.set_status(format!("Output directory set to: {}", value));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 /// Handle input for unsaved changes prompt
