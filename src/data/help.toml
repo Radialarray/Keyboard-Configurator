@@ -51,12 +51,13 @@ priority = 12
 [[contexts.main.bindings]]
 keys = ["Shift+C"]
 action = "Set key color"
-hint = "Color"
+hint = "Individual Color"
 priority = 4
 
 [[contexts.main.bindings]]
 keys = ["c"]
 action = "Set layer color"
+hint = "Layer Color"
 priority = 13
 
 [[contexts.main.bindings]]
