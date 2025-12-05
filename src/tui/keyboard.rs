@@ -153,7 +153,7 @@ impl KeyboardWidget {
                         if key.color_override.is_some() {
                             "i" // Individual override
                         } else {
-                            "k" // Key category
+                            "c" // Key category
                         }
                     } else if layer.category_id.is_some() {
                         "L" // Layer category

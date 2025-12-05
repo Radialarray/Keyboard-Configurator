@@ -299,8 +299,14 @@ fn render_palette_mode(f: &mut Frame, state: &super::AppState) {
         ])
         .split(area);
 
-    // Title
-    let title = Paragraph::new("Color Picker").style(
+    // Title - context-aware
+    let title_text = match state.color_picker_context {
+        Some(super::ColorPickerContext::IndividualKey) => "Individual Key Color Picker",
+        Some(super::ColorPickerContext::LayerDefault) => "Layer Color Picker",
+        Some(super::ColorPickerContext::Category) => "Category Color Picker",
+        None => "Color Picker",
+    };
+    let title = Paragraph::new(title_text).style(
         Style::default()
             .fg(theme.primary)
             .add_modifier(Modifier::BOLD),
@@ -549,8 +555,14 @@ fn render_rgb_mode(f: &mut Frame, state: &super::AppState) {
 
     let picker_state = &state.color_picker_state;
 
-    // Title
-    let title = Paragraph::new("Custom RGB").style(
+    // Title - context-aware
+    let title_text = match state.color_picker_context {
+        Some(super::ColorPickerContext::IndividualKey) => "Individual Key Color Picker (Custom RGB)",
+        Some(super::ColorPickerContext::LayerDefault) => "Layer Color Picker (Custom RGB)",
+        Some(super::ColorPickerContext::Category) => "Category Color Picker (Custom RGB)",
+        None => "Custom RGB",
+    };
+    let title = Paragraph::new(title_text).style(
         Style::default()
             .fg(theme.primary)
             .add_modifier(Modifier::BOLD),
