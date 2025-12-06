@@ -165,10 +165,19 @@ src/
 
 ## Documentation
 
-- [Architecture Guide](TUI_ARCHITECTURE_GUIDE.md) - Technical architecture and design patterns
-- [Quickstart](QUICKSTART.md) - Getting started guide
-- [Implementation Plan](specs/001-tui-complete-features/plan.md) - Feature implementation details
-- [Task Breakdown](specs/001-tui-complete-features/tasks.md) - Development task list
+### User Guides
+- **[Quickstart Guide](QUICKSTART.md)** - Getting started, basic workflows, keyboard shortcuts
+- **[Features Overview](docs/FEATURES.md)** - Comprehensive list of all implemented features
+
+### Technical Documentation
+- **[Architecture Guide](docs/ARCHITECTURE.md)** - Comprehensive technical architecture (MVC, component patterns, coordinate systems, state management)
+- **[Shortcut System Analysis](docs/SHORTCUT_SYSTEM_ANALYSIS.md)** - Keyboard shortcut design and implementation
+
+### Component Documentation
+- **[SettingsManager](docs/components/SETTINGS_MANAGER.md)** - SettingsManager component usage guide
+
+### Historical References
+- **[Archived Specifications](specs/archived/)** - All completed specification documents from development
 
 ## License
 
