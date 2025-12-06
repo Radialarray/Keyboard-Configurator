@@ -1,5 +1,6 @@
 //! Input handler modules for different TUI contexts.
 
+pub mod action_handlers;
 pub mod actions;
 pub mod category;
 pub mod layer;

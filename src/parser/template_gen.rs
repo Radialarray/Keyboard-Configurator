@@ -619,32 +619,70 @@ mod tests {
         assert_eq!(parsed.rgb_brightness.as_percent(), 50);
     }
 
-    #[test]
-    #[allow(clippy::cognitive_complexity)]
-    fn test_tap_hold_settings_round_trip() {
+    mod test_helpers {
         use crate::models::{HoldDecisionMode, TapHoldPreset, TapHoldSettings};
 
-        let mut layout = create_test_layout();
+        pub fn assert_home_row_mods_markdown(markdown: &str) {
+            assert!(markdown.contains("## Settings"));
+            assert!(markdown.contains("**Tap-Hold Preset**: Home Row Mods"));
+            assert!(markdown.contains("**Tapping Term**: 175ms"));
+            assert!(markdown.contains("**Retro Tapping**: On"));
+            assert!(markdown.contains("**Flow Tap Term**: 150ms"));
+            assert!(markdown.contains("**Chordal Hold**: On"));
+        }
 
-        // Test with HomeRowMods preset
+        pub fn assert_home_row_mods_settings(settings: &TapHoldSettings) {
+            assert_eq!(settings.preset, TapHoldPreset::HomeRowMods);
+            assert_eq!(settings.tapping_term, 175);
+            assert!(settings.retro_tapping);
+            assert_eq!(settings.flow_tap_term, Some(150));
+            assert!(settings.chordal_hold);
+        }
+
+        pub fn assert_custom_settings_markdown(markdown: &str) {
+            assert!(markdown.contains("**Tap-Hold Preset**: Custom"));
+            assert!(markdown.contains("**Tapping Term**: 180ms"));
+            assert!(markdown.contains("**Quick Tap Term**: 100ms"));
+            assert!(markdown.contains("**Hold Mode**: Hold On Other Key Press"));
+            assert!(markdown.contains("**Retro Tapping**: On"));
+            assert!(markdown.contains("**Tapping Toggle**: 3 taps"));
+            assert!(markdown.contains("**Flow Tap Term**: 120ms"));
+            assert!(markdown.contains("**Chordal Hold**: On"));
+        }
+
+        pub fn assert_custom_settings(settings: &TapHoldSettings) {
+            assert_eq!(settings.preset, TapHoldPreset::Custom);
+            assert_eq!(settings.tapping_term, 180);
+            assert_eq!(settings.quick_tap_term, Some(100));
+            assert_eq!(settings.hold_mode, HoldDecisionMode::HoldOnOtherKeyPress);
+            assert!(settings.retro_tapping);
+            assert_eq!(settings.tapping_toggle, 3);
+            assert_eq!(settings.flow_tap_term, Some(120));
+            assert!(settings.chordal_hold);
+        }
+    }
+
+    #[test]
+    fn test_tap_hold_home_row_mods_preset_round_trip() {
+        use crate::models::{TapHoldPreset, TapHoldSettings};
+        use test_helpers::*;
+
+        let mut layout = create_test_layout();
         layout.tap_hold_settings = TapHoldSettings::from_preset(TapHoldPreset::HomeRowMods);
+
         let markdown = generate_markdown(&layout).unwrap();
-        println!("Generated markdown with HomeRowMods:\n{markdown}");
-        assert!(markdown.contains("## Settings"));
-        assert!(markdown.contains("**Tap-Hold Preset**: Home Row Mods"));
-        assert!(markdown.contains("**Tapping Term**: 175ms"));
-        assert!(markdown.contains("**Retro Tapping**: On"));
-        assert!(markdown.contains("**Flow Tap Term**: 150ms"));
-        assert!(markdown.contains("**Chordal Hold**: On"));
+        assert_home_row_mods_markdown(&markdown);
 
         let parsed = parse_markdown_layout_str(&markdown).unwrap();
-        assert_eq!(parsed.tap_hold_settings.preset, TapHoldPreset::HomeRowMods);
-        assert_eq!(parsed.tap_hold_settings.tapping_term, 175);
-        assert!(parsed.tap_hold_settings.retro_tapping);
-        assert_eq!(parsed.tap_hold_settings.flow_tap_term, Some(150));
-        assert!(parsed.tap_hold_settings.chordal_hold);
+        assert_home_row_mods_settings(&parsed.tap_hold_settings);
+    }
 
-        // Test with custom settings
+    #[test]
+    fn test_tap_hold_custom_settings_round_trip() {
+        use crate::models::{HoldDecisionMode, TapHoldPreset, TapHoldSettings};
+        use test_helpers::*;
+
+        let mut layout = create_test_layout();
         layout.tap_hold_settings = TapHoldSettings {
             tapping_term: 180,
             quick_tap_term: Some(100),
@@ -655,34 +693,22 @@ mod tests {
             chordal_hold: true,
             preset: TapHoldPreset::Custom,
         };
+
         let markdown = generate_markdown(&layout).unwrap();
-        println!("Generated markdown with Custom:\n{markdown}");
-        assert!(markdown.contains("**Tap-Hold Preset**: Custom"));
-        assert!(markdown.contains("**Tapping Term**: 180ms"));
-        assert!(markdown.contains("**Quick Tap Term**: 100ms"));
-        assert!(markdown.contains("**Hold Mode**: Hold On Other Key Press"));
-        assert!(markdown.contains("**Retro Tapping**: On"));
-        assert!(markdown.contains("**Tapping Toggle**: 3 taps"));
-        assert!(markdown.contains("**Flow Tap Term**: 120ms"));
-        assert!(markdown.contains("**Chordal Hold**: On"));
+        assert_custom_settings_markdown(&markdown);
 
         let parsed = parse_markdown_layout_str(&markdown).unwrap();
-        assert_eq!(parsed.tap_hold_settings.preset, TapHoldPreset::Custom);
-        assert_eq!(parsed.tap_hold_settings.tapping_term, 180);
-        assert_eq!(parsed.tap_hold_settings.quick_tap_term, Some(100));
-        assert_eq!(
-            parsed.tap_hold_settings.hold_mode,
-            HoldDecisionMode::HoldOnOtherKeyPress
-        );
-        assert!(parsed.tap_hold_settings.retro_tapping);
-        assert_eq!(parsed.tap_hold_settings.tapping_toggle, 3);
-        assert_eq!(parsed.tap_hold_settings.flow_tap_term, Some(120));
-        assert!(parsed.tap_hold_settings.chordal_hold);
+        assert_custom_settings(&parsed.tap_hold_settings);
+    }
 
-        // Test with default settings - should NOT write tap-hold settings
+    #[test]
+    fn test_tap_hold_default_settings_not_written() {
+        use crate::models::TapHoldSettings;
+
+        let mut layout = create_test_layout();
         layout.tap_hold_settings = TapHoldSettings::default();
+
         let markdown = generate_markdown(&layout).unwrap();
-        println!("Generated markdown with defaults:\n{markdown}");
         assert!(!markdown.contains("Tap-Hold"));
         assert!(!markdown.contains("Tapping Term"));
 
