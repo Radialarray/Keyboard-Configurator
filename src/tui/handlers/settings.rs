@@ -4,17 +4,20 @@ use anyhow::Result;
 use crossterm::event;
 
 use crate::models::{HoldDecisionMode, RgbBrightness, TapHoldPreset, UncoloredKeyBehavior};
-use crate::tui::settings_manager::{ManagerMode, SettingItem, SettingsManagerContext, SettingsManagerEvent};
+use crate::tui::settings_manager::{
+    ManagerMode, SettingItem, SettingsManagerContext, SettingsManagerEvent,
+};
 use crate::tui::{ActiveComponent, AppState, PopupType};
 
 /// Handle input for settings manager using Component trait pattern
 pub fn handle_settings_manager_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
     // Check if we're in browsing mode and handle Enter key specially
-    let is_browsing = if let Some(ActiveComponent::SettingsManager(ref manager)) = state.active_component {
-        matches!(manager.state().mode, ManagerMode::Browsing)
-    } else {
-        false
-    };
+    let is_browsing =
+        if let Some(ActiveComponent::SettingsManager(ref manager)) = state.active_component {
+            matches!(manager.state().mode, ManagerMode::Browsing)
+        } else {
+            false
+        };
 
     // Handle Enter in browsing mode - triggers editing submodes or opens nested pickers
     if is_browsing && key.code == event::KeyCode::Enter {
@@ -45,11 +48,12 @@ pub fn handle_settings_manager_input(state: &mut AppState, key: event::KeyEvent)
 /// Handle Enter key while browsing settings (triggers editing or opens pickers)
 fn handle_browsing_enter(state: &mut AppState) -> Result<bool> {
     // Get the selected setting from the manager's state
-    let selected_idx = if let Some(ActiveComponent::SettingsManager(ref manager)) = state.active_component {
-        manager.state().selected
-    } else {
-        return Ok(false);
-    };
+    let selected_idx =
+        if let Some(ActiveComponent::SettingsManager(ref manager)) = state.active_component {
+            manager.state().selected
+        } else {
+            return Ok(false);
+        };
 
     let settings = SettingItem::all();
     if let Some(setting) = settings.get(selected_idx) {
@@ -65,9 +69,9 @@ fn handle_browsing_enter(state: &mut AppState) -> Result<bool> {
                     );
                 }
                 SettingItem::TapHoldPreset => {
-                    manager.state_mut().start_selecting_tap_hold_preset(
-                        state.layout.tap_hold_settings.preset,
-                    );
+                    manager
+                        .state_mut()
+                        .start_selecting_tap_hold_preset(state.layout.tap_hold_settings.preset);
                 }
                 SettingItem::TappingTerm => {
                     manager.state_mut().start_editing_numeric(
@@ -79,12 +83,14 @@ fn handle_browsing_enter(state: &mut AppState) -> Result<bool> {
                 }
                 SettingItem::QuickTapTerm => {
                     let current = state.layout.tap_hold_settings.quick_tap_term.unwrap_or(0);
-                    manager.state_mut().start_editing_numeric(*setting, current, 0, 500);
+                    manager
+                        .state_mut()
+                        .start_editing_numeric(*setting, current, 0, 500);
                 }
                 SettingItem::HoldMode => {
-                    manager.state_mut().start_selecting_hold_mode(
-                        state.layout.tap_hold_settings.hold_mode,
-                    );
+                    manager
+                        .state_mut()
+                        .start_selecting_hold_mode(state.layout.tap_hold_settings.hold_mode);
                 }
                 SettingItem::RetroTapping => {
                     manager.state_mut().start_toggling_boolean(
@@ -102,7 +108,9 @@ fn handle_browsing_enter(state: &mut AppState) -> Result<bool> {
                 }
                 SettingItem::FlowTapTerm => {
                     let current = state.layout.tap_hold_settings.flow_tap_term.unwrap_or(0);
-                    manager.state_mut().start_editing_numeric(*setting, current, 0, 300);
+                    manager
+                        .state_mut()
+                        .start_editing_numeric(*setting, current, 0, 300);
                 }
                 SettingItem::ChordalHold => {
                     manager.state_mut().start_toggling_boolean(
@@ -111,7 +119,9 @@ fn handle_browsing_enter(state: &mut AppState) -> Result<bool> {
                     );
                 }
                 SettingItem::RgbEnabled => {
-                    manager.state_mut().start_toggling_boolean(*setting, state.layout.rgb_enabled);
+                    manager
+                        .state_mut()
+                        .start_toggling_boolean(*setting, state.layout.rgb_enabled);
                 }
                 SettingItem::RgbBrightness => {
                     manager.state_mut().start_editing_numeric(
@@ -123,12 +133,9 @@ fn handle_browsing_enter(state: &mut AppState) -> Result<bool> {
                 }
                 SettingItem::RgbTimeout => {
                     let current_secs = (state.layout.rgb_timeout_ms / 1000) as u16;
-                    manager.state_mut().start_editing_numeric(
-                        *setting,
-                        current_secs,
-                        0,
-                        600,
-                    );
+                    manager
+                        .state_mut()
+                        .start_editing_numeric(*setting, current_secs, 0, 600);
                 }
                 SettingItem::QmkFirmwarePath => {
                     manager.state_mut().start_editing_path(
@@ -218,10 +225,9 @@ fn handle_browsing_enter(state: &mut AppState) -> Result<bool> {
                     );
                 }
                 SettingItem::ShowHelpOnStartup => {
-                    manager.state_mut().start_toggling_boolean(
-                        *setting,
-                        state.config.ui.show_help_on_startup,
-                    );
+                    manager
+                        .state_mut()
+                        .start_toggling_boolean(*setting, state.config.ui.show_help_on_startup);
                 }
             }
             state.set_status("Select option with ↑↓, Enter to apply");
@@ -231,17 +237,21 @@ fn handle_browsing_enter(state: &mut AppState) -> Result<bool> {
 }
 
 /// Handle settings manager events
-fn handle_settings_manager_event(state: &mut AppState, event: SettingsManagerEvent) -> Result<bool> {
+fn handle_settings_manager_event(
+    state: &mut AppState,
+    event: SettingsManagerEvent,
+) -> Result<bool> {
     match event {
         SettingsManagerEvent::SettingsUpdated => {
             // Apply the settings from the manager's current state
             apply_settings(state)?;
-            
+
             // Return to browsing mode
-            if let Some(ActiveComponent::SettingsManager(ref mut manager)) = state.active_component {
+            if let Some(ActiveComponent::SettingsManager(ref mut manager)) = state.active_component
+            {
                 manager.state_mut().cancel();
             }
-            
+
             Ok(false)
         }
         SettingsManagerEvent::Cancelled => {
@@ -262,7 +272,7 @@ fn apply_settings(state: &mut AppState) -> Result<()> {
     // Get the manager's state to extract current values
     if let Some(ActiveComponent::SettingsManager(ref manager)) = state.active_component {
         let manager_state = manager.state();
-        
+
         // Extract the setting being edited based on mode
         match &manager_state.mode {
             crate::tui::settings_manager::ManagerMode::SelectingTapHoldPreset { .. } => {
@@ -270,7 +280,10 @@ fn apply_settings(state: &mut AppState) -> Result<()> {
                     if let Some(&preset) = TapHoldPreset::all().get(selected_idx) {
                         state.layout.tap_hold_settings.apply_preset(preset);
                         state.mark_dirty();
-                        state.set_status(format!("Tap-hold preset set to: {}", preset.display_name()));
+                        state.set_status(format!(
+                            "Tap-hold preset set to: {}",
+                            preset.display_name()
+                        ));
                     }
                 }
             }

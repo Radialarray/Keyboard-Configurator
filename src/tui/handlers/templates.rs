@@ -4,13 +4,13 @@ use anyhow::{Context, Result};
 use crossterm::event::{self, KeyCode, KeyModifiers};
 
 use crate::services::LayoutService;
-use crate::tui::{template_browser::TemplateBrowserState, AppState, component::Component};
+use crate::tui::{component::Component, template_browser::TemplateBrowserState, AppState};
 
 /// Handle input for template browser
 pub fn handle_template_browser_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
     // Use Component trait pattern
     use crate::tui::ActiveComponent;
-    
+
     if let Some(ActiveComponent::TemplateBrowser(ref mut browser)) = state.active_component {
         if let Some(event) = browser.handle_input(key) {
             return handle_template_browser_event(state, event);
@@ -20,13 +20,18 @@ pub fn handle_template_browser_input(state: &mut AppState, key: event::KeyEvent)
 }
 
 /// Handle template browser events
-fn handle_template_browser_event(state: &mut AppState, event: crate::tui::template_browser::TemplateBrowserEvent) -> Result<bool> {
+fn handle_template_browser_event(
+    state: &mut AppState,
+    event: crate::tui::template_browser::TemplateBrowserEvent,
+) -> Result<bool> {
     use crate::tui::template_browser::TemplateBrowserEvent;
-    
+
     match event {
         TemplateBrowserEvent::TemplateSelected(path) => {
             // Load the template
-            match LayoutService::load(&path).with_context(|| format!("Loading template from {}", path.display())) {
+            match LayoutService::load(&path)
+                .with_context(|| format!("Loading template from {}", path.display()))
+            {
                 Ok(layout) => {
                     state.layout = layout;
                     state.source_path = None; // New layout from template
@@ -53,7 +58,10 @@ fn handle_template_browser_event(state: &mut AppState, event: crate::tui::templa
 }
 
 /// Handle input for template save dialog
-pub fn handle_template_save_dialog_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
+pub fn handle_template_save_dialog_input(
+    state: &mut AppState,
+    key: event::KeyEvent,
+) -> Result<bool> {
     match key.code {
         KeyCode::Char(c) => {
             // Add character to active field

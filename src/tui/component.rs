@@ -35,7 +35,7 @@ pub trait Component {
 pub trait ContextualComponent {
     /// The type of context this component needs
     type Context;
-    
+
     /// Event type this component can emit
     type Event;
 
@@ -45,8 +45,6 @@ pub trait ContextualComponent {
     /// Render the component with access to shared context.
     fn render(&self, f: &mut Frame, area: Rect, theme: &Theme, context: &Self::Context);
 }
-
-
 
 /// Context that contains what the color picker is modifying
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

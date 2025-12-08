@@ -427,8 +427,19 @@ fn parse_table_row(line: &str, row: u8, layer: &mut Layer) -> Result<()> {
 /// - `KC_X@category-id` - with category
 /// - `KC_X{#RRGGBB}@category-id` - with both
 fn parse_keycode_syntax(cell: &str, row: u8, col: u8) -> Result<KeyDefinition> {
+    // Updated regex to support:
+    // - Basic keycodes: KC_A, KC_LEFT, etc.
+    // - Parameterized keycodes: LT(0, KC_A), MT(MOD_LCTL, KC_A)
+    // - Layer UUIDs inside params: LT(@f85996a8-8dbd-403d-a804-fac1f2bc751d, KC_R)
+    // - With optional color suffix: {#RRGGBB}
+    // - With optional category suffix: @category-id
+    // Pattern breakdown:
+    //   [A-Z_][A-Z_0-9]*  - Keycode prefix (must start with letter or underscore)
+    //   (?:\([^)]*\))?    - Optional parentheses with anything inside (for params)
+    //   (?:\{...\})?      - Optional color override
+    //   (?:@...)?         - Optional category suffix (@ only allowed here, not in keycode)
     let keycode_regex =
-        Regex::new(r"^([A-Z_0-9()]+)(?:\{(#[0-9A-Fa-f]{6})\})?(?:@([a-z][a-z0-9-]*))?\s*$")
+        Regex::new(r"^([A-Z_][A-Z_0-9]*(?:\([^)]*\))?)(?:\{(#[0-9A-Fa-f]{6})\})?(?:@([a-z][a-z0-9-]*))?\s*$")
             .unwrap();
 
     let captures = keycode_regex

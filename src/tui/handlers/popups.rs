@@ -3,30 +3,159 @@
 use anyhow::Result;
 use crossterm::event::{self, KeyCode, KeyModifiers};
 
+use crate::keycode_db::{KeycodeDb, ParamType};
 use crate::services::LayoutService;
 use crate::tui::{
-    build_log::BuildLogEvent, color_picker::ColorPickerEvent, component::{Component, ContextualComponent}, key_editor, keycode_picker,
-    metadata_editor, onboarding_wizard, ActiveComponent, AppState, LayoutVariantPickerEvent, ParameterizedKeycodeType,
-    PopupType, keycode_picker::KeycodePickerEvent,
+    build_log::BuildLogEvent,
+    color_picker::ColorPickerEvent,
+    component::{Component, ContextualComponent},
+    key_editor, keycode_picker,
+    keycode_picker::KeycodePickerEvent,
+    metadata_editor, onboarding_wizard, ActiveComponent, AppState, LayoutVariantPickerEvent,
+    PopupType,
 };
+
+/// Start a parameterized keycode flow using KeycodeDb param metadata (data-driven approach)
+/// Returns true if the keycode was handled as parameterized.
+fn start_parameterized_keycode_flow(state: &mut AppState, keycode: &str) -> bool {
+    // Reset any previous state
+    state.pending_keycode.reset();
+
+    // Look up params from the keycode DB
+    let _params = match state.keycode_db.get_params(keycode) {
+        Some(p) if !p.is_empty() => p,
+        _ => return false, // Not a parameterized keycode
+    };
+
+    // Store the template for later building
+    state.pending_keycode.keycode_template = Some(keycode.to_string());
+
+    // Open the first picker based on params[0].param_type
+    open_picker_for_param_index(state, 0);
+
+    true
+}
+
+/// Open the appropriate picker for the parameter at the given index in the current flow
+fn open_picker_for_param_index(state: &mut AppState, param_idx: usize) {
+    // Clone template to avoid borrow conflicts
+    let template = match &state.pending_keycode.keycode_template {
+        Some(t) => t.clone(),
+        None => {
+            state.set_error("No keycode template in pending state");
+            return;
+        }
+    };
+
+    let params = match state.keycode_db.get_params(&template) {
+        Some(p) => p,
+        None => {
+            state.set_error("Failed to get params for keycode template");
+            return;
+        }
+    };
+
+    if param_idx >= params.len() {
+        state.set_error("Parameter index out of bounds");
+        return;
+    }
+
+    // Clone the parameter data we need before calling state methods
+    let param = &params[param_idx];
+    let param_type = param.param_type;
+    let prefix = KeycodeDb::get_prefix(&template).unwrap_or(&template).to_string();
+    
+    // Build status message from param description or generic fallback
+    let message = param
+        .description
+        .as_ref()
+        .map(|d| {
+            // Capitalize first letter and clean up description
+            let desc = d.trim().to_lowercase();
+            format!("Select {desc}")
+        })
+        .unwrap_or_else(|| format!("Select {} for {prefix}", param.name));
+
+    // Open the appropriate picker based on parameter type
+    match param_type {
+        ParamType::Layer => {
+            state.open_layer_picker(&prefix);
+            state.set_status(&message);
+        }
+        ParamType::Modifier => {
+            state.open_modifier_picker();
+            state.set_status(&message);
+        }
+        ParamType::Keycode => {
+            state.active_popup = Some(PopupType::TapKeycodePicker);
+            state.keycode_picker_state = keycode_picker::KeycodePickerState::new();
+            state.active_component = None;
+            state.set_status(&message);
+        }
+    }
+}
+
+/// Handle a parameter being selected - add it to the collected params and open next picker or finish
+fn handle_parameter_collected(state: &mut AppState, param_value: String) {
+    // Add to collected params
+    state.pending_keycode.params.push(param_value);
+
+    let template = match &state.pending_keycode.keycode_template {
+        Some(t) => t.clone(),
+        None => {
+            state.set_error("No keycode template in pending state");
+            state.pending_keycode.reset();
+            return;
+        }
+    };
+
+    let params_meta = match state.keycode_db.get_params(&template) {
+        Some(p) => p,
+        None => {
+            state.set_error("Failed to get params for keycode template");
+            state.pending_keycode.reset();
+            return;
+        }
+    };
+
+    let current_param_count = state.pending_keycode.params.len();
+
+    if current_param_count < params_meta.len() {
+        // More params needed - open next picker
+        open_picker_for_param_index(state, current_param_count);
+    } else {
+        // All params collected - build final keycode
+        if let Some(final_keycode) = state.pending_keycode.build_keycode() {
+            if let Some(key) = state.get_selected_key_mut() {
+                key.keycode = final_keycode.clone();
+                state.mark_dirty();
+                state.set_status(format!("Assigned: {final_keycode}"));
+            }
+        } else {
+            state.set_error("Failed to build final keycode");
+        }
+
+        state.pending_keycode.reset();
+        state.close_component();
+    }
+}
 
 /// Handle keycode picker events
 fn handle_keycode_picker_event(state: &mut AppState, event: KeycodePickerEvent) -> Result<bool> {
     match event {
         KeycodePickerEvent::KeycodeSelected(keycode) => {
-            // Check if we're in a parameterized keycode flow
-            if state.pending_keycode.keycode_type.is_some() {
-                // This is handled by the tap keycode picker flow
-                // Should not happen in normal keycode picker
+            // Parameterized keycodes (LT/MT/LM/SH_T/OSM/XXX_T)
+            if start_parameterized_keycode_flow(state, &keycode) {
+                return Ok(false);
             }
-            
+
             // Normal keycode assignment
             if let Some(key) = state.get_selected_key_mut() {
                 key.keycode = keycode.clone();
                 state.mark_dirty();
                 state.set_status(format!("Assigned: {keycode}"));
             }
-            
+
             state.close_component();
         }
         KeycodePickerEvent::Cancelled => {
@@ -38,7 +167,10 @@ fn handle_keycode_picker_event(state: &mut AppState, event: KeycodePickerEvent) 
 }
 
 /// Handle category picker events
-fn handle_category_picker_event(state: &mut AppState, event: crate::tui::CategoryPickerEvent) -> Result<bool> {
+fn handle_category_picker_event(
+    state: &mut AppState,
+    event: crate::tui::CategoryPickerEvent,
+) -> Result<bool> {
     match event {
         crate::tui::CategoryPickerEvent::CategorySelected(category_id) => {
             // Apply category based on context
@@ -95,7 +227,7 @@ fn handle_color_picker_event(state: &mut AppState, key: event::KeyEvent) -> Resu
                 ColorPickerEvent::ColorSelected(color) => {
                     // Get context before closing component
                     let context = picker.get_context();
-                    
+
                     // Apply color based on context
                     match context {
                         crate::tui::component::ColorPickerContext::IndividualKey => {
@@ -109,31 +241,38 @@ fn handle_color_picker_event(state: &mut AppState, key: event::KeyEvent) -> Resu
                             if let Some(layer) = state.layout.layers.get_mut(state.current_layer) {
                                 layer.default_color = color;
                                 state.mark_dirty();
-                                state.set_status(format!("Set layer default color to {}", color.to_hex()));
+                                state.set_status(format!(
+                                    "Set layer default color to {}",
+                                    color.to_hex()
+                                ));
                             }
                         }
                         crate::tui::component::ColorPickerContext::Category => {
                             use crate::tui::category_manager::ManagerMode;
                             use crate::tui::CategoryManager;
-                            
+
                             match &state.category_manager_state.mode {
                                 ManagerMode::CreatingColor { name } => {
                                     let name = name.clone();
                                     let id = name.to_lowercase().replace(' ', "-");
-                                    
-                                    if let Ok(category) = crate::models::Category::new(&id, &name, color) {
+
+                                    if let Ok(category) =
+                                        crate::models::Category::new(&id, &name, color)
+                                    {
                                         state.layout.categories.push(category);
                                         state.mark_dirty();
                                         state.set_status(format!("Created category '{name}'"));
                                     } else {
                                         state.set_error("Failed to create category");
                                     }
-                                    
+
                                     state.category_manager_state.cancel();
                                 }
                                 ManagerMode::Browsing => {
                                     let selected_idx = state.category_manager_state.selected;
-                                    if let Some(category) = state.layout.categories.get_mut(selected_idx) {
+                                    if let Some(category) =
+                                        state.layout.categories.get_mut(selected_idx)
+                                    {
                                         let name = category.name.clone();
                                         category.set_color(color);
                                         state.mark_dirty();
@@ -144,22 +283,23 @@ fn handle_color_picker_event(state: &mut AppState, key: event::KeyEvent) -> Resu
                                     state.set_error("Invalid category manager state");
                                 }
                             }
-                            
+
                             // Recreate CategoryManager component with updated categories and synced state
                             let mut manager = CategoryManager::new(state.layout.categories.clone());
                             *manager.state_mut() = state.category_manager_state.clone();
-                            state.active_component = Some(ActiveComponent::CategoryManager(manager));
+                            state.active_component =
+                                Some(ActiveComponent::CategoryManager(manager));
                             state.active_popup = Some(PopupType::CategoryManager);
                         }
                     }
-                    
+
                     // Close the color picker
                     state.close_component();
                 }
                 ColorPickerEvent::ColorCleared => {
                     // Get context before closing component
                     let context = picker.get_context();
-                    
+
                     match context {
                         crate::tui::component::ColorPickerContext::IndividualKey => {
                             if let Some(key) = state.get_selected_key_mut() {
@@ -181,7 +321,7 @@ fn handle_color_picker_event(state: &mut AppState, key: event::KeyEvent) -> Resu
                             return Ok(false); // Don't close
                         }
                     }
-                    
+
                     // Close the color picker
                     state.close_component();
                 }
@@ -192,7 +332,7 @@ fn handle_color_picker_event(state: &mut AppState, key: event::KeyEvent) -> Resu
             }
         }
     }
-    
+
     Ok(false)
 }
 
@@ -208,9 +348,7 @@ pub fn handle_build_log_input(state: &mut AppState, key: event::KeyEvent) -> Res
                 .collect::<Vec<_>>()
                 .join("\n");
 
-            match arboard::Clipboard::new()
-                .and_then(|mut clipboard| clipboard.set_text(log_text))
-            {
+            match arboard::Clipboard::new().and_then(|mut clipboard| clipboard.set_text(log_text)) {
                 Ok(()) => state.set_status("Build log copied to clipboard"),
                 Err(e) => state.set_error(format!("Failed to copy to clipboard: {e}")),
             }
@@ -228,7 +366,7 @@ pub fn handle_build_log_input(state: &mut AppState, key: event::KeyEvent) -> Res
             }
         }
     }
-    
+
     Ok(false)
 }
 
@@ -240,7 +378,7 @@ fn handle_build_log_event(state: &mut AppState, event: BuildLogEvent) -> Result<
             state.set_status("Build log closed");
         }
     }
-    
+
     Ok(false)
 }
 
@@ -256,9 +394,12 @@ pub fn handle_help_overlay_input(state: &mut AppState, key: event::KeyEvent) -> 
 }
 
 /// Handle help overlay events
-fn handle_help_overlay_event(state: &mut AppState, event: crate::tui::help_overlay::HelpOverlayEvent) -> Result<bool> {
+fn handle_help_overlay_event(
+    state: &mut AppState,
+    event: crate::tui::help_overlay::HelpOverlayEvent,
+) -> Result<bool> {
     use crate::tui::help_overlay::HelpOverlayEvent;
-    
+
     match event {
         HelpOverlayEvent::Closed => {
             state.close_component();
@@ -438,7 +579,10 @@ pub fn handle_layer_picker_input(state: &mut AppState, key: event::KeyEvent) -> 
 }
 
 /// Handle events from the LayerPicker component
-fn handle_layer_picker_event(state: &mut AppState, event: crate::tui::layer_picker::LayerPickerEvent) -> Result<()> {
+fn handle_layer_picker_event(
+    state: &mut AppState,
+    event: crate::tui::layer_picker::LayerPickerEvent,
+) -> Result<()> {
     use crate::tui::layer_picker::LayerPickerEvent;
 
     match event {
@@ -466,37 +610,19 @@ fn handle_layer_picker_event(state: &mut AppState, event: crate::tui::layer_pick
                     return Ok(());
                 }
 
-                // Check if we're in a parameterized keycode flow
-                match &state.pending_keycode.keycode_type {
-                    Some(ParameterizedKeycodeType::LayerTap) => {
-                        // LT: Store layer, go to tap keycode picker
-                        state.pending_keycode.param1 = Some(layer_ref);
-                        state.active_popup = Some(PopupType::TapKeycodePicker);
-                        state.keycode_picker_state = keycode_picker::KeycodePickerState::new();
-                        state.active_component = None;
-                        state.set_status("Select tap keycode for LT");
-                        return Ok(());
-                    }
-                    Some(ParameterizedKeycodeType::LayerMod) => {
-                        // LM: Store layer, go to modifier picker
-                        state.pending_keycode.param1 = Some(layer_ref);
-                        state.open_modifier_picker();
-                        state.active_component = None;
-                        state.set_status("Select modifier(s) for LM");
-                        return Ok(());
-                    }
-                    _ => {
-                        // Regular layer keycode (MO, TG, TO, etc.) - assign directly
-                        // Need to get the picker's state to build the keycode
-                        // Since we consumed the component, we need to use layer_picker_state
-                        let keycode = state.layer_picker_state.build_keycode(layer);
+                // Data-driven parameterized keycode flow
+                if state.pending_keycode.keycode_template.is_some() {
+                    handle_parameter_collected(state, layer_ref);
+                    return Ok(());
+                }
 
-                        if let Some(key) = state.get_selected_key_mut() {
-                            key.keycode = keycode.clone();
-                            state.mark_dirty();
-                            state.set_status(format!("Assigned: {keycode}"));
-                        }
-                    }
+                // Regular layer keycode (MO, TG, TO, etc.) - assign directly
+                let keycode = state.layer_picker_state.build_keycode(layer);
+
+                if let Some(key) = state.get_selected_key_mut() {
+                    key.keycode = keycode.clone();
+                    state.mark_dirty();
+                    state.set_status(format!("Assigned: {keycode}"));
                 }
             }
 
@@ -513,7 +639,7 @@ fn handle_layer_picker_event(state: &mut AppState, event: crate::tui::layer_pick
                 return Ok(());
             }
             // Check if this was part of a parameterized keycode flow
-            if state.pending_keycode.keycode_type.is_some() {
+            if state.pending_keycode.keycode_template.is_some() {
                 state.pending_keycode.reset();
             }
             state.active_popup = None;
@@ -537,7 +663,7 @@ fn handle_layer_picker_legacy(state: &mut AppState, key: event::KeyEvent) -> Res
                 return Ok(false);
             }
             // Check if this was part of a parameterized keycode flow
-            if state.pending_keycode.keycode_type.is_some() {
+            if state.pending_keycode.keycode_template.is_some() {
                 state.pending_keycode.reset();
             }
             state.active_popup = None;
@@ -580,35 +706,20 @@ fn handle_layer_picker_legacy(state: &mut AppState, key: event::KeyEvent) -> Res
                     return Ok(false);
                 }
 
-                // Check if we're in a parameterized keycode flow
-                match &state.pending_keycode.keycode_type {
-                    Some(ParameterizedKeycodeType::LayerTap) => {
-                        // LT: Store layer, go to tap keycode picker
-                        state.pending_keycode.param1 = Some(layer_ref);
-                        state.active_popup = Some(PopupType::TapKeycodePicker);
-                        state.keycode_picker_state = keycode_picker::KeycodePickerState::new();
-                        state.layer_picker_state.reset();
-                        state.set_status("Select tap keycode for LT");
-                        return Ok(false);
-                    }
-                    Some(ParameterizedKeycodeType::LayerMod) => {
-                        // LM: Store layer, go to modifier picker
-                        state.pending_keycode.param1 = Some(layer_ref);
-                        state.open_modifier_picker();
-                        state.layer_picker_state.reset();
-                        state.set_status("Select modifier(s) for LM");
-                        return Ok(false);
-                    }
-                    _ => {
-                        // Regular layer keycode (MO, TG, TO, etc.) - assign directly
-                        let keycode = state.layer_picker_state.build_keycode(layer);
+                // Data-driven parameterized keycode flow
+                if state.pending_keycode.keycode_template.is_some() {
+                    handle_parameter_collected(state, layer_ref);
+                    state.layer_picker_state.reset();
+                    return Ok(false);
+                }
 
-                        if let Some(key) = state.get_selected_key_mut() {
-                            key.keycode = keycode.clone();
-                            state.mark_dirty();
-                            state.set_status(format!("Assigned: {keycode}"));
-                        }
-                    }
+                // Regular layer keycode (MO, TG, TO, etc.) - assign directly
+                let keycode = state.layer_picker_state.build_keycode(layer);
+
+                if let Some(key) = state.get_selected_key_mut() {
+                    key.keycode = keycode.clone();
+                    state.mark_dirty();
+                    state.set_status(format!("Assigned: {keycode}"));
                 }
             }
 
@@ -637,29 +748,9 @@ pub fn handle_tap_keycode_picker_input(state: &mut AppState, key: event::KeyEven
             if let Some(kc) = keycodes.get(state.keycode_picker_state.selected) {
                 // Only allow basic keycodes for tap action (no parameterized keycodes)
                 if is_basic_keycode(&kc.code) {
-                    // Store as param2 (tap keycode) for LT/MT, or param1 for SH_T
-                    match &state.pending_keycode.keycode_type {
-                        Some(ParameterizedKeycodeType::SwapHandsTap) => {
-                            state.pending_keycode.param1 = Some(kc.code.clone());
-                        }
-                        _ => {
-                            state.pending_keycode.param2 = Some(kc.code.clone());
-                        }
-                    }
-
-                    // Build and assign the final keycode
-                    if let Some(final_keycode) = state.pending_keycode.build_keycode() {
-                        if let Some(key) = state.get_selected_key_mut() {
-                            key.keycode = final_keycode.clone();
-                            state.mark_dirty();
-                            state.set_status(format!("Assigned: {final_keycode}"));
-                        }
-                    }
-
-                    // Reset and close
-                    state.pending_keycode.reset();
-                    state.active_popup = None;
-                    state.keycode_picker_state = keycode_picker::KeycodePickerState::new();
+                    // Data-driven approach: collect the parameter and continue the flow
+                    handle_parameter_collected(state, kc.code.clone());
+                    return Ok(false);
                 } else {
                     state.set_error("Only basic keycodes allowed for tap action");
                 }
@@ -684,9 +775,12 @@ pub fn handle_modifier_picker_input(state: &mut AppState, key: event::KeyEvent) 
 }
 
 /// Handle modifier picker events
-fn handle_modifier_picker_event(state: &mut AppState, event: crate::tui::modifier_picker::ModifierPickerEvent) -> Result<bool> {
+fn handle_modifier_picker_event(
+    state: &mut AppState,
+    event: crate::tui::modifier_picker::ModifierPickerEvent,
+) -> Result<bool> {
     use crate::tui::modifier_picker::ModifierPickerEvent;
-    
+
     match event {
         ModifierPickerEvent::ModifiersSelected(modifiers) => {
             let mod_string = modifiers.join(" | ");
@@ -710,51 +804,14 @@ fn handle_modifier_picker_event(state: &mut AppState, event: crate::tui::modifie
                 return Ok(false);
             }
 
-            match &state.pending_keycode.keycode_type {
-                Some(ParameterizedKeycodeType::ModTap) => {
-                    // MT: Store modifier as param1, go to tap keycode picker
-                    state.pending_keycode.param1 = Some(mod_string);
-                    state.active_popup = Some(PopupType::TapKeycodePicker);
-                    state.keycode_picker_state = keycode_picker::KeycodePickerState::new();
-                    state.close_component();
-                    state.set_status("Select tap keycode for MT");
-                }
-                Some(ParameterizedKeycodeType::LayerMod) => {
-                    // LM: Store modifier as param2, build and assign
-                    state.pending_keycode.param2 = Some(mod_string);
-
-                    if let Some(final_keycode) = state.pending_keycode.build_keycode() {
-                        if let Some(key) = state.get_selected_key_mut() {
-                            key.keycode = final_keycode.clone();
-                            state.mark_dirty();
-                            state.set_status(format!("Assigned: {final_keycode}"));
-                        }
-                    }
-
-                    state.pending_keycode.reset();
-                    state.close_component();
-                }
-                Some(ParameterizedKeycodeType::SingleMod) => {
-                    // OSM and similar: Store modifier as param2, build and assign
-                    state.pending_keycode.param2 = Some(mod_string);
-
-                    if let Some(final_keycode) = state.pending_keycode.build_keycode() {
-                        if let Some(key) = state.get_selected_key_mut() {
-                            key.keycode = final_keycode.clone();
-                            state.mark_dirty();
-                            state.set_status(format!("Assigned: {final_keycode}"));
-                        }
-                    }
-
-                    state.pending_keycode.reset();
-                    state.close_component();
-                }
-                _ => {
-                    // Unexpected state - cancel
-                    state.pending_keycode.reset();
-                    state.close_component();
-                    state.set_error("Unexpected state");
-                }
+            // Data-driven parameterized keycode flow
+            if state.pending_keycode.keycode_template.is_some() {
+                handle_parameter_collected(state, mod_string);
+            } else {
+                // No parameterized flow - unexpected state
+                state.pending_keycode.reset();
+                state.close_component();
+                state.set_error("Unexpected state: modifier selected but no parameterized flow active");
             }
         }
         ModifierPickerEvent::Cancelled => {
@@ -766,7 +823,7 @@ fn handle_modifier_picker_event(state: &mut AppState, event: crate::tui::modifie
                 state.set_status("Cancelled - back to key editor");
                 return Ok(false);
             }
-            
+
             state.pending_keycode.reset();
             state.close_component();
             state.set_status("Cancelled");
@@ -879,16 +936,19 @@ pub fn handle_keyboard_picker_input(state: &mut AppState, key: event::KeyEvent) 
 }
 
 /// Handle keyboard picker events
-fn handle_keyboard_picker_event(state: &mut AppState, event: crate::tui::config_dialogs::KeyboardPickerEvent) -> Result<bool> {
+fn handle_keyboard_picker_event(
+    state: &mut AppState,
+    event: crate::tui::config_dialogs::KeyboardPickerEvent,
+) -> Result<bool> {
     use crate::tui::config_dialogs::KeyboardPickerEvent;
-    
+
     match event {
         KeyboardPickerEvent::KeyboardSelected(keyboard) => {
             // Update layout metadata with selected keyboard
             state.layout.metadata.keyboard = Some(keyboard.clone());
             state.mark_dirty();
             state.set_status(format!("Selected keyboard: {keyboard}"));
-            
+
             // Close the picker
             state.close_component();
         }

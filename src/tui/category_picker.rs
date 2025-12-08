@@ -57,18 +57,18 @@ impl CategoryPickerState {
         self.list_state.select(Some(self.selected));
     }
 
-     /// Move selection down
-     pub fn next(&mut self, category_count: usize) {
-         // Total items = categories + 1 for "None" option
-         if self.selected < category_count {
-             self.selected += 1;
-         } else {
-             // Wrap to first item
-             self.selected = 0;
-         }
-         self.list_state.select(Some(self.selected));
-     }
- }
+    /// Move selection down
+    pub fn next(&mut self, category_count: usize) {
+        // Total items = categories + 1 for "None" option
+        if self.selected < category_count {
+            self.selected += 1;
+        } else {
+            // Wrap to first item
+            self.selected = 0;
+        }
+        self.list_state.select(Some(self.selected));
+    }
+}
 
 impl Default for CategoryPickerState {
     fn default() -> Self {

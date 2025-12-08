@@ -37,8 +37,6 @@ struct Cli {
     qmk_path: Option<PathBuf>,
 }
 
-
-
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -94,13 +92,13 @@ fn main() -> Result<()> {
             // Get layout variant from metadata
             let layout_variant = layout.metadata.layout_variant.as_ref()
                 .ok_or_else(|| anyhow::anyhow!("Layout variant not specified in layout metadata - layout may be from an older version"))?;
-            
+
             // Try to build geometry using the service
             let geo_context = services::geometry::GeometryContext {
                 config: &config,
                 metadata: &layout.metadata,
             };
-            
+
             match services::geometry::build_geometry_for_layout(geo_context, layout_variant) {
                 Ok(geo_result) => (geo_result.geometry, geo_result.mapping),
                 Err(_) => {

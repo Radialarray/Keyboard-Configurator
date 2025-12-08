@@ -1,7 +1,7 @@
 // Navigation action handlers
 
-use crate::tui::AppState;
 use crate::models::{Position, VisualLayoutMapping};
+use crate::tui::AppState;
 use crate::tui::SelectionMode;
 use anyhow::Result;
 
@@ -35,8 +35,7 @@ pub fn handle_navigate_up(state: &mut AppState) -> Result<bool> {
         state.selected_position = new_pos;
         // Update rectangle selection if active
         if let Some(SelectionMode::Rectangle { start }) = state.selection_mode {
-            state.selected_keys =
-                calculate_rectangle_selection(start, new_pos, &state.mapping);
+            state.selected_keys = calculate_rectangle_selection(start, new_pos, &state.mapping);
         }
         state.clear_error();
     }
@@ -48,8 +47,7 @@ pub fn handle_navigate_down(state: &mut AppState) -> Result<bool> {
     if let Some(new_pos) = state.mapping.find_position_down(state.selected_position) {
         state.selected_position = new_pos;
         if let Some(SelectionMode::Rectangle { start }) = state.selection_mode {
-            state.selected_keys =
-                calculate_rectangle_selection(start, new_pos, &state.mapping);
+            state.selected_keys = calculate_rectangle_selection(start, new_pos, &state.mapping);
         }
         state.clear_error();
     }
@@ -61,8 +59,7 @@ pub fn handle_navigate_left(state: &mut AppState) -> Result<bool> {
     if let Some(new_pos) = state.mapping.find_position_left(state.selected_position) {
         state.selected_position = new_pos;
         if let Some(SelectionMode::Rectangle { start }) = state.selection_mode {
-            state.selected_keys =
-                calculate_rectangle_selection(start, new_pos, &state.mapping);
+            state.selected_keys = calculate_rectangle_selection(start, new_pos, &state.mapping);
         }
         state.clear_error();
     }
@@ -74,8 +71,7 @@ pub fn handle_navigate_right(state: &mut AppState) -> Result<bool> {
     if let Some(new_pos) = state.mapping.find_position_right(state.selected_position) {
         state.selected_position = new_pos;
         if let Some(SelectionMode::Rectangle { start }) = state.selection_mode {
-            state.selected_keys =
-                calculate_rectangle_selection(start, new_pos, &state.mapping);
+            state.selected_keys = calculate_rectangle_selection(start, new_pos, &state.mapping);
         }
         state.clear_error();
     }
@@ -99,7 +95,7 @@ pub fn handle_next_layer(state: &mut AppState) -> Result<bool> {
     if state.layout.layers.is_empty() {
         return Ok(false);
     }
-    
+
     // Cycle forward: if at last layer, wrap to 0
     if state.current_layer < state.layout.layers.len() - 1 {
         state.current_layer += 1;
@@ -116,7 +112,7 @@ pub fn handle_previous_layer(state: &mut AppState) -> Result<bool> {
     if state.layout.layers.is_empty() {
         return Ok(false);
     }
-    
+
     // Cycle backward: if at layer 0, wrap to last layer
     if state.current_layer > 0 {
         state.current_layer -= 1;

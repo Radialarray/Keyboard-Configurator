@@ -96,7 +96,7 @@ pub fn handle_category_manager_input(state: &mut AppState, key: event::KeyEvent)
                 let mut status_message = None;
                 let mut error_message = None;
                 let mut dirty = false;
-                
+
                 if let Some(category) = state.layout.categories.iter_mut().find(|c| c.id == id) {
                     if let Some(new_name) = name {
                         if let Err(e) = category.set_name(&new_name) {
@@ -112,7 +112,7 @@ pub fn handle_category_manager_input(state: &mut AppState, key: event::KeyEvent)
                         status_message = Some("Category color updated".to_string());
                     }
                 }
-                
+
                 // Now update state outside the borrow
                 if dirty {
                     state.mark_dirty();
@@ -123,7 +123,7 @@ pub fn handle_category_manager_input(state: &mut AppState, key: event::KeyEvent)
                 if let Some(err) = error_message {
                     state.set_error(err);
                 }
-                
+
                 // Update component with modified categories
                 manager.set_categories(state.layout.categories.clone());
             }

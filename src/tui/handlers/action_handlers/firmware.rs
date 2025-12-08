@@ -1,7 +1,7 @@
 // Firmware action handlers
 
-use crate::tui::AppState;
 use crate::tui::handlers::actions::{handle_firmware_build, handle_firmware_generation};
+use crate::tui::AppState;
 use anyhow::Result;
 
 /// Handle build firmware action

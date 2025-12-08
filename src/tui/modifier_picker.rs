@@ -346,7 +346,9 @@ impl Component for ModifierPicker {
 
         match key.code {
             KeyCode::Esc => Some(ModifierPickerEvent::Cancelled),
-            KeyCode::Enter => Some(ModifierPickerEvent::ModifiersSelected(self.get_modifiers_list())),
+            KeyCode::Enter => Some(ModifierPickerEvent::ModifiersSelected(
+                self.get_modifiers_list(),
+            )),
             KeyCode::Char(' ') => {
                 self.state.toggle_focused();
                 None
@@ -716,5 +718,4 @@ mod tests {
         state.focus_up();
         assert_eq!(state.focus, 8);
     }
-
 }

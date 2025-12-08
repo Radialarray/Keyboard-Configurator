@@ -158,9 +158,7 @@ fn create_test_mapping() -> VisualLayoutMapping {
 /// Creates a test config
 fn create_test_config() -> Config {
     Config {
-        paths: PathConfig {
-            qmk_firmware: None,
-        },
+        paths: PathConfig { qmk_firmware: None },
         build: BuildConfig {
             output_dir: std::env::temp_dir(),
         },
@@ -175,8 +173,7 @@ fn create_test_app_state() -> AppState {
     let mapping = create_test_mapping();
     let config = create_test_config();
 
-    AppState::new(layout, None, geometry, mapping, config)
-        .expect("Failed to create test app state")
+    AppState::new(layout, None, geometry, mapping, config).expect("Failed to create test app state")
 }
 
 #[test]

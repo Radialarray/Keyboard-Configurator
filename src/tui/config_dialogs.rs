@@ -322,9 +322,10 @@ impl crate::tui::component::Component for LayoutPicker {
                 self.state.move_down();
                 None
             }
-            KeyCode::Enter => {
-                self.state.get_selected().map(LayoutPickerEvent::LayoutSelected)
-            }
+            KeyCode::Enter => self
+                .state
+                .get_selected()
+                .map(LayoutPickerEvent::LayoutSelected),
             KeyCode::Esc => Some(LayoutPickerEvent::Cancelled),
             _ => None,
         }
@@ -451,9 +452,10 @@ impl crate::tui::component::Component for KeyboardPicker {
                 self.state.move_down();
                 None
             }
-            KeyCode::Enter => {
-                self.state.get_selected().map(KeyboardPickerEvent::KeyboardSelected)
-            }
+            KeyCode::Enter => self
+                .state
+                .get_selected()
+                .map(KeyboardPickerEvent::KeyboardSelected),
             KeyCode::Backspace => {
                 self.state.search_query.pop();
                 self.state.update_filter();
@@ -726,8 +728,6 @@ pub fn handle_keyboard_picker_input(
         _ => None,
     }
 }
-
-
 
 /// Helper to create a centered rect
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
