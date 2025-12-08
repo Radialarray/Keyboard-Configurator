@@ -546,7 +546,8 @@ impl LayerManager {
                                 if let Some(first_layer) = self.cached_layers.first() {
                                     for key in &first_layer.keys {
                                         use crate::models::layer::KeyDefinition;
-                                        new_layer.add_key(KeyDefinition::new(key.position, "KC_TRNS"));
+                                        new_layer
+                                            .add_key(KeyDefinition::new(key.position, "KC_TRNS"));
                                     }
                                 }
 

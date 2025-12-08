@@ -1,7 +1,7 @@
 // Popup management action handlers
 
-use crate::tui::{key_editor, onboarding_wizard, ActiveComponent, AppState, PopupType};
 use crate::models::KeyDefinition;
+use crate::tui::{key_editor, onboarding_wizard, ActiveComponent, AppState, PopupType};
 use anyhow::Result;
 
 /// Handle open layer manager action
@@ -88,7 +88,9 @@ fn get_selected_key_info(state: &AppState) -> Option<(KeyDefinition, bool)> {
 
 /// Open key editor for an assigned key
 fn open_key_editor(state: &mut AppState, key: &KeyDefinition) {
-    state.key_editor_state.init_for_key(key, state.current_layer);
+    state
+        .key_editor_state
+        .init_for_key(key, state.current_layer);
     state.active_popup = Some(PopupType::KeyEditor);
     state.set_status("Key editor - Enter: Reassign, D: Description, C: Color");
 }

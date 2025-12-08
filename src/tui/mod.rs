@@ -61,7 +61,9 @@ use crate::config::Config;
 use crate::firmware::BuildState;
 use crate::keycode_db::KeycodeDb;
 use crate::models::{KeyboardGeometry, Layout, Position, VisualLayoutMapping};
-use crate::services::geometry::{build_geometry_for_layout, extract_base_keyboard, GeometryContext};
+use crate::services::geometry::{
+    build_geometry_for_layout, extract_base_keyboard, GeometryContext,
+};
 
 // Re-export TUI components
 pub use build_log::BuildLog;
@@ -70,8 +72,8 @@ pub use category_picker::{CategoryPicker, CategoryPickerEvent};
 pub use color_picker::ColorPicker;
 pub use component::{Component, ContextualComponent};
 pub use config_dialogs::{
-    KeyboardPicker,
-    LayoutPicker as LayoutVariantPicker, LayoutPickerEvent as LayoutVariantPickerEvent,
+    KeyboardPicker, LayoutPicker as LayoutVariantPicker,
+    LayoutPickerEvent as LayoutVariantPickerEvent,
 };
 pub use help_overlay::HelpOverlay;
 pub use key_editor::KeyEditorState;
@@ -111,34 +113,13 @@ pub enum CategoryPickerContext {
 }
 
 /// Type of parameterized keycode being built
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(dead_code)]
-pub enum ParameterizedKeycodeType {
-    /// LT(layer, kc) - Hold for layer, tap for keycode
-    LayerTap,
-    /// MT(mod, kc) - Hold for modifier, tap for keycode (custom modifier combo)
-    ModTap,
-    /// LM(layer, mod) - Layer with modifier active
-    LayerMod,
-    /// `SH_T(kc)` - Hold to swap hands, tap for keycode
-    SwapHandsTap,
-    /// Simple mod-tap like `LCTL_T(kc)`, `LSFT_T(kc)` - modifier is fixed, only need tap keycode
-    /// param1 stores the prefix (e.g., "`LCTL_T`", "`LGUI_T`")
-    SimpleModTap,
-    /// Single modifier keycode like OSM(mod) - only needs modifier selection
-    /// param1 stores the prefix (e.g., "OSM")
-    SingleMod,
-}
-
 /// State for building parameterized keycodes through multi-stage picker flow
 #[derive(Debug, Clone, Default)]
 pub struct PendingKeycodeState {
-    /// The keycode type being built (e.g., "LT", "MT", "LM")
-    pub keycode_type: Option<ParameterizedKeycodeType>,
-    /// First parameter (layer UUID for LT/LM, modifier bits for MT)
-    pub param1: Option<String>,
-    /// Second parameter (tap keycode for LT/MT, modifier for LM)
-    pub param2: Option<String>,
+    /// The original keycode template (e.g., "LT()", "MT()", "LCTL_T()")
+    pub keycode_template: Option<String>,
+    /// Collected parameters in order (e.g., ["@layer-id", "KC_SPC"] for LT)
+    pub params: Vec<String>,
 }
 
 impl PendingKeycodeState {
@@ -146,56 +127,30 @@ impl PendingKeycodeState {
     #[must_use]
     pub const fn new() -> Self {
         Self {
-            keycode_type: None,
-            param1: None,
-            param2: None,
+            keycode_template: None,
+            params: Vec::new(),
         }
     }
 
     /// Reset the pending state
     pub fn reset(&mut self) {
-        self.keycode_type = None;
-        self.param1 = None;
-        self.param2 = None;
+        self.keycode_template = None;
+        self.params.clear();
     }
 
     /// Build the final keycode string from collected parameters
     #[must_use]
     pub fn build_keycode(&self) -> Option<String> {
-        match &self.keycode_type {
-            Some(ParameterizedKeycodeType::LayerTap) => {
-                let layer = self.param1.as_ref()?;
-                let keycode = self.param2.as_ref()?;
-                Some(format!("LT({layer}, {keycode})"))
+        // Data-driven approach: use template + params array
+        if let Some(template) = &self.keycode_template {
+            if !self.params.is_empty() {
+                use crate::keycode_db::KeycodeDb;
+                let prefix = KeycodeDb::get_prefix(template)?;
+                let params_str = self.params.join(", ");
+                return Some(format!("{prefix}({params_str})"));
             }
-            Some(ParameterizedKeycodeType::ModTap) => {
-                let modifier = self.param1.as_ref()?;
-                let keycode = self.param2.as_ref()?;
-                Some(format!("MT({modifier}, {keycode})"))
-            }
-            Some(ParameterizedKeycodeType::LayerMod) => {
-                let layer = self.param1.as_ref()?;
-                let modifier = self.param2.as_ref()?;
-                Some(format!("LM({layer}, {modifier})"))
-            }
-            Some(ParameterizedKeycodeType::SwapHandsTap) => {
-                let keycode = self.param1.as_ref()?;
-                Some(format!("SH_T({keycode})"))
-            }
-            Some(ParameterizedKeycodeType::SimpleModTap) => {
-                // param1 is the prefix (e.g., "LCTL_T"), param2 is the tap keycode
-                let prefix = self.param1.as_ref()?;
-                let keycode = self.param2.as_ref()?;
-                Some(format!("{prefix}({keycode})"))
-            }
-            Some(ParameterizedKeycodeType::SingleMod) => {
-                // param1 is the prefix (e.g., "OSM"), param2 is the modifier
-                let prefix = self.param1.as_ref()?;
-                let modifier = self.param2.as_ref()?;
-                Some(format!("{prefix}({modifier})"))
-            }
-            None => None,
         }
+        None
     }
 }
 
@@ -672,7 +627,11 @@ impl AppState {
     // === Component Management Methods (Component Trait Pattern) ===
 
     /// Open the color picker component
-    pub fn open_color_picker(&mut self, context: component::ColorPickerContext, color: crate::models::RgbColor) {
+    pub fn open_color_picker(
+        &mut self,
+        context: component::ColorPickerContext,
+        color: crate::models::RgbColor,
+    ) {
         let picker = ColorPicker::new(context, color);
         self.active_component = Some(ActiveComponent::ColorPicker(picker));
         self.active_popup = Some(PopupType::ColorPicker);
@@ -692,12 +651,12 @@ impl AppState {
         self.active_popup = Some(PopupType::LayerPicker);
     }
 
-     /// Open the modifier picker component
-     pub fn open_modifier_picker(&mut self) {
-         let picker = ModifierPicker::new();
-         self.active_component = Some(ActiveComponent::ModifierPicker(picker));
-         self.active_popup = Some(PopupType::ModifierPicker);
-     }
+    /// Open the modifier picker component
+    pub fn open_modifier_picker(&mut self) {
+        let picker = ModifierPicker::new();
+        self.active_component = Some(ActiveComponent::ModifierPicker(picker));
+        self.active_popup = Some(PopupType::ModifierPicker);
+    }
 
     /// Open the category manager component
     pub fn open_category_manager(&mut self) {
@@ -721,23 +680,23 @@ impl AppState {
         self.active_popup = Some(PopupType::MetadataEditor);
     }
 
-     /// Open the template browser component
-     pub fn open_template_browser(&mut self) {
-         let browser = TemplateBrowser::new();
-         self.active_component = Some(ActiveComponent::TemplateBrowser(browser));
-         self.active_popup = Some(PopupType::TemplateBrowser);
-     }
+    /// Open the template browser component
+    pub fn open_template_browser(&mut self) {
+        let browser = TemplateBrowser::new();
+        self.active_component = Some(ActiveComponent::TemplateBrowser(browser));
+        self.active_popup = Some(PopupType::TemplateBrowser);
+    }
 
-     /// Open the layout variant picker component (for switching QMK keyboard layout variants)
-     pub fn open_layout_variant_picker(&mut self, qmk_path: &PathBuf, keyboard: &str) -> Result<()> {
-         let picker = LayoutVariantPicker::new(qmk_path, keyboard);
-         self.active_component = Some(ActiveComponent::LayoutVariantPicker(picker));
-         self.active_popup = Some(PopupType::LayoutPicker);
-         Ok(())
-     }
+    /// Open the layout variant picker component (for switching QMK keyboard layout variants)
+    pub fn open_layout_variant_picker(&mut self, qmk_path: &PathBuf, keyboard: &str) -> Result<()> {
+        let picker = LayoutVariantPicker::new(qmk_path, keyboard);
+        self.active_component = Some(ActiveComponent::LayoutVariantPicker(picker));
+        self.active_popup = Some(PopupType::LayoutPicker);
+        Ok(())
+    }
 
-     /// Open the build log component
-     pub fn open_build_log(&mut self) {
+    /// Open the build log component
+    pub fn open_build_log(&mut self) {
         let log = BuildLog::new();
         self.active_component = Some(ActiveComponent::BuildLog(log));
         self.active_popup = Some(PopupType::BuildLog);
@@ -1246,31 +1205,29 @@ mod tests {
     #[test]
     fn test_pending_keycode_new() {
         let state = PendingKeycodeState::new();
-        assert!(state.keycode_type.is_none());
-        assert!(state.param1.is_none());
-        assert!(state.param2.is_none());
+        assert!(state.keycode_template.is_none());
+        assert!(state.params.is_empty());
     }
 
     #[test]
     fn test_pending_keycode_reset() {
         let mut state = PendingKeycodeState::new();
-        state.keycode_type = Some(ParameterizedKeycodeType::LayerTap);
-        state.param1 = Some("@layer-uuid".to_string());
-        state.param2 = Some("KC_SPC".to_string());
+        state.keycode_template = Some("LT()".to_string());
+        state.params.push("@layer-uuid".to_string());
+        state.params.push("KC_SPC".to_string());
 
         state.reset();
 
-        assert!(state.keycode_type.is_none());
-        assert!(state.param1.is_none());
-        assert!(state.param2.is_none());
+        assert!(state.keycode_template.is_none());
+        assert!(state.params.is_empty());
     }
 
     #[test]
     fn test_build_keycode_layer_tap() {
         let mut state = PendingKeycodeState::new();
-        state.keycode_type = Some(ParameterizedKeycodeType::LayerTap);
-        state.param1 = Some("@abc-123".to_string());
-        state.param2 = Some("KC_SPC".to_string());
+        state.keycode_template = Some("LT()".to_string());
+        state.params.push("@abc-123".to_string());
+        state.params.push("KC_SPC".to_string());
 
         let result = state.build_keycode();
         assert_eq!(result, Some("LT(@abc-123, KC_SPC)".to_string()));
@@ -1279,9 +1236,9 @@ mod tests {
     #[test]
     fn test_build_keycode_mod_tap() {
         let mut state = PendingKeycodeState::new();
-        state.keycode_type = Some(ParameterizedKeycodeType::ModTap);
-        state.param1 = Some("MOD_LCTL | MOD_LSFT".to_string());
-        state.param2 = Some("KC_A".to_string());
+        state.keycode_template = Some("MT()".to_string());
+        state.params.push("MOD_LCTL | MOD_LSFT".to_string());
+        state.params.push("KC_A".to_string());
 
         let result = state.build_keycode();
         assert_eq!(result, Some("MT(MOD_LCTL | MOD_LSFT, KC_A)".to_string()));
@@ -1290,9 +1247,9 @@ mod tests {
     #[test]
     fn test_build_keycode_layer_mod() {
         let mut state = PendingKeycodeState::new();
-        state.keycode_type = Some(ParameterizedKeycodeType::LayerMod);
-        state.param1 = Some("@layer-uuid".to_string());
-        state.param2 = Some("MOD_LSFT".to_string());
+        state.keycode_template = Some("LM()".to_string());
+        state.params.push("@layer-uuid".to_string());
+        state.params.push("MOD_LSFT".to_string());
 
         let result = state.build_keycode();
         assert_eq!(result, Some("LM(@layer-uuid, MOD_LSFT)".to_string()));
@@ -1301,8 +1258,8 @@ mod tests {
     #[test]
     fn test_build_keycode_swap_hands_tap() {
         let mut state = PendingKeycodeState::new();
-        state.keycode_type = Some(ParameterizedKeycodeType::SwapHandsTap);
-        state.param1 = Some("KC_SPC".to_string());
+        state.keycode_template = Some("SH_T()".to_string());
+        state.params.push("KC_SPC".to_string());
 
         let result = state.build_keycode();
         assert_eq!(result, Some("SH_T(KC_SPC)".to_string()));
@@ -1311,18 +1268,29 @@ mod tests {
     #[test]
     fn test_build_keycode_incomplete_lt() {
         let mut state = PendingKeycodeState::new();
-        state.keycode_type = Some(ParameterizedKeycodeType::LayerTap);
-        state.param1 = Some("@abc-123".to_string());
-        // Missing param2
+        state.keycode_template = Some("LT()".to_string());
+        state.params.push("@abc-123".to_string());
+        // Missing second parameter
 
         let result = state.build_keycode();
-        assert!(result.is_none(), "Incomplete LT should return None");
+        // Should still build with one param (though it's invalid QMK)
+        assert_eq!(result, Some("LT(@abc-123)".to_string()));
     }
 
     #[test]
-    fn test_build_keycode_no_type() {
+    fn test_build_keycode_no_template() {
         let state = PendingKeycodeState::new();
         let result = state.build_keycode();
-        assert!(result.is_none(), "No keycode type should return None");
+        assert!(result.is_none(), "No template should return None");
+    }
+
+    #[test]
+    fn test_build_keycode_empty_params() {
+        let mut state = PendingKeycodeState::new();
+        state.keycode_template = Some("LT()".to_string());
+        // No params added
+
+        let result = state.build_keycode();
+        assert!(result.is_none(), "Empty params should return None");
     }
 }

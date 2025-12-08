@@ -5,8 +5,8 @@
 //! The selected layer is stored as a UUID reference (@`layer_id`) rather
 //! than a numeric index, making it stable across layer reordering.
 
-use crossterm::event::KeyEvent;
 use crossterm::event::KeyCode;
+use crossterm::event::KeyEvent;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
@@ -65,8 +65,6 @@ impl LayerPickerState {
         }
     }
 
-
-
     /// Reset to initial state
     pub fn reset(&mut self) {
         self.selected = 0;
@@ -118,8 +116,6 @@ impl LayerPicker {
             state: LayerPickerState::with_prefix(prefix),
         }
     }
-
-
 }
 
 impl crate::tui::component::ContextualComponent for LayerPicker {

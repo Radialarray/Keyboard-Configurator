@@ -197,7 +197,8 @@ impl CategoryManager {
     pub fn set_categories(&mut self, categories: Vec<Category>) {
         self.cached_categories = categories;
         // Clamp selection to valid range
-        if self.state.selected >= self.cached_categories.len() && !self.cached_categories.is_empty() {
+        if self.state.selected >= self.cached_categories.len() && !self.cached_categories.is_empty()
+        {
             self.state.selected = self.cached_categories.len() - 1;
         }
     }
@@ -221,7 +222,9 @@ impl Component for CategoryManager {
     fn handle_input(&mut self, key: KeyEvent) -> Option<Self::Event> {
         match &self.state.mode {
             ManagerMode::Browsing => self.handle_browsing_input(key),
-            ManagerMode::CreatingName { input } => self.handle_creating_name_input(key, input.clone()),
+            ManagerMode::CreatingName { input } => {
+                self.handle_creating_name_input(key, input.clone())
+            }
             ManagerMode::CreatingColor { name } => {
                 // Color selection is handled by parent - just cancel here
                 if key.code == KeyCode::Esc {
@@ -356,14 +359,20 @@ impl CategoryManager {
             }
             KeyCode::Char(c) => {
                 input.push(c);
-                if let ManagerMode::Renaming { input: ref mut i, .. } = self.state.mode {
+                if let ManagerMode::Renaming {
+                    input: ref mut i, ..
+                } = self.state.mode
+                {
                     *i = input;
                 }
                 None
             }
             KeyCode::Backspace => {
                 input.pop();
-                if let ManagerMode::Renaming { input: ref mut i, .. } = self.state.mode {
+                if let ManagerMode::Renaming {
+                    input: ref mut i, ..
+                } = self.state.mode
+                {
                     *i = input;
                 }
                 None
@@ -392,7 +401,6 @@ impl CategoryManager {
         }
     }
 }
-
 
 /// Render the category manager dialog
 pub fn render_category_manager(

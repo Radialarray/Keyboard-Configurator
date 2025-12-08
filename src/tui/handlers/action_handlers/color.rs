@@ -13,8 +13,7 @@ pub fn handle_set_individual_key_color(state: &mut AppState) -> Result<bool> {
             crate::tui::component::ColorPickerContext::IndividualKey,
             current_color,
         );
-        state
-            .set_status("Adjust color with arrows, Tab to switch channels, Enter to apply");
+        state.set_status("Adjust color with arrows, Tab to switch channels, Enter to apply");
     } else {
         state.set_error("No key selected");
     }

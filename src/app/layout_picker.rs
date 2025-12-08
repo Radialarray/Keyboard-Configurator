@@ -58,7 +58,10 @@ pub fn run_layout_picker_terminal(config: &config::Config) -> Result<()> {
                                 metadata: &layout.metadata,
                             };
 
-                            let geo_result = services::geometry::build_geometry_for_layout(geo_context, layout_variant)?;
+                            let geo_result = services::geometry::build_geometry_for_layout(
+                                geo_context,
+                                layout_variant,
+                            )?;
                             let geometry = geo_result.geometry;
                             let mapping = geo_result.mapping;
 

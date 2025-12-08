@@ -278,7 +278,9 @@ impl crate::tui::component::Component for TemplateBrowser {
                 }
                 KeyCode::Enter => {
                     // Load selected template
-                    self.state.get_selected_template().map(|t| TemplateBrowserEvent::TemplateSelected(t.path.clone()))
+                    self.state
+                        .get_selected_template()
+                        .map(|t| TemplateBrowserEvent::TemplateSelected(t.path.clone()))
                 }
                 KeyCode::Backspace => {
                     self.state.search_pop();
@@ -296,7 +298,9 @@ impl crate::tui::component::Component for TemplateBrowser {
                 KeyCode::Esc | KeyCode::Char('q') => Some(TemplateBrowserEvent::Cancelled),
                 KeyCode::Enter => {
                     // Load selected template
-                    self.state.get_selected_template().map(|t| TemplateBrowserEvent::TemplateSelected(t.path.clone()))
+                    self.state
+                        .get_selected_template()
+                        .map(|t| TemplateBrowserEvent::TemplateSelected(t.path.clone()))
                 }
                 KeyCode::Char('/') => {
                     self.state.toggle_search();

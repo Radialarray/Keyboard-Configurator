@@ -1,7 +1,7 @@
 // Key operations action handlers
 
-use crate::tui::{clipboard, AppState};
 use crate::models::Position;
+use crate::tui::{clipboard, AppState};
 use anyhow::Result;
 
 /// Handle clear key action
@@ -139,8 +139,7 @@ pub fn handle_paste_key(state: &mut AppState) -> Result<bool> {
             let col_offset = current.col as isize - anchor.col as isize;
 
             // Collect valid target positions and save undo state
-            let mut paste_targets: Vec<(Position, clipboard::ClipboardContent)> =
-                Vec::new();
+            let mut paste_targets: Vec<(Position, clipboard::ClipboardContent)> = Vec::new();
             let mut undo_keys: Vec<(Position, clipboard::ClipboardContent)> = Vec::new();
 
             for (pos, content) in &multi.keys {
@@ -159,8 +158,7 @@ pub fn handle_paste_key(state: &mut AppState) -> Result<bool> {
                     if state.mapping.is_valid_position(target_pos) {
                         // Save original for undo
                         if let Some(layer) = state.layout.layers.get(state.current_layer) {
-                            if let Some(key) =
-                                layer.keys.iter().find(|k| k.position == target_pos)
+                            if let Some(key) = layer.keys.iter().find(|k| k.position == target_pos)
                             {
                                 undo_keys.push((
                                     target_pos,
@@ -197,9 +195,7 @@ pub fn handle_paste_key(state: &mut AppState) -> Result<bool> {
             let paste_count = paste_targets.len();
             for (target_pos, content) in &paste_targets {
                 if let Some(layer) = state.layout.layers.get_mut(state.current_layer) {
-                    if let Some(key) =
-                        layer.keys.iter_mut().find(|k| k.position == *target_pos)
-                    {
+                    if let Some(key) = layer.keys.iter_mut().find(|k| k.position == *target_pos) {
                         key.keycode = content.keycode.clone();
                         key.color_override = content.color_override;
                         key.category_id = content.category_id.clone();
@@ -210,9 +206,7 @@ pub fn handle_paste_key(state: &mut AppState) -> Result<bool> {
             // Clear cut sources if this was a cut operation
             for (layer_idx, pos) in cut_sources {
                 if let Some(layer) = state.layout.layers.get_mut(layer_idx) {
-                    if let Some(source_key) =
-                        layer.keys.iter_mut().find(|k| k.position == pos)
-                    {
+                    if let Some(source_key) = layer.keys.iter_mut().find(|k| k.position == pos) {
                         source_key.keycode = "KC_TRNS".to_string();
                         source_key.color_override = None;
                         source_key.category_id = None;
@@ -261,8 +255,7 @@ pub fn handle_paste_key(state: &mut AppState) -> Result<bool> {
         // If this was a cut operation, clear the source key
         if let Some((layer_idx, pos)) = cut_source {
             if let Some(layer) = state.layout.layers.get_mut(layer_idx) {
-                if let Some(source_key) = layer.keys.iter_mut().find(|k| k.position == pos)
-                {
+                if let Some(source_key) = layer.keys.iter_mut().find(|k| k.position == pos) {
                     source_key.keycode = "KC_TRNS".to_string();
                     source_key.color_override = None;
                     source_key.category_id = None;

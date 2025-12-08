@@ -23,7 +23,7 @@ use ratatui::{
 };
 
 use crate::models::{ColorPalette, RgbColor};
-use crate::tui::component::{Component, ColorPickerContext};
+use crate::tui::component::{ColorPickerContext, Component};
 use crate::tui::Theme;
 
 /// Events emitted by the ColorPicker component
@@ -452,8 +452,6 @@ impl ColorPicker {
     }
 }
 
-
-
 /// Render palette selection mode (for Component)
 fn render_palette_mode_component(f: &mut Frame, picker: &ColorPicker, theme: &Theme) {
     let area = centered_rect(70, 70, f.size());
@@ -568,12 +566,7 @@ fn render_rgb_instructions(f: &mut Frame, area: Rect, theme: &Theme) {
 }
 
 /// Render the color grid (4x3)
-fn render_color_grid(
-    f: &mut Frame,
-    area: Rect,
-    picker_state: &ColorPickerState,
-    theme: &Theme,
-) {
+fn render_color_grid(f: &mut Frame, area: Rect, picker_state: &ColorPickerState, theme: &Theme) {
     let columns = picker_state.palette.columns();
     let rows = picker_state.palette.rows();
 
@@ -643,12 +636,7 @@ fn render_color_grid(
 }
 
 /// Render the shade bar for the selected color
-fn render_shade_bar(
-    f: &mut Frame,
-    area: Rect,
-    picker_state: &ColorPickerState,
-    theme: &Theme,
-) {
+fn render_shade_bar(f: &mut Frame, area: Rect, picker_state: &ColorPickerState, theme: &Theme) {
     if let Some(color) = picker_state.palette.color_at(picker_state.selected_color) {
         let shade_count = color.shade_count();
 
@@ -895,8 +883,6 @@ fn render_channel_slider(
 
     f.render_widget(gauge, area);
 }
-
-
 
 /// Helper to create a centered rectangle
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

@@ -18,7 +18,7 @@ use ratatui::{
 };
 
 use super::component::ContextualComponent;
-use super::{AppState};
+use super::AppState;
 use crate::keycode_db::KeycodeDb;
 
 /// Events emitted by the KeycodePicker component
@@ -117,7 +117,11 @@ impl ContextualComponent for KeycodePicker {
     type Context = KeycodeDb;
     type Event = KeycodePickerEvent;
 
-    fn handle_input(&mut self, key: event::KeyEvent, context: &Self::Context) -> Option<Self::Event> {
+    fn handle_input(
+        &mut self,
+        key: event::KeyEvent,
+        context: &Self::Context,
+    ) -> Option<Self::Event> {
         let total_categories = context.categories().len() + 1; // +1 for "All"
 
         match self.state.focus {
@@ -133,7 +137,11 @@ impl ContextualComponent for KeycodePicker {
 
 impl KeycodePicker {
     /// Handle input when sidebar has focus
-    fn handle_sidebar_input(&mut self, key: event::KeyEvent, total_categories: usize) -> Option<KeycodePickerEvent> {
+    fn handle_sidebar_input(
+        &mut self,
+        key: event::KeyEvent,
+        total_categories: usize,
+    ) -> Option<KeycodePickerEvent> {
         match key.code {
             KeyCode::Esc => {
                 self.state.reset();
@@ -182,7 +190,11 @@ impl KeycodePicker {
     }
 
     /// Handle input when keycodes list has focus
-    fn handle_keycodes_input(&mut self, key: event::KeyEvent, context: &KeycodeDb) -> Option<KeycodePickerEvent> {
+    fn handle_keycodes_input(
+        &mut self,
+        key: event::KeyEvent,
+        context: &KeycodeDb,
+    ) -> Option<KeycodePickerEvent> {
         match key.code {
             KeyCode::Esc => {
                 self.state.reset();
@@ -204,9 +216,8 @@ impl KeycodePicker {
             }
             KeyCode::Enter => {
                 let keycodes = get_filtered_keycodes_from_context(&self.state, context);
-                let selected_keycode_opt = keycodes
-                    .get(self.state.selected)
-                    .map(|kc| kc.code.clone());
+                let selected_keycode_opt =
+                    keycodes.get(self.state.selected).map(|kc| kc.code.clone());
 
                 if let Some(keycode) = selected_keycode_opt {
                     self.state.reset();
@@ -244,7 +255,8 @@ impl KeycodePicker {
             }
             KeyCode::PageDown => {
                 let keycodes = get_filtered_keycodes_from_context(&self.state, context);
-                self.state.selected = (self.state.selected + 10).min(keycodes.len().saturating_sub(1));
+                self.state.selected =
+                    (self.state.selected + 10).min(keycodes.len().saturating_sub(1));
                 None
             }
             KeyCode::Char(c) => {
@@ -430,9 +442,7 @@ fn render_keycode_picker_component(
     // Create list state for highlighting
     let mut list_state = ListState::default();
     if focus == PickerFocus::Keycodes {
-        list_state.select(Some(
-            state.selected.min(keycodes.len().saturating_sub(1)),
-        ));
+        list_state.select(Some(state.selected.min(keycodes.len().saturating_sub(1))));
     }
 
     f.render_stateful_widget(list, content_chunks[1], &mut list_state);

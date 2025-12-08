@@ -651,7 +651,9 @@ impl SettingsManager {
     ) -> Option<SettingsManagerEvent> {
         match &self.state.mode.clone() {
             ManagerMode::Browsing => self.handle_browsing_input(key, context),
-            ManagerMode::SelectingTapHoldPreset { .. } => self.handle_preset_selection(key, context),
+            ManagerMode::SelectingTapHoldPreset { .. } => {
+                self.handle_preset_selection(key, context)
+            }
             ManagerMode::SelectingHoldMode { .. } => self.handle_hold_mode_selection(key, context),
             ManagerMode::EditingNumeric { .. } => self.handle_numeric_editing(key),
             ManagerMode::TogglingBoolean { .. } => self.handle_boolean_toggle(key),
@@ -662,7 +664,13 @@ impl SettingsManager {
     }
 
     /// Render with access to context data
-    pub fn render_with_context(&self, f: &mut Frame, area: Rect, theme: &Theme, context: &SettingsManagerContext) {
+    pub fn render_with_context(
+        &self,
+        f: &mut Frame,
+        area: Rect,
+        theme: &Theme,
+        context: &SettingsManagerContext,
+    ) {
         render_settings_manager(
             f,
             area,
@@ -679,7 +687,11 @@ impl SettingsManager {
     }
 
     // Input handling methods
-    fn handle_browsing_input(&mut self, key: KeyEvent, _context: &SettingsManagerContext) -> Option<SettingsManagerEvent> {
+    fn handle_browsing_input(
+        &mut self,
+        key: KeyEvent,
+        _context: &SettingsManagerContext,
+    ) -> Option<SettingsManagerEvent> {
         match key.code {
             KeyCode::Esc => Some(SettingsManagerEvent::Cancelled),
             KeyCode::Up | KeyCode::Char('k') => {
@@ -702,7 +714,11 @@ impl SettingsManager {
         }
     }
 
-    fn handle_preset_selection(&mut self, key: KeyEvent, _context: &SettingsManagerContext) -> Option<SettingsManagerEvent> {
+    fn handle_preset_selection(
+        &mut self,
+        key: KeyEvent,
+        _context: &SettingsManagerContext,
+    ) -> Option<SettingsManagerEvent> {
         match key.code {
             KeyCode::Esc => {
                 self.state.cancel();
@@ -727,7 +743,11 @@ impl SettingsManager {
         }
     }
 
-    fn handle_hold_mode_selection(&mut self, key: KeyEvent, _context: &SettingsManagerContext) -> Option<SettingsManagerEvent> {
+    fn handle_hold_mode_selection(
+        &mut self,
+        key: KeyEvent,
+        _context: &SettingsManagerContext,
+    ) -> Option<SettingsManagerEvent> {
         match key.code {
             KeyCode::Esc => {
                 self.state.cancel();
@@ -743,9 +763,7 @@ impl SettingsManager {
                 self.state.option_next(count);
                 None
             }
-            KeyCode::Enter => {
-                Some(SettingsManagerEvent::SettingsUpdated)
-            }
+            KeyCode::Enter => Some(SettingsManagerEvent::SettingsUpdated),
             _ => None,
         }
     }
@@ -772,9 +790,7 @@ impl SettingsManager {
                 self.state.handle_backspace();
                 None
             }
-            KeyCode::Enter => {
-                Some(SettingsManagerEvent::SettingsUpdated)
-            }
+            KeyCode::Enter => Some(SettingsManagerEvent::SettingsUpdated),
             _ => None,
         }
     }
@@ -789,9 +805,7 @@ impl SettingsManager {
                 self.state.option_previous(2);
                 None
             }
-            KeyCode::Enter => {
-                Some(SettingsManagerEvent::SettingsUpdated)
-            }
+            KeyCode::Enter => Some(SettingsManagerEvent::SettingsUpdated),
             _ => None,
         }
     }
@@ -810,9 +824,7 @@ impl SettingsManager {
                 self.state.handle_string_backspace();
                 None
             }
-            KeyCode::Enter => {
-                Some(SettingsManagerEvent::SettingsUpdated)
-            }
+            KeyCode::Enter => Some(SettingsManagerEvent::SettingsUpdated),
             _ => None,
         }
     }
@@ -831,9 +843,7 @@ impl SettingsManager {
                 self.state.option_next(3);
                 None
             }
-            KeyCode::Enter => {
-                Some(SettingsManagerEvent::SettingsUpdated)
-            }
+            KeyCode::Enter => Some(SettingsManagerEvent::SettingsUpdated),
             _ => None,
         }
     }
@@ -852,9 +862,7 @@ impl SettingsManager {
                 self.state.handle_string_backspace();
                 None
             }
-            KeyCode::Enter => {
-                Some(SettingsManagerEvent::SettingsUpdated)
-            }
+            KeyCode::Enter => Some(SettingsManagerEvent::SettingsUpdated),
             _ => None,
         }
     }

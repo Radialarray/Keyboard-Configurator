@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::{config, models, services, tui};
+use anyhow::Result;
 
 /// Creates a default layout from QMK keyboard info and launches the editor
 pub fn launch_editor_with_default_layout(
@@ -10,16 +10,16 @@ pub fn launch_editor_with_default_layout(
 ) -> Result<()> {
     // Create a default layout with the user-specified name
     let mut layout = models::Layout::new(layout_file_name)?;
-    
+
     // Set keyboard in metadata for geometry building
     layout.metadata.keyboard = Some(keyboard.to_string());
-    
+
     // Build geometry using the centralized geometry service
     let geo_context = services::geometry::GeometryContext {
         config,
         metadata: &layout.metadata,
     };
-    
+
     let geo_result = services::geometry::build_geometry_for_layout(geo_context, layout_variant)?;
     let geometry = geo_result.geometry;
     let mapping = geo_result.mapping;

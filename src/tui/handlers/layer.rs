@@ -26,8 +26,10 @@ pub fn handle_layer_manager_input(state: &mut AppState, key: event::KeyEvent) ->
                 // Add the new layer
                 state.layout.layers.push(layer);
                 state.mark_dirty();
-                state
-                    .set_status(format!("Layer '{}' created", state.layout.layers.last().unwrap().name));
+                state.set_status(format!(
+                    "Layer '{}' created",
+                    state.layout.layers.last().unwrap().name
+                ));
 
                 // Update component with new layers
                 manager.set_layers(state.layout.layers.clone());

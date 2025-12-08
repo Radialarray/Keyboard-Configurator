@@ -8,7 +8,9 @@ use crate::tui::AppState;
 
 use super::action_handlers;
 
-use action_handlers::{category, color, file_ops, firmware, key_ops, layout, navigation, popups, selection};
+use action_handlers::{
+    category, color, file_ops, firmware, key_ops, layout, navigation, popups, selection,
+};
 
 /// Handle firmware generation with validation
 pub(super) fn handle_firmware_generation(state: &mut AppState) -> Result<()> {
@@ -124,12 +126,12 @@ pub fn dispatch_action(state: &mut AppState, action: Action) -> Result<bool> {
         Action::JumpToLast => navigation::handle_jump_to_last(state),
         Action::NextLayer => navigation::handle_next_layer(state),
         Action::PreviousLayer => navigation::handle_previous_layer(state),
-        
+
         // File operations (3 actions)
         Action::Quit => file_ops::handle_quit(state),
         Action::Save => file_ops::handle_save(state),
         Action::SaveAsTemplate => file_ops::handle_save_as_template(state),
-        
+
         // Popup management (9 actions)
         Action::OpenKeycodePicker => popups::handle_open_keycode_picker(state),
         Action::OpenLayerManager => popups::handle_open_layer_manager(state),
@@ -140,7 +142,7 @@ pub fn dispatch_action(state: &mut AppState, action: Action) -> Result<bool> {
         Action::BrowseTemplates => popups::handle_browse_templates(state),
         Action::ViewBuildLog => popups::handle_view_build_log(state),
         Action::ToggleHelp => popups::handle_toggle_help(state),
-        
+
         // Key operations (6 actions)
         Action::ClearKey => key_ops::handle_clear_key(state),
         Action::CopyKey => key_ops::handle_copy_key(state),
@@ -148,28 +150,28 @@ pub fn dispatch_action(state: &mut AppState, action: Action) -> Result<bool> {
         Action::PasteKey => key_ops::handle_paste_key(state),
         Action::UndoPaste => key_ops::handle_undo_paste(state),
         Action::ToggleCurrentKey => key_ops::handle_toggle_current_key(state),
-        
+
         // Selection (2 actions)
         Action::ToggleSelectionMode => selection::handle_toggle_selection_mode(state),
         Action::StartRectangleSelect => selection::handle_start_rectangle_select(state),
-        
+
         // Color management (4 actions)
         Action::SetIndividualKeyColor => color::handle_set_individual_key_color(state),
         Action::SetLayerColor => color::handle_set_layer_color(state),
         Action::ToggleLayerColors => color::handle_toggle_layer_colors(state),
         Action::ToggleAllLayerColors => color::handle_toggle_all_layer_colors(state),
-        
+
         // Category assignment (2 actions)
         Action::AssignCategoryToKey => category::handle_assign_category_to_key(state),
         Action::AssignCategoryToLayer => category::handle_assign_category_to_layer(state),
-        
+
         // Firmware (2 actions)
         Action::BuildFirmware => firmware::handle_build_firmware(state),
         Action::GenerateFirmware => firmware::handle_generate_firmware(state),
-        
+
         // Layout (1 action)
         Action::SwitchLayoutVariant => layout::handle_switch_layout_variant(state),
-        
+
         // Cancel (1 action)
         Action::Cancel => {
             // Cancel selection/cut/clipboard (Escape)
