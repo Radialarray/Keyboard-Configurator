@@ -103,6 +103,46 @@ impl From<u8> for RgbBrightness {
     }
 }
 
+/// RGB saturation level (0-200%).
+///
+/// Controls the global saturation multiplier for all RGB LEDs.
+/// 0 = fully desaturated (grayscale), 100 = original colors, 200 = maximum saturation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RgbSaturation(u8);
+
+impl RgbSaturation {
+    /// Creates a new saturation value (0-200).
+    ///
+    /// # Panics
+    /// Panics if value > 200
+    #[must_use]
+    pub const fn new(value: u8) -> Self {
+        assert!(value <= 200, "Saturation must be 0-200");
+        Self(value)
+    }
+
+    /// Returns the saturation as a percentage (0-200).
+    #[must_use]
+    pub const fn as_percent(&self) -> u8 {
+        self.0
+    }
+
+    /// Neutral saturation (100%) - no change to colors.
+    pub const NEUTRAL: Self = Self(100);
+}
+
+impl Default for RgbSaturation {
+    fn default() -> Self {
+        Self::NEUTRAL
+    }
+}
+
+impl From<u8> for RgbSaturation {
+    fn from(value: u8) -> Self {
+        Self::new(value.min(200))
+    }
+}
+
 // ============================================================================
 // Tap-Hold Settings
 // ============================================================================
@@ -568,6 +608,9 @@ pub struct Layout {
     /// Global RGB brightness (0-100%)
     #[serde(default)]
     pub rgb_brightness: RgbBrightness,
+    /// Global RGB saturation (0-200%)
+    #[serde(default)]
+    pub rgb_saturation: RgbSaturation,
     /// RGB Matrix timeout in milliseconds (0 = disabled)
     /// Automatically turns off RGB after this many ms of inactivity
     #[serde(default)]
@@ -598,6 +641,7 @@ impl Layout {
             categories: Vec::new(),
             rgb_enabled: true,
             rgb_brightness: RgbBrightness::default(),
+            rgb_saturation: RgbSaturation::default(),
             rgb_timeout_ms: 0,
             uncolored_key_behavior: UncoloredKeyBehavior::default(),
             tap_hold_settings: TapHoldSettings::default(),
@@ -871,12 +915,17 @@ impl Layout {
         (RgbColor::default(), false)
     }
 
-    /// Applies global RGB settings (master switch, brightness) to a color.
+    /// Applies global RGB settings (master switch, saturation, brightness) to a color.
     ///
     /// This should be called after resolve_display_color to apply the global
-    /// RGB brightness multiplier and respect the master switch.
+    /// RGB saturation and brightness multipliers, and respect the master switch.
     ///
-    /// Returns the color with brightness applied, or black if RGB is disabled.
+    /// The order of operations is:
+    /// 1. If RGB is disabled, return black
+    /// 2. Apply saturation adjustment (0-200%)
+    /// 3. Apply brightness multiplier (0-100%)
+    ///
+    /// Returns the color with saturation and brightness applied, or black if RGB is disabled.
     #[must_use]
     pub fn apply_rgb_settings(&self, color: RgbColor) -> RgbColor {
         // If RGB master switch is off, return black
@@ -884,7 +933,15 @@ impl Layout {
             return RgbColor::new(0, 0, 0);
         }
 
-        // Apply brightness multiplier
+        // Apply saturation adjustment first
+        let saturation_percent = self.rgb_saturation.as_percent();
+        let color = if saturation_percent == 100 {
+            color
+        } else {
+            color.saturate(saturation_percent)
+        };
+
+        // Then apply brightness multiplier
         let brightness_percent = self.rgb_brightness.as_percent();
         if brightness_percent == 100 {
             color
@@ -1293,5 +1350,100 @@ mod tests {
             HoldDecisionMode::HoldOnOtherKeyPress.config_define(),
             Some("HOLD_ON_OTHER_KEY_PRESS")
         );
+    }
+
+    // === RGB Saturation Tests ===
+
+    #[test]
+    fn test_rgb_saturation_new() {
+        let sat = RgbSaturation::new(0);
+        assert_eq!(sat.as_percent(), 0);
+
+        let sat = RgbSaturation::new(100);
+        assert_eq!(sat.as_percent(), 100);
+
+        let sat = RgbSaturation::new(200);
+        assert_eq!(sat.as_percent(), 200);
+    }
+
+    #[test]
+    #[should_panic(expected = "Saturation must be 0-200")]
+    fn test_rgb_saturation_new_too_high() {
+        let _ = RgbSaturation::new(201);
+    }
+
+    #[test]
+    fn test_rgb_saturation_default() {
+        let sat = RgbSaturation::default();
+        assert_eq!(sat.as_percent(), 100);
+        assert_eq!(sat, RgbSaturation::NEUTRAL);
+    }
+
+    #[test]
+    fn test_rgb_saturation_from_u8() {
+        let sat = RgbSaturation::from(50);
+        assert_eq!(sat.as_percent(), 50);
+
+        // Should clamp to 200
+        let sat = RgbSaturation::from(255);
+        assert_eq!(sat.as_percent(), 200);
+    }
+
+    #[test]
+    fn test_apply_rgb_settings_with_saturation() {
+        let mut layout = Layout::new("Test").unwrap();
+        
+        // Test with saturation at neutral (100%)
+        layout.rgb_saturation = RgbSaturation::new(100);
+        layout.rgb_brightness = RgbBrightness::new(100);
+        let color = RgbColor::new(200, 100, 50);
+        let result = layout.apply_rgb_settings(color);
+        assert_eq!(result, color); // Unchanged at 100% saturation and brightness
+
+        // Test with reduced saturation (0% = grayscale)
+        layout.rgb_saturation = RgbSaturation::new(0);
+        let result = layout.apply_rgb_settings(color);
+        // Should be grayscale (all channels equal)
+        assert_eq!(result.r, result.g);
+        assert_eq!(result.g, result.b);
+
+        // Test with increased saturation (150%)
+        layout.rgb_saturation = RgbSaturation::new(150);
+        let result = layout.apply_rgb_settings(color);
+        // Should be more saturated (more difference between channels)
+        // The exact values depend on HSV conversion, just verify it's not the original
+        // and channels are still different
+        assert_ne!(result, color);
+        assert_ne!(result.r, result.g);
+
+        // Test order: saturation then brightness
+        layout.rgb_saturation = RgbSaturation::new(50); // Half saturation
+        layout.rgb_brightness = RgbBrightness::new(50); // Half brightness
+        let result = layout.apply_rgb_settings(color);
+        // Should be dimmed AND desaturated
+        // With 50% saturation, color moves toward grayscale
+        // Then 50% brightness dims everything
+        // The total brightness should be reduced
+        let original_brightness = u16::from(color.r) + u16::from(color.g) + u16::from(color.b);
+        let result_brightness = u16::from(result.r) + u16::from(result.g) + u16::from(result.b);
+        assert!(result_brightness < original_brightness);
+    }
+
+    #[test]
+    fn test_apply_rgb_settings_disabled() {
+        let mut layout = Layout::new("Test").unwrap();
+        layout.rgb_enabled = false;
+        
+        let color = RgbColor::new(200, 100, 50);
+        let result = layout.apply_rgb_settings(color);
+        
+        // Should be black when RGB is disabled
+        assert_eq!(result, RgbColor::new(0, 0, 0));
+    }
+
+    #[test]
+    fn test_layout_new_has_default_saturation() {
+        let layout = Layout::new("Test").unwrap();
+        assert_eq!(layout.rgb_saturation, RgbSaturation::NEUTRAL);
     }
 }

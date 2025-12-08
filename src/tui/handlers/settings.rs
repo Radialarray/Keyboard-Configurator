@@ -3,7 +3,7 @@
 use anyhow::Result;
 use crossterm::event;
 
-use crate::models::{HoldDecisionMode, RgbBrightness, TapHoldPreset, UncoloredKeyBehavior};
+use crate::models::{HoldDecisionMode, RgbBrightness, RgbSaturation, TapHoldPreset, UncoloredKeyBehavior};
 use crate::tui::settings_manager::{
     ManagerMode, SettingItem, SettingsManagerContext, SettingsManagerEvent,
 };
@@ -129,6 +129,14 @@ fn handle_browsing_enter(state: &mut AppState) -> Result<bool> {
                         u16::from(state.layout.rgb_brightness.as_percent()),
                         0,
                         100,
+                    );
+                }
+                SettingItem::RgbSaturation => {
+                    manager.state_mut().start_editing_numeric(
+                        *setting,
+                        u16::from(state.layout.rgb_saturation.as_percent()),
+                        0,
+                        200,
                     );
                 }
                 SettingItem::RgbTimeout => {
@@ -376,6 +384,10 @@ fn apply_numeric_setting(state: &mut AppState, setting: SettingItem, value: u16)
         SettingItem::RgbBrightness => {
             state.layout.rgb_brightness = RgbBrightness::from(value as u8);
             state.set_status(format!("RGB brightness set to: {value}%"));
+        }
+        SettingItem::RgbSaturation => {
+            state.layout.rgb_saturation = RgbSaturation::from(value as u8);
+            state.set_status(format!("RGB saturation set to: {value}%"));
         }
         SettingItem::UncoloredKeyBehavior => {
             state.layout.uncolored_key_behavior = UncoloredKeyBehavior::from(value as u8);

@@ -105,6 +105,8 @@ pub enum SettingItem {
     RgbEnabled,
     /// Global RGB brightness (0-100%)
     RgbBrightness,
+    /// RGB color saturation (0-200%)
+    RgbSaturation,
     /// RGB Matrix timeout (auto-off after inactivity)
     RgbTimeout,
     /// Brightness for keys without individual/category colors (0-100%)
@@ -147,6 +149,7 @@ impl SettingItem {
             // RGB (Per-Layout)
             Self::RgbEnabled,
             Self::RgbBrightness,
+            Self::RgbSaturation,
             Self::RgbTimeout,
             Self::UncoloredKeyBehavior,
             // Tap-Hold (Per-Layout)
@@ -174,6 +177,7 @@ impl SettingItem {
             Self::ShowHelpOnStartup => SettingGroup::Ui,
             Self::RgbEnabled
             | Self::RgbBrightness
+            | Self::RgbSaturation
             | Self::RgbTimeout
             | Self::UncoloredKeyBehavior => SettingGroup::Rgb,
             Self::TapHoldPreset
@@ -200,6 +204,7 @@ impl SettingItem {
             Self::ShowHelpOnStartup => "Show Help on Startup",
             Self::RgbEnabled => "RGB Master Switch",
             Self::RgbBrightness => "RGB Brightness",
+            Self::RgbSaturation => "RGB Saturation",
             Self::RgbTimeout => "RGB Timeout",
             Self::UncoloredKeyBehavior => "Uncolored Key Brightness",
             Self::TapHoldPreset => "Preset",
@@ -226,6 +231,7 @@ impl SettingItem {
             Self::ShowHelpOnStartup => "Display help overlay when application starts",
             Self::RgbEnabled => "Turn all RGB LEDs on or off",
             Self::RgbBrightness => "Global brightness multiplier for all LEDs (0-100%)",
+            Self::RgbSaturation => "Saturation multiplier for all LEDs (0=Grayscale, 100=Normal, 200=Maximum)",
             Self::RgbTimeout => "Auto-off RGB after inactivity (0 = disabled)",
             Self::UncoloredKeyBehavior => {
                 "Brightness for keys without individual/category colors (0=Off, 100=Full)"
@@ -1145,6 +1151,13 @@ fn get_setting_value_display(
         // Per-Layout: RGB
         SettingItem::RgbEnabled => if rgb_enabled { "On" } else { "Off" }.to_string(),
         SettingItem::RgbBrightness => format!("{}%", rgb_brightness.as_percent()),
+        SettingItem::RgbSaturation => {
+            let saturation = layout
+                .as_ref()
+                .map(|l| l.rgb_saturation.as_percent())
+                .unwrap_or(100);
+            format!("{}%", saturation)
+        }
         SettingItem::RgbTimeout => {
             if rgb_timeout_ms == 0 {
                 "Disabled".to_string()

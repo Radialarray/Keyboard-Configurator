@@ -1083,6 +1083,7 @@ mod tests {
             categories: vec![],
             rgb_enabled: true,
             rgb_brightness: crate::models::RgbBrightness::default(),
+            rgb_saturation: crate::models::RgbSaturation::default(),
             rgb_timeout_ms: 0,
             uncolored_key_behavior: crate::models::UncoloredKeyBehavior::default(),
             tap_hold_settings: crate::models::TapHoldSettings::default(),
