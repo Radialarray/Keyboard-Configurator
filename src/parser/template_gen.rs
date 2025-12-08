@@ -264,7 +264,7 @@ fn generate_key_descriptions(layout: &Layout) -> Option<String> {
 /// Only writes non-default settings to keep files clean.
 fn generate_settings(layout: &Layout) -> Option<String> {
     use crate::models::{
-        HoldDecisionMode, RgbBrightness, TapHoldPreset, TapHoldSettings, UncoloredKeyBehavior,
+        HoldDecisionMode, RgbBrightness, RgbSaturation, TapHoldPreset, TapHoldSettings, UncoloredKeyBehavior,
     };
 
     let default_uncolored = UncoloredKeyBehavior::default();
@@ -273,6 +273,7 @@ fn generate_settings(layout: &Layout) -> Option<String> {
     // Check if we have any non-default settings
     let has_rgb_settings = !layout.rgb_enabled
         || layout.rgb_brightness != RgbBrightness::default()
+        || layout.rgb_saturation != RgbSaturation::default()
         || layout.rgb_timeout_ms > 0;
     let has_uncolored_setting = layout.uncolored_key_behavior != default_uncolored;
     let has_tap_hold_settings = layout.tap_hold_settings != default_tap_hold;
@@ -291,6 +292,12 @@ fn generate_settings(layout: &Layout) -> Option<String> {
         output.push_str(&format!(
             "**RGB Brightness**: {}%\n",
             layout.rgb_brightness.as_percent()
+        ));
+    }
+    if layout.rgb_saturation != RgbSaturation::default() {
+        output.push_str(&format!(
+            "**RGB Saturation**: {}%\n",
+            layout.rgb_saturation.as_percent()
         ));
     }
 
@@ -475,6 +482,7 @@ mod tests {
             categories: vec![category],
             rgb_enabled: true,
             rgb_brightness: crate::models::RgbBrightness::default(),
+            rgb_saturation: crate::models::RgbSaturation::default(),
             rgb_timeout_ms: 0,
             uncolored_key_behavior: crate::models::UncoloredKeyBehavior::default(),
             tap_hold_settings: crate::models::TapHoldSettings::default(),
@@ -617,6 +625,15 @@ mod tests {
 
         let parsed = parse_markdown_layout_str(&markdown).unwrap();
         assert_eq!(parsed.rgb_brightness.as_percent(), 50);
+
+        // Test RGB saturation
+        layout.rgb_saturation = crate::models::RgbSaturation::from(75);
+        let markdown = generate_markdown(&layout).unwrap();
+        println!("Generated markdown with 75% saturation:\n{markdown}");
+        assert!(markdown.contains("**RGB Saturation**: 75%"));
+
+        let parsed = parse_markdown_layout_str(&markdown).unwrap();
+        assert_eq!(parsed.rgb_saturation.as_percent(), 75);
     }
 
     mod test_helpers {

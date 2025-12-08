@@ -220,6 +220,7 @@ fn create_test_layout() -> Layout {
         tap_hold_settings: keyboard_configurator::models::TapHoldSettings::default(),
         rgb_enabled: true,
         rgb_brightness: keyboard_configurator::models::RgbBrightness::default(),
+        rgb_saturation: keyboard_configurator::models::RgbSaturation::default(),
         rgb_timeout_ms: 0,
     }
 }
