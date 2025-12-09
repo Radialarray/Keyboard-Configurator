@@ -1,0 +1,137 @@
+{
+  "category": {
+    "id": "joystick",
+    "name": "Joystick",
+    "description": "Joystick/gamepad button emulation"
+  },
+  "keycodes": [
+    {
+      "code": "QK_JOYSTICK_BUTTON_0",
+      "name": "Joystick Button 0",
+      "category": "joystick",
+      "aliases": [
+        "JS_0"
+      ]
+    },
+    {
+      "code": "QK_JOYSTICK_BUTTON_1",
+      "name": "Joystick Button 1",
+      "category": "joystick",
+      "aliases": [
+        "JS_1"
+      ]
+    },
+    {
+      "code": "QK_JOYSTICK_BUTTON_2",
+      "name": "Joystick Button 2",
+      "category": "joystick",
+      "aliases": [
+        "JS_2"
+      ]
+    },
+    {
+      "code": "QK_JOYSTICK_BUTTON_3",
+      "name": "Joystick Button 3",
+      "category": "joystick",
+      "aliases": [
+        "JS_3"
+      ]
+    },
+    {
+      "code": "QK_JOYSTICK_BUTTON_4",
+      "name": "Joystick Button 4",
+      "category": "joystick",
+      "aliases": [
+        "JS_4"
+      ]
+    },
+    {
+      "code": "QK_JOYSTICK_BUTTON_5",
+      "name": "Joystick Button 5",
+      "category": "joystick",
+      "aliases": [
+        "JS_5"
+      ]
+    },
+    {
+      "code": "QK_JOYSTICK_BUTTON_6",
+      "name": "Joystick Button 6",
+      "category": "joystick",
+      "aliases": [
+        "JS_6"
+      ]
+    },
+    {
+      "code": "QK_JOYSTICK_BUTTON_7",
+      "name": "Joystick Button 7",
+      "category": "joystick",
+      "aliases": [
+        "JS_7"
+      ]
+    },
+    {
+      "code": "QK_JOYSTICK_BUTTON_8",
+      "name": "Joystick Button 8",
+      "category": "joystick",
+      "aliases": [
+        "JS_8"
+      ]
+    },
+    {
+      "code": "QK_JOYSTICK_BUTTON_9",
+      "name": "Joystick Button 9",
+      "category": "joystick",
+      "aliases": [
+        "JS_9"
+      ]
+    },
+    {
+      "code": "QK_JOYSTICK_BUTTON_10",
+      "name": "Joystick Button 10",
+      "category": "joystick",
+      "aliases": [
+        "JS_10"
+      ]
+    },
+    {
+      "code": "QK_JOYSTICK_BUTTON_11",
+      "name": "Joystick Button 11",
+      "category": "joystick",
+      "aliases": [
+        "JS_11"
+      ]
+    },
+    {
+      "code": "QK_JOYSTICK_BUTTON_12",
+      "name": "Joystick Button 12",
+      "category": "joystick",
+      "aliases": [
+        "JS_12"
+      ]
+    },
+    {
+      "code": "QK_JOYSTICK_BUTTON_13",
+      "name": "Joystick Button 13",
+      "category": "joystick",
+      "aliases": [
+        "JS_13"
+      ]
+    },
+    {
+      "code": "QK_JOYSTICK_BUTTON_14",
+      "name": "Joystick Button 14",
+      "category": "joystick",
+      "aliases": [
+        "JS_14"
+      ]
+    },
+    {
+      "code": "QK_JOYSTICK_BUTTON_15",
+      "name": "Joystick Button 15",
+      "category": "joystick",
+      "aliases": [
+        "JS_15"
+      ]
+    }
+  ]
+}

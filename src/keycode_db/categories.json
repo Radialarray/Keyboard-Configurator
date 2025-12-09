@@ -110,6 +110,21 @@
       "id": "german_mac",
       "name": "German (macOS)",
       "description": "German keyboard layout for macOS (QWERTZ)"
+    },
+    {
+      "id": "bluetooth",
+      "name": "Bluetooth",
+      "description": "Bluetooth output and profile controls"
+    },
+    {
+      "id": "joystick",
+      "name": "Joystick",
+      "description": "Joystick/gamepad button emulation"
+    },
+    {
+      "id": "haptic",
+      "name": "Haptic",
+      "description": "Haptic feedback motor controls"
     }
   ]
 }

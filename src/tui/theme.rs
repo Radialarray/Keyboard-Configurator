@@ -146,6 +146,20 @@ impl Theme {
         }
     }
 
+    /// Creates a theme based on the user's theme mode preference.
+    ///
+    /// - `Auto`: Detects OS dark/light mode and returns matching theme
+    /// - `Dark`: Always returns dark theme
+    /// - `Light`: Always returns light theme
+    #[must_use]
+    pub fn from_mode(mode: crate::config::ThemeMode) -> Self {
+        match mode {
+            crate::config::ThemeMode::Auto => Self::detect(),
+            crate::config::ThemeMode::Dark => Self::dark(),
+            crate::config::ThemeMode::Light => Self::light(),
+        }
+    }
+
     /// Returns the theme variant for the current theme.
     ///
     /// This is determined by checking the background color.

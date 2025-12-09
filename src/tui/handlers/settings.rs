@@ -237,6 +237,24 @@ fn handle_browsing_enter(state: &mut AppState) -> Result<bool> {
                         .state_mut()
                         .start_toggling_boolean(*setting, state.config.ui.show_help_on_startup);
                 }
+                SettingItem::ThemeMode => {
+                    let selected = match state.config.ui.theme_mode {
+                        crate::config::ThemeMode::Dark => 1,
+                        crate::config::ThemeMode::Light => 2,
+                        crate::config::ThemeMode::Auto => 0,
+                    };
+                    manager.state_mut().start_selecting_theme_mode(selected);
+                }
+                SettingItem::KeyboardScale => {
+                    // Scale is stored as a multiplier (1.0 = 100%)
+                    // UI shows as percentage (100 = 100%)
+                    manager.state_mut().start_editing_numeric(
+                        *setting,
+                        (state.config.ui.keyboard_scale * 100.0) as u16,
+                        25,  // 25% minimum
+                        200, // 200% maximum
+                    );
+                }
             }
             state.set_status("Select option with ↑↓, Enter to apply");
         }
@@ -335,6 +353,21 @@ fn apply_settings(state: &mut AppState) -> Result<()> {
                     state.set_status(format!("Output format set to: {format}"));
                 }
             }
+            crate::tui::settings_manager::ManagerMode::SelectingThemeMode { .. } => {
+                if let Some(selected_idx) = manager_state.get_selected_option() {
+                    let theme_mode = match selected_idx {
+                        1 => crate::config::ThemeMode::Dark,
+                        2 => crate::config::ThemeMode::Light,
+                        _ => crate::config::ThemeMode::Auto,
+                    };
+                    state.config.ui.theme_mode = theme_mode;
+                    if let Err(e) = state.config.save() {
+                        state.set_status(format!("Failed to save config: {e}"));
+                    } else {
+                        state.set_status(format!("Theme mode set to: {}", theme_mode_display(theme_mode)));
+                    }
+                }
+            }
             crate::tui::settings_manager::ManagerMode::EditingPath { setting, .. } => {
                 if let Some(value) = manager_state.get_string_value() {
                     apply_path_setting(state, *setting, value.to_string())?;
@@ -413,6 +446,16 @@ fn apply_numeric_setting(state: &mut AppState, setting: SettingItem, value: u16)
             };
             state.set_status(format!("RGB timeout set to: {display}"));
         }
+        SettingItem::KeyboardScale => {
+            // value is percentage (100 = 100%), convert to multiplier
+            let scale = (value as f32) / 100.0;
+            state.config.ui.keyboard_scale = scale;
+            if let Err(e) = state.config.save() {
+                state.set_status(format!("Failed to save config: {e}"));
+            } else {
+                state.set_status(format!("Keyboard scale set to: {:.0}%", scale * 100.0));
+            }
+        }
         _ => {}
     }
 }
@@ -490,15 +533,25 @@ fn apply_path_setting(state: &mut AppState, setting: SettingItem, value: String)
                 ));
             }
         }
-        SettingItem::OutputDir => {
-            state.config.build.output_dir = std::path::PathBuf::from(&value);
-            if let Err(e) = state.config.save() {
-                state.set_status(format!("Failed to save config: {e}"));
-            } else {
-                state.set_status(format!("Output directory set to: {value}"));
-            }
-        }
-        _ => {}
-    }
-    Ok(())
-}
+         SettingItem::OutputDir => {
+             state.config.build.output_dir = std::path::PathBuf::from(&value);
+             if let Err(e) = state.config.save() {
+                 state.set_status(format!("Failed to save config: {e}"));
+             } else {
+                 state.set_status(format!("Output directory set to: {value}"));
+             }
+         }
+         _ => {}
+     }
+     Ok(())
+ }
+ 
+ /// Helper function to display theme mode name
+ fn theme_mode_display(mode: crate::config::ThemeMode) -> &'static str {
+     match mode {
+         crate::config::ThemeMode::Auto => "Auto",
+         crate::config::ThemeMode::Dark => "Dark",
+         crate::config::ThemeMode::Light => "Light",
+     }
+ }
+

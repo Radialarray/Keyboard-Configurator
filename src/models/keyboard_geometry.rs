@@ -6,14 +6,32 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Terminal rendering scale factors.
+///
+/// These constants control how keyboard units (from QMK info.json) are
+/// converted to terminal character cells.
+pub mod terminal_scale {
+    /// Default horizontal scale: characters per keyboard unit (1U = 7 chars)
+    pub const DEFAULT_X_SCALE: f32 = 7.0;
+    /// Default vertical scale: lines per keyboard unit (1U = 2.5 lines)  
+    pub const DEFAULT_Y_SCALE: f32 = 2.5;
+    /// Minimum key width in characters (for visibility)
+    pub const MIN_WIDTH: u16 = 3;
+    /// Minimum key height in lines (for visibility)
+    pub const MIN_HEIGHT: u16 = 3;
+}
+
 /// Individual key's physical properties from QMK layout definition.
 ///
 /// # Coordinate Conversion (to terminal)
 ///
-/// - Terminal X = `visual_x` * 7 characters per keyboard unit
-/// - Terminal Y = `visual_y` * 2.5 lines per keyboard unit
-/// - Width chars = width * 7 (minimum 3)
-/// - Height lines = height * 2.5 (minimum 3)
+/// - Terminal X = `visual_x` * X_SCALE characters per keyboard unit
+/// - Terminal Y = `visual_y` * Y_SCALE lines per keyboard unit
+/// - Width chars = width * X_SCALE (minimum MIN_WIDTH)
+/// - Height lines = height * Y_SCALE (minimum MIN_HEIGHT)
+///
+/// Default scale factors are 7.0 for X and 2.5 for Y, but these can be
+/// customized via the `with_scale` methods for different terminal sizes.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct KeyGeometry {
     /// Electrical matrix position (row, col)
@@ -78,27 +96,55 @@ impl KeyGeometry {
     }
 
     /// Converts visual X position to terminal characters.
+    /// Uses the default X scale factor.
     #[must_use]
     pub fn terminal_x(&self) -> u16 {
-        (self.visual_x * 7.0) as u16
+        self.terminal_x_with_scale(terminal_scale::DEFAULT_X_SCALE)
     }
 
     /// Converts visual Y position to terminal lines.
+    /// Uses the default Y scale factor.
     #[must_use]
     pub fn terminal_y(&self) -> u16 {
-        (self.visual_y * 2.5) as u16
+        self.terminal_y_with_scale(terminal_scale::DEFAULT_Y_SCALE)
     }
 
     /// Converts key width to terminal characters.
+    /// Uses the default X scale factor.
     #[must_use]
     pub fn terminal_width(&self) -> u16 {
-        ((self.width * 7.0) as u16).max(3)
+        self.terminal_width_with_scale(terminal_scale::DEFAULT_X_SCALE)
     }
 
     /// Converts key height to terminal lines.
+    /// Uses the default Y scale factor.
     #[must_use]
     pub fn terminal_height(&self) -> u16 {
-        ((self.height * 2.5) as u16).max(3)
+        self.terminal_height_with_scale(terminal_scale::DEFAULT_Y_SCALE)
+    }
+
+    /// Converts visual X position to terminal characters with custom scale.
+    #[must_use]
+    pub fn terminal_x_with_scale(&self, x_scale: f32) -> u16 {
+        (self.visual_x * x_scale) as u16
+    }
+
+    /// Converts visual Y position to terminal lines with custom scale.
+    #[must_use]
+    pub fn terminal_y_with_scale(&self, y_scale: f32) -> u16 {
+        (self.visual_y * y_scale) as u16
+    }
+
+    /// Converts key width to terminal characters with custom scale.
+    #[must_use]
+    pub fn terminal_width_with_scale(&self, x_scale: f32) -> u16 {
+        ((self.width * x_scale) as u16).max(terminal_scale::MIN_WIDTH)
+    }
+
+    /// Converts key height to terminal lines with custom scale.
+    #[must_use]
+    pub fn terminal_height_with_scale(&self, y_scale: f32) -> u16 {
+        ((self.height * y_scale) as u16).max(terminal_scale::MIN_HEIGHT)
     }
 }
 

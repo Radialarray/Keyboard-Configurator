@@ -1,0 +1,113 @@
+{
+  "category": {
+    "id": "haptic",
+    "name": "Haptic",
+    "description": "Haptic feedback motor controls"
+  },
+  "keycodes": [
+    {
+      "code": "QK_HAPTIC_ON",
+      "name": "Haptic On",
+      "category": "haptic",
+      "aliases": [
+        "HF_ON"
+      ]
+    },
+    {
+      "code": "QK_HAPTIC_OFF",
+      "name": "Haptic Off",
+      "category": "haptic",
+      "aliases": [
+        "HF_OFF"
+      ]
+    },
+    {
+      "code": "QK_HAPTIC_TOGGLE",
+      "name": "Haptic Toggle",
+      "category": "haptic",
+      "aliases": [
+        "HF_TOG"
+      ]
+    },
+    {
+      "code": "QK_HAPTIC_RESET",
+      "name": "Haptic Reset",
+      "category": "haptic",
+      "aliases": [
+        "HF_RST"
+      ]
+    },
+    {
+      "code": "QK_HAPTIC_FEEDBACK_TOGGLE",
+      "name": "Haptic Feedback Toggle",
+      "category": "haptic",
+      "aliases": [
+        "HF_FDBK"
+      ]
+    },
+    {
+      "code": "QK_HAPTIC_BUZZ_TOGGLE",
+      "name": "Haptic Buzz Toggle",
+      "category": "haptic",
+      "aliases": [
+        "HF_BUZZ"
+      ]
+    },
+    {
+      "code": "QK_HAPTIC_MODE_NEXT",
+      "name": "Haptic Mode Next",
+      "category": "haptic",
+      "aliases": [
+        "HF_NEXT"
+      ]
+    },
+    {
+      "code": "QK_HAPTIC_MODE_PREV",
+      "name": "Haptic Mode Prev",
+      "category": "haptic",
+      "aliases": [
+        "HF_PREV"
+      ]
+    },
+    {
+      "code": "QK_HAPTIC_CONTINUOUS_TOGGLE",
+      "name": "Haptic Continuous Toggle",
+      "category": "haptic",
+      "aliases": [
+        "HF_CONT"
+      ]
+    },
+    {
+      "code": "QK_HAPTIC_CONTINUOUS_UP",
+      "name": "Haptic Continuous Up",
+      "category": "haptic",
+      "aliases": [
+        "HF_CONU"
+      ]
+    },
+    {
+      "code": "QK_HAPTIC_CONTINUOUS_DOWN",
+      "name": "Haptic Continuous Down",
+      "category": "haptic",
+      "aliases": [
+        "HF_COND"
+      ]
+    },
+    {
+      "code": "QK_HAPTIC_DWELL_UP",
+      "name": "Haptic Dwell Up",
+      "category": "haptic",
+      "aliases": [
+        "HF_DWLU"
+      ]
+    },
+    {
+      "code": "QK_HAPTIC_DWELL_DOWN",
+      "name": "Haptic Dwell Down",
+      "category": "haptic",
+      "aliases": [
+        "HF_DWLD"
+      ]
+    }
+  ]
+}

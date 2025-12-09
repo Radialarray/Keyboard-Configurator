@@ -5,6 +5,60 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Default QMK layer limit.
+///
+/// QMK firmware supports different layer limits depending on configuration:
+/// - Default (8 layers): Standard QMK without layer state extensions
+/// - 16 layers: With `LAYER_STATE_16BIT` configuration option
+/// - 32 layers: With `LAYER_STATE_32BIT` configuration option
+///
+/// This constant represents the default limit of 8 layers. Validation should
+/// allow up to 32 layers by default but warn users about the actual QMK configuration.
+#[allow(dead_code)]
+pub const DEFAULT_QMK_LAYER_LIMIT: u8 = 8;
+
+/// Maximum QMK layer limit (with LAYER_STATE_32BIT configuration).
+///
+/// Used as the default validation limit in Layer::new() to be permissive while
+/// still preventing invalid layer numbers. Users can use Layer::new() to create
+/// layers up to index 31 (0-based), but their QMK firmware configuration will
+/// determine the actual supported limit (8, 16, or 32 layers).
+pub const MAX_QMK_LAYER_LIMIT: u8 = 32;
+
+/// Validates that a layer number is within the QMK layer limit.
+///
+/// # Arguments
+/// * `number` - The layer number to validate (0-based)
+/// * `max_layers` - The maximum number of layers supported (8, 16, or 32)
+///
+/// # Errors
+/// Returns an error if the layer number is >= max_layers.
+///
+/// # Examples
+/// ```
+/// use keyboard_configurator::models::validate_layer_number;
+///
+/// assert!(validate_layer_number(0, 8).is_ok());
+/// assert!(validate_layer_number(7, 8).is_ok());
+/// assert!(validate_layer_number(8, 8).is_err());
+/// assert!(validate_layer_number(31, 32).is_ok());
+/// assert!(validate_layer_number(32, 32).is_err());
+/// ```
+pub fn validate_layer_number(number: u8, max_layers: u8) -> Result<()> {
+    if number >= max_layers {
+        anyhow::bail!(
+            "Layer number {} exceeds maximum of {} layers. QMK firmware supports:\n\
+            - 8 layers (default)\n\
+            - 16 layers (with LAYER_STATE_16BIT)\n\
+            - 32 layers (with LAYER_STATE_32BIT)\n\
+            Enable a higher layer state configuration in rules.mk to support more layers.",
+            number,
+            max_layers
+        );
+    }
+    Ok(())
+}
+
 /// Position in visual grid coordinates (user's view).
 ///
 /// This represents the visual position of a key as it appears in
@@ -152,6 +206,11 @@ const fn default_layer_colors_enabled() -> bool {
 impl Layer {
     /// Creates a new Layer with the given number and name.
     ///
+    /// # Arguments
+    /// * `number` - Layer number (0-based). Validated against MAX_QMK_LAYER_LIMIT (32).
+    /// * `name` - Human-readable layer name (must be non-empty, max 50 characters)
+    /// * `default_color` - Base color for this layer
+    ///
     /// # Examples
     ///
     /// ```
@@ -162,10 +221,13 @@ impl Layer {
     ///
     /// # Errors
     ///
-    /// Returns an error if the name is empty or exceeds 50 characters.
+    /// Returns an error if:
+    /// - The name is empty or exceeds 50 characters
+    /// - The layer number exceeds the maximum QMK layer limit (32)
     pub fn new(number: u8, name: impl Into<String>, default_color: RgbColor) -> Result<Self> {
         let name = name.into();
         Self::validate_name(&name)?;
+        validate_layer_number(number, MAX_QMK_LAYER_LIMIT)?;
 
         Ok(Self {
             id: generate_layer_id(),
@@ -356,5 +418,60 @@ mod tests {
         let new_color = RgbColor::new(0, 255, 0);
         layer.set_default_color(new_color);
         assert_eq!(layer.default_color, new_color);
+    }
+
+    #[test]
+    fn test_validate_layer_number_default_limit() {
+        // Test with default 8-layer limit
+        assert!(validate_layer_number(0, 8).is_ok());
+        assert!(validate_layer_number(1, 8).is_ok());
+        assert!(validate_layer_number(7, 8).is_ok());
+        assert!(validate_layer_number(8, 8).is_err());
+        assert!(validate_layer_number(255, 8).is_err());
+    }
+
+    #[test]
+    fn test_validate_layer_number_16bit_limit() {
+        // Test with 16-layer limit (LAYER_STATE_16BIT)
+        assert!(validate_layer_number(0, 16).is_ok());
+        assert!(validate_layer_number(7, 16).is_ok());
+        assert!(validate_layer_number(15, 16).is_ok());
+        assert!(validate_layer_number(16, 16).is_err());
+        assert!(validate_layer_number(255, 16).is_err());
+    }
+
+    #[test]
+    fn test_validate_layer_number_32bit_limit() {
+        // Test with 32-layer limit (LAYER_STATE_32BIT)
+        assert!(validate_layer_number(0, 32).is_ok());
+        assert!(validate_layer_number(15, 32).is_ok());
+        assert!(validate_layer_number(31, 32).is_ok());
+        assert!(validate_layer_number(32, 32).is_err());
+        assert!(validate_layer_number(255, 32).is_err());
+    }
+
+    #[test]
+    fn test_layer_new_respects_max_layer_limit() {
+        let color = RgbColor::new(255, 0, 0);
+        
+        // These should succeed (within MAX_QMK_LAYER_LIMIT of 32)
+        assert!(Layer::new(0, "Base", color).is_ok());
+        assert!(Layer::new(7, "Lower", color).is_ok());
+        assert!(Layer::new(15, "Layer15", color).is_ok());
+        assert!(Layer::new(31, "Layer31", color).is_ok());
+        
+        // This should fail (equals MAX_QMK_LAYER_LIMIT)
+        assert!(Layer::new(32, "Layer32", color).is_err());
+        assert!(Layer::new(255, "Layer255", color).is_err());
+    }
+
+    #[test]
+    fn test_validate_layer_number_error_message() {
+        let result = validate_layer_number(10, 8);
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("exceeds maximum"));
+        assert!(error_msg.contains("LAYER_STATE_16BIT"));
+        assert!(error_msg.contains("LAYER_STATE_32BIT"));
     }
 }
