@@ -1,0 +1,97 @@
+{
+  "category": {
+    "id": "bluetooth",
+    "name": "Bluetooth",
+    "description": "Bluetooth output and profile controls"
+  },
+  "keycodes": [
+    {
+      "code": "QK_OUTPUT_AUTO",
+      "name": "Auto Output",
+      "category": "bluetooth",
+      "aliases": [
+        "OUT_AUTO"
+      ]
+    },
+    {
+      "code": "QK_OUTPUT_USB",
+      "name": "USB Output",
+      "category": "bluetooth",
+      "aliases": [
+        "OUT_USB"
+      ]
+    },
+    {
+      "code": "QK_OUTPUT_BLUETOOTH",
+      "name": "Bluetooth Output",
+      "category": "bluetooth",
+      "aliases": [
+        "OUT_BT"
+      ]
+    },
+    {
+      "code": "QK_BLUETOOTH_PROFILE_NEXT",
+      "name": "BT Profile Next",
+      "category": "bluetooth",
+      "aliases": [
+        "BT_NXT"
+      ]
+    },
+    {
+      "code": "QK_BLUETOOTH_PROFILE_PREV",
+      "name": "BT Profile Prev",
+      "category": "bluetooth",
+      "aliases": [
+        "BT_PRV"
+      ]
+    },
+    {
+      "code": "QK_BLUETOOTH_UNPAIR",
+      "name": "BT Unpair",
+      "category": "bluetooth",
+      "aliases": [
+        "BT_CLR"
+      ]
+    },
+    {
+      "code": "QK_BLUETOOTH_PROFILE_1",
+      "name": "BT Profile 1",
+      "category": "bluetooth",
+      "aliases": [
+        "BT_1"
+      ]
+    },
+    {
+      "code": "QK_BLUETOOTH_PROFILE_2",
+      "name": "BT Profile 2",
+      "category": "bluetooth",
+      "aliases": [
+        "BT_2"
+      ]
+    },
+    {
+      "code": "QK_BLUETOOTH_PROFILE_3",
+      "name": "BT Profile 3",
+      "category": "bluetooth",
+      "aliases": [
+        "BT_3"
+      ]
+    },
+    {
+      "code": "QK_BLUETOOTH_PROFILE_4",
+      "name": "BT Profile 4",
+      "category": "bluetooth",
+      "aliases": [
+        "BT_4"
+      ]
+    },
+    {
+      "code": "QK_BLUETOOTH_PROFILE_5",
+      "name": "BT Profile 5",
+      "category": "bluetooth",
+      "aliases": [
+        "BT_5"
+      ]
+    }
+  ]
+}

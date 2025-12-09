@@ -99,6 +99,10 @@ pub enum SettingItem {
     // === UI Settings (Global) ===
     /// Display help on startup
     ShowHelpOnStartup,
+    /// Theme mode (Auto, Dark, Light)
+    ThemeMode,
+    /// Unified keyboard scale factor
+    KeyboardScale,
 
     // === RGB Settings (Per-Layout) ===
     /// Master switch for all RGB LEDs
@@ -146,6 +150,8 @@ impl SettingItem {
             Self::OutputDir,
             // UI (Global)
             Self::ShowHelpOnStartup,
+            Self::ThemeMode,
+            Self::KeyboardScale,
             // RGB (Per-Layout)
             Self::RgbEnabled,
             Self::RgbBrightness,
@@ -174,7 +180,9 @@ impl SettingItem {
             | Self::KeymapName
             | Self::OutputFormat
             | Self::OutputDir => SettingGroup::Build,
-            Self::ShowHelpOnStartup => SettingGroup::Ui,
+            Self::ShowHelpOnStartup
+            | Self::ThemeMode
+            | Self::KeyboardScale => SettingGroup::Ui,
             Self::RgbEnabled
             | Self::RgbBrightness
             | Self::RgbSaturation
@@ -202,6 +210,8 @@ impl SettingItem {
             Self::OutputFormat => "Output Format",
             Self::OutputDir => "Output Directory",
             Self::ShowHelpOnStartup => "Show Help on Startup",
+            Self::ThemeMode => "Theme Mode",
+            Self::KeyboardScale => "Keyboard Scale",
             Self::RgbEnabled => "RGB Master Switch",
             Self::RgbBrightness => "RGB Brightness",
             Self::RgbSaturation => "RGB Saturation",
@@ -229,6 +239,8 @@ impl SettingItem {
             Self::OutputFormat => "Firmware output format: uf2, hex, or bin",
             Self::OutputDir => "Directory where built firmware will be saved",
             Self::ShowHelpOnStartup => "Display help overlay when application starts",
+            Self::ThemeMode => "Color theme: Auto (follow OS), Dark, or Light",
+            Self::KeyboardScale => "Keyboard display size: 1.0 = default, 0.5 = half, 2.0 = double",
             Self::RgbEnabled => "Turn all RGB LEDs on or off",
             Self::RgbBrightness => "Global brightness multiplier for all LEDs (0-100%)",
             Self::RgbSaturation => "Saturation multiplier for all LEDs (0=Grayscale, 100=Normal, 200=Maximum)",
@@ -296,6 +308,11 @@ pub enum ManagerMode {
     },
     /// Selecting output format (uf2, hex, bin)
     SelectingOutputFormat {
+        /// Currently highlighted option index
+        selected_option: usize,
+    },
+    /// Selecting theme mode (Auto, Dark, Light)
+    SelectingThemeMode {
         /// Currently highlighted option index
         selected_option: usize,
     },
@@ -395,7 +412,8 @@ impl SettingsManagerState {
         match &mut self.mode {
             ManagerMode::SelectingTapHoldPreset { selected_option }
             | ManagerMode::SelectingHoldMode { selected_option }
-            | ManagerMode::SelectingOutputFormat { selected_option } => {
+            | ManagerMode::SelectingOutputFormat { selected_option }
+            | ManagerMode::SelectingThemeMode { selected_option } => {
                 if *selected_option > 0 {
                     *selected_option -= 1;
                 } else {
@@ -414,7 +432,8 @@ impl SettingsManagerState {
         match &mut self.mode {
             ManagerMode::SelectingTapHoldPreset { selected_option }
             | ManagerMode::SelectingHoldMode { selected_option }
-            | ManagerMode::SelectingOutputFormat { selected_option } => {
+            | ManagerMode::SelectingOutputFormat { selected_option }
+            | ManagerMode::SelectingThemeMode { selected_option } => {
                 *selected_option = (*selected_option + 1) % option_count;
             }
             ManagerMode::TogglingBoolean { value, .. } => {
@@ -429,7 +448,9 @@ impl SettingsManagerState {
     pub const fn get_selected_option(&self) -> Option<usize> {
         match &self.mode {
             ManagerMode::SelectingTapHoldPreset { selected_option }
-            | ManagerMode::SelectingHoldMode { selected_option } => Some(*selected_option),
+            | ManagerMode::SelectingHoldMode { selected_option }
+            | ManagerMode::SelectingOutputFormat { selected_option }
+            | ManagerMode::SelectingThemeMode { selected_option } => Some(*selected_option),
             _ => None,
         }
     }
@@ -519,6 +540,13 @@ impl SettingsManagerState {
     /// Start selecting output format
     pub fn start_selecting_output_format(&mut self, selected: usize) {
         self.mode = ManagerMode::SelectingOutputFormat {
+            selected_option: selected,
+        };
+    }
+
+    /// Start selecting theme mode
+    pub fn start_selecting_theme_mode(&mut self, selected: usize) {
+        self.mode = ManagerMode::SelectingThemeMode {
             selected_option: selected,
         };
     }
@@ -665,6 +693,7 @@ impl SettingsManager {
             ManagerMode::TogglingBoolean { .. } => self.handle_boolean_toggle(key),
             ManagerMode::EditingString { .. } => self.handle_string_editing(key),
             ManagerMode::SelectingOutputFormat { .. } => self.handle_output_format_selection(key),
+            ManagerMode::SelectingThemeMode { .. } => self.handle_theme_mode_selection(key),
             ManagerMode::EditingPath { .. } => self.handle_path_editing(key),
         }
     }
@@ -854,6 +883,25 @@ impl SettingsManager {
         }
     }
 
+    fn handle_theme_mode_selection(&mut self, key: KeyEvent) -> Option<SettingsManagerEvent> {
+        match key.code {
+            KeyCode::Esc => {
+                self.state.cancel();
+                None
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.state.option_previous(3);
+                None
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.state.option_next(3);
+                None
+            }
+            KeyCode::Enter => Some(SettingsManagerEvent::SettingsUpdated),
+            _ => None,
+        }
+    }
+
     fn handle_path_editing(&mut self, key: KeyEvent) -> Option<SettingsManagerEvent> {
         match key.code {
             KeyCode::Esc => {
@@ -973,6 +1021,9 @@ pub fn render_settings_manager(
         }
         ManagerMode::SelectingOutputFormat { selected_option } => {
             render_output_format_selector(f, inner_area, *selected_option, theme);
+        }
+        ManagerMode::SelectingThemeMode { selected_option } => {
+            render_theme_mode_selector(f, inner_area, *selected_option, theme);
         }
         ManagerMode::EditingPath { setting, value } => {
             render_path_editor(f, inner_area, *setting, value, theme);
@@ -1148,6 +1199,12 @@ fn get_setting_value_display(
             "Off"
         }
         .to_string(),
+        SettingItem::ThemeMode => match config.ui.theme_mode {
+            crate::config::ThemeMode::Auto => "Auto".to_string(),
+            crate::config::ThemeMode::Dark => "Dark".to_string(),
+            crate::config::ThemeMode::Light => "Light".to_string(),
+        },
+        SettingItem::KeyboardScale => format!("{:.0}%", config.ui.keyboard_scale * 100.0),
         // Per-Layout: RGB
         SettingItem::RgbEnabled => if rgb_enabled { "On" } else { "Off" }.to_string(),
         SettingItem::RgbBrightness => format!("{}%", rgb_brightness.as_percent()),
@@ -1503,6 +1560,83 @@ fn render_output_format_selector(f: &mut Frame, area: Rect, selected_option: usi
 
     let list = List::new(items)
         .block(Block::default().borders(Borders::ALL).title("Format"))
+        .highlight_style(Style::default().bg(theme.surface));
+
+    f.render_widget(list, chunks[1]);
+
+    // Help text
+    let help = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("↑/↓", Style::default().fg(theme.primary)),
+            Span::raw(": Select  "),
+            Span::styled("Enter", Style::default().fg(theme.primary)),
+            Span::raw(": Apply  "),
+            Span::styled("Esc", Style::default().fg(theme.primary)),
+            Span::raw(": Cancel"),
+        ]),
+    ];
+
+    let help_widget = Paragraph::new(help)
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(theme.text_muted));
+
+    f.render_widget(help_widget, chunks[2]);
+}
+
+/// Render theme mode selector
+fn render_theme_mode_selector(f: &mut Frame, area: Rect, selected_option: usize, theme: &Theme) {
+    let chunks = ratatui::layout::Layout::default()
+        .direction(ratatui::layout::Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // Title
+            Constraint::Min(5),    // Options
+            Constraint::Length(4), // Help
+        ])
+        .split(area);
+
+    // Title
+    let title_text = Paragraph::new("Theme Mode")
+        .alignment(Alignment::Center)
+        .style(
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        );
+    f.render_widget(title_text, chunks[0]);
+
+    // Options
+    let options = [
+        ("Auto", "Follow OS dark/light mode setting"),
+        ("Dark", "Always use dark theme"),
+        ("Light", "Always use light theme"),
+    ];
+    let items: Vec<ListItem> = options
+        .iter()
+        .enumerate()
+        .map(|(idx, (label, description))| {
+            let selected = idx == selected_option;
+            let style = if selected {
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.text)
+            };
+
+            let marker = if selected { "▶ " } else { "  " };
+
+            ListItem::new(Line::from(vec![
+                Span::styled(marker, Style::default().fg(theme.primary)),
+                Span::styled(*label, style),
+                Span::styled(" - ", Style::default().fg(theme.text_muted)),
+                Span::styled(*description, Style::default().fg(theme.text_muted)),
+            ]))
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title("Theme"))
         .highlight_style(Style::default().bg(theme.surface));
 
     f.render_widget(list, chunks[1]);

@@ -81,19 +81,40 @@ impl KeyboardWidget {
             height: area.height.saturating_sub(2),
         };
 
+        // Default key dimensions (used when actual geometry not available)
         // Each key needs: 7 chars width + 2 for borders = 9 total width
         // Each key needs: 4 lines height (2 content + 2 borders) to support tap-hold display
-        let key_width = 9;
-        let key_height = 4;
+        let default_key_width: usize = 9;
+        let default_key_height: usize = 4;
 
         // Render each key as an individual block
         for key in &layer.keys {
             let row = key.position.row as usize;
             let col = key.position.col as usize;
 
-            // Calculate key position
-            let key_x = inner_area.x + (col * key_width) as u16;
-            let key_y = inner_area.y + (row * key_height) as u16;
+            // Try to get actual key geometry for position-aware rendering
+            let key_geometry = state
+                .mapping
+                .visual_to_matrix_pos(key.position.row, key.position.col)
+                .and_then(|matrix_pos| state.geometry.get_key_by_matrix(matrix_pos));
+
+            // Use actual geometry dimensions if available, otherwise use defaults
+            // For grid-based layouts (visual row/col), we still position based on grid
+            // but can use actual key dimensions for sizing
+            let (key_width, key_height) = if let Some(geom) = key_geometry {
+                // Use actual key dimensions from geometry, with minimum for borders
+                let w = (geom.terminal_width() as usize).max(default_key_width);
+                let h = (geom.terminal_height() as usize).max(default_key_height);
+                (w, h)
+            } else {
+                (default_key_width, default_key_height)
+            };
+
+            // Calculate key position based on visual grid
+            // Note: For proper physical layout rendering, we'd use terminal_x/y,
+            // but the current navigation system expects a grid-based layout
+            let key_x = inner_area.x + (col * default_key_width) as u16;
+            let key_y = inner_area.y + (row * default_key_height) as u16;
 
             // Skip if key is outside visible area
             if key_x >= inner_area.x + inner_area.width || key_y >= inner_area.y + inner_area.height

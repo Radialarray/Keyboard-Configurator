@@ -8,6 +8,18 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+/// Theme display mode preference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ThemeMode {
+    /// Automatically detect OS theme (dark/light)
+    #[default]
+    Auto,
+    /// Always use dark theme
+    Dark,
+    /// Always use light theme
+    Light,
+}
+
 /// Path configuration for file system locations.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct PathConfig {
@@ -174,16 +186,29 @@ impl BuildConfig {
 }
 
 /// UI preferences configuration.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UiConfig {
     /// Display help on startup
     pub show_help_on_startup: bool,
+    /// Theme mode preference (Auto, Dark, Light)
+    #[serde(default)]
+    pub theme_mode: ThemeMode,
+    /// Unified keyboard scale factor (1.0 = default, <1.0 smaller, >1.0 larger)
+    #[serde(default = "default_keyboard_scale")]
+    pub keyboard_scale: f32,
+}
+
+/// Default keyboard scale (1.0 = 100%)
+fn default_keyboard_scale() -> f32 {
+    1.0
 }
 
 impl Default for UiConfig {
     fn default() -> Self {
         Self {
             show_help_on_startup: true,
+            theme_mode: ThemeMode::default(),
+            keyboard_scale: default_keyboard_scale(),
         }
     }
 }
@@ -203,7 +228,7 @@ impl Default for UiConfig {
 /// - layout must exist in keyboard's info.json
 /// - `output_format` must be "uf2", "hex", or "bin"
 /// - `output_dir` parent must exist and be writable
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     /// File system paths
     pub paths: PathConfig,
@@ -441,6 +466,8 @@ mod tests {
         let config = Config::new();
         assert_eq!(config.paths.qmk_firmware, None);
         assert!(config.ui.show_help_on_startup);
+        assert_eq!(config.ui.theme_mode, ThemeMode::Auto);
+        assert!((config.ui.keyboard_scale - 1.0).abs() < f32::EPSILON);
         // New config should not be considered configured
         assert!(!config.is_configured());
         // Note: keyboard, layout, keymap, and output_format are now per-layout in metadata
