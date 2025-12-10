@@ -6,7 +6,7 @@ A terminal-based keyboard layout editor for mechanical keyboards with standard Q
 
 ```bash
 # Clone the repository
-git clone https://github.com/Radialarray/Keyboard-Configurator.git
+git clone https://github.com/Radialarray/LazyQMK.git
 cd keyboard-configurator
 
 # Initialize QMK submodule
