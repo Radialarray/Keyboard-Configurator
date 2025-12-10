@@ -1,7 +1,7 @@
 //! Layout picker for loading saved layouts.
 //!
 //! This module provides UI components for browsing and loading
-//! saved layout files from ~/.config/KeyboardConfigurator/layouts/
+//! saved layout files from ~/.config/LazyQMK/layouts/
 
 use anyhow::{Context, Result};
 use crossterm::event::{KeyCode, KeyEvent};
@@ -51,7 +51,7 @@ impl LayoutPickerState {
 
     /// Scans the layouts directory and loads layout metadata.
     ///
-    /// Layouts are stored in ~/.config/KeyboardConfigurator/layouts/
+    /// Layouts are stored in ~/.config/LazyQMK/layouts/
     pub fn scan_layouts(&mut self) -> Result<()> {
         self.layouts.clear();
 
@@ -111,8 +111,8 @@ impl LayoutPickerState {
 
     /// Gets the platform-specific layouts directory path.
     ///
-    /// - Unix/Linux/macOS: `~/.config/KeyboardConfigurator/layouts/`
-    /// - Windows: `%APPDATA%\KeyboardConfigurator\layouts\`
+    /// - Unix/Linux/macOS: `~/.config/LazyQMK/layouts/`
+    /// - Windows: `%APPDATA%\LazyQMK\layouts\`
     pub fn layouts_dir() -> Result<PathBuf> {
         Ok(Config::config_dir()?.join("layouts"))
     }

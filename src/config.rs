@@ -49,9 +49,9 @@ impl Default for BuildConfig {
 impl BuildConfig {
     /// Gets the default output directory path.
     ///
-    /// - Linux: `~/.config/KeyboardConfigurator/builds/`
-    /// - macOS: `~/Library/Application Support/KeyboardConfigurator/builds/`
-    /// - Windows: `%APPDATA%\KeyboardConfigurator\builds\`
+    /// - Linux: `~/.config/LazyQMK/builds/`
+    /// - macOS: `~/Library/Application Support/LazyQMK/builds/`
+    /// - Windows: `%APPDATA%\LazyQMK\builds\`
     fn default_output_dir() -> Result<PathBuf> {
         Ok(Config::config_dir()?.join("builds"))
     }
@@ -221,9 +221,9 @@ impl Default for UiConfig {
 ///
 /// # File Location
 ///
-/// - Linux: `~/.config/KeyboardConfigurator/config.toml`
-/// - macOS: `~/Library/Application Support/KeyboardConfigurator/config.toml`
-/// - Windows: `%APPDATA%\KeyboardConfigurator\config.toml`
+/// - Linux: `~/.config/LazyQMK/config.toml`
+/// - macOS: `~/Library/Application Support/LazyQMK/config.toml`
+/// - Windows: `%APPDATA%\LazyQMK\config.toml`
 ///
 /// # Validation
 ///
@@ -274,13 +274,13 @@ impl Config {
 
     /// Gets the platform-specific config directory path.
     ///
-    /// - Linux: `~/.config/KeyboardConfigurator/`
-    /// - macOS: `~/Library/Application Support/KeyboardConfigurator/`
-    /// - Windows: `%APPDATA%\KeyboardConfigurator\`
+    /// - Linux: `~/.config/LazyQMK/`
+    /// - macOS: `~/Library/Application Support/LazyQMK/`
+    /// - Windows: `%APPDATA%\LazyQMK\`
     pub fn config_dir() -> Result<PathBuf> {
         let config_dir = dirs::config_dir()
             .context("Failed to determine config directory")?
-            .join("KeyboardConfigurator");
+            .join("LazyQMK");
 
         Ok(config_dir)
     }

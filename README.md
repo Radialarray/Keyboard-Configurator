@@ -21,15 +21,15 @@
 
 ---
 
-**LazyQMK** is a blazing-fast terminal-based keyboard layout editor for QMK firmware. Built in **Rust** with **Ratatui**, it bridges the gap between the raw power of QMK and the ease of visual configuration. Design keymaps, manage layers, organize with colors and categories, and compile firmware—all without leaving your terminal.
+**LazyQMK** is a modern terminal-based keyboard layout editor for QMK firmware. Built in **Rust** with **Ratatui**, it bridges the gap between the raw power of QMK and the ease of visual configuration. Design keymaps, manage layers, organize with colors and categories, and compile firmware—all without leaving your terminal.
 
 Inspired by tools like `lazygit` and `lazydocker`, LazyQMK makes firmware configuration effortless for keyboard enthusiasts who love the CLI.
 
 ## 🎯 Why LazyQMK?
 
-| ⚡️ Blazing Fast | 🎨 Visual & Interactive | 🛡️ Type-Safe |
+| 🎨 Visual & Interactive | 🛡️ Type-Safe | 📝 Human-Readable |
 | :--- | :--- | :--- |
-| Rust + QMK = instant compilation. No waiting for slow web configurators. | Rich TUI with visual keyboard layout, intuitive navigation, and live feedback. | Validates keycodes and layout before compilation. Catches errors instantly. |
+| Rich TUI with visual keyboard layout, intuitive navigation, and live feedback. | Validates keycodes and layout before compilation. Catches errors instantly. | Plain Markdown files with YAML frontmatter. Perfect for version control. |
 
 ## ✨ Features
 
@@ -64,7 +64,7 @@ Inspired by tools like `lazygit` and `lazydocker`, LazyQMK makes firmware config
 ### From Latest Release
 
 ```bash
-# Download the latest release
+# Install via cargo
 cargo install --git https://github.com/Radialarray/LazyQMK.git --tag v0.7.0
 
 # Or download pre-built binary from releases page
@@ -81,7 +81,7 @@ cd LazyQMK
 # Build in release mode
 cargo build --release
 
-# Binary at: target/release/keyboard-configurator
+# Binary at: target/release/lazyqmk
 ```
 
 ## 🚀 Quick Start
@@ -91,7 +91,7 @@ cargo build --release
 On first launch, the onboarding wizard guides you through setup:
 
 ```bash
-keyboard-configurator
+lazyqmk
 ```
 
 You'll configure:
@@ -100,18 +100,19 @@ You'll configure:
 3. **Layout Variant** - Select your physical layout (if multiple options)
 
 Configuration saved to:
-- **Unix/macOS**: `~/.config/layout_tools/config.toml`
-- **Windows**: `%APPDATA%\layout_tools\config.toml`
+- **Linux**: `~/.config/LazyQMK/config.toml`
+- **macOS**: `~/Library/Application Support/LazyQMK/config.toml`
+- **Windows**: `%APPDATA%\LazyQMK\config.toml`
 
 ### Creating a Layout
 
 ```bash
 # Create new layout file
 touch my_layout.md
-keyboard-configurator my_layout.md
+lazyqmk my_layout.md
 
 # Or load existing layout
-keyboard-configurator path/to/layout.md
+lazyqmk path/to/layout.md
 ```
 
 ### Basic Workflow

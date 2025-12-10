@@ -1,7 +1,7 @@
 //! Template browser for loading and managing layout templates.
 //!
 //! This module provides UI components for browsing, searching, and loading
-//! reusable layout templates stored in ~/.`config/KeyboardConfigurator/templates`/
+//! reusable layout templates stored in ~/.`config/LazyQMK/templates`/
 
 // Allow intentional type casts for layout rendering
 #![allow(clippy::cast_possible_truncation)]
@@ -71,7 +71,7 @@ impl TemplateBrowserState {
 
     /// Scans the templates directory and loads template metadata.
     ///
-    /// Templates are stored in ~/.`config/KeyboardConfigurator/templates`/
+    /// Templates are stored in ~/.`config/LazyQMK/templates`/
     pub fn scan_templates(&mut self) -> Result<()> {
         self.templates.clear();
 
@@ -135,8 +135,8 @@ impl TemplateBrowserState {
 
     /// Gets the platform-specific templates directory path.
     ///
-    /// - Unix/Linux/macOS: `~/.config/KeyboardConfigurator/templates/`
-    /// - Windows: `%APPDATA%\KeyboardConfigurator\templates\`
+    /// - Unix/Linux/macOS: `~/.config/LazyQMK/templates/`
+    /// - Windows: `%APPDATA%\LazyQMK\templates\`
     pub fn templates_dir() -> Result<PathBuf> {
         Ok(Config::config_dir()?.join("templates"))
     }

@@ -1,4 +1,4 @@
-//! Keyboard Configurator - Terminal-based keyboard layout editor
+//! LazyQMK - Terminal-based keyboard layout editor
 //!
 //! This application provides a visual editor for mechanical keyboard layouts,
 //! allowing users to design layouts, assign keycodes, and generate QMK firmware.
@@ -20,7 +20,7 @@ use clap::Parser;
 use constants::{APP_BINARY_NAME, APP_NAME};
 use std::path::PathBuf;
 
-/// Keyboard Configurator - Terminal-based keyboard layout editor
+/// LazyQMK - Terminal-based keyboard layout editor
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {

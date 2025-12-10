@@ -1,4 +1,4 @@
-# Keyboard Configurator - Features Documentation
+# LazyQMK - Features Documentation
 
 > **Last Updated:** 2025-12-06
 
@@ -9,7 +9,7 @@ A comprehensive terminal-based keyboard layout editor for mechanical keyboards w
 ## Status
 
 **Development Phase**: Active Development  
-**Test Coverage**: 281/281 tests passing (100% pass rate)  
+**Test Coverage**: 287 tests passing (100% pass rate)  
 **Architecture**: Component trait refactoring COMPLETE  
 **Current State**: All 14 active components migrated to trait-based architecture
 
@@ -98,7 +98,7 @@ Each key displays a color source indicator in its top-right corner.
 **Template Management**
 - Save current layout as reusable template (Shift+T)
 - Template browser with metadata preview (t key)
-- Stored in `~/.config/KeyboardConfigurator/templates/` (Linux), `~/Library/Application Support/KeyboardConfigurator/templates/` (macOS), or `%APPDATA%\KeyboardConfigurator\templates\` (Windows)
+- Stored in `~/.config/LazyQMK/templates/` (Linux), `~/Library/Application Support/LazyQMK/templates/` (macOS), or `%APPDATA%\LazyQMK\templates\` (Windows)
 - Searchable by name, description, or tags
 
 **Template Loading**
@@ -146,9 +146,9 @@ Each key displays a color source indicator in its top-right corner.
 
 **Configuration Storage**
 - TOML format:
-  - Linux: `~/.config/KeyboardConfigurator/config.toml`
-  - macOS: `~/Library/Application Support/KeyboardConfigurator/config.toml`
-  - Windows: `%APPDATA%\KeyboardConfigurator\config.toml`
+  - Linux: `~/.config/LazyQMK/config.toml`
+  - macOS: `~/Library/Application Support/LazyQMK/config.toml`
+  - Windows: `%APPDATA%\LazyQMK\config.toml`
 - Persistent across sessions
 - All settings accessible via keyboard shortcuts:
   - Ctrl+P: QMK firmware path
@@ -233,19 +233,19 @@ Each key displays a color source indicator in its top-right corner.
 
 **Core**
 - Rust 1.75+ (using Rust 1.88.0)
-- Ratatui 0.26 - TUI framework with immediate mode rendering
-- Crossterm 0.27 - Cross-platform terminal manipulation
+- Ratatui 0.29 - TUI framework with immediate mode rendering
+- Crossterm 0.29 - Cross-platform terminal manipulation
 
 **Data Handling**
 - Serde 1.0 - Serialization framework
 - serde_json 1.0 - QMK metadata parsing
-- serde_yaml 0.9 - Layout frontmatter parsing
-- toml 0.8 - Configuration files
+- serde_yml 0.0.12 - Layout frontmatter parsing
+- toml 0.9 - Configuration files
 
 **Utilities**
 - anyhow 1.0 - Error handling
-- dirs 5.0 - Cross-platform paths
-- arboard 3.0 - Clipboard integration
+- dirs 6.0 - Cross-platform paths
+- arboard 3.6 - Clipboard integration
 - chrono 0.4 - Timestamps
 - dark-light 2.0 - OS theme detection
 
@@ -395,7 +395,7 @@ src/
 - **Component trait pattern** implemented across 14 active components
 - **~50% AppState reduction** by eliminating duplicate state fields
 - **Event-driven architecture** with clear separation of concerns
-- **281/281 tests passing** with zero regressions
+- **287 tests passing** with zero regressions
 - **Performance maintained** at 60fps UI target
 - **Handler refactoring** with new `action_handlers/` directory structure
 - **ActiveComponent enum** providing type-safe component management

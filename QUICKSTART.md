@@ -7,7 +7,7 @@ A terminal-based keyboard layout editor for mechanical keyboards with standard Q
 ```bash
 # Clone the repository
 git clone https://github.com/Radialarray/LazyQMK.git
-cd keyboard-configurator
+cd lazyqmk
 
 # Initialize QMK submodule
 git submodule update --init --recursive qmk_firmware
@@ -15,7 +15,7 @@ git submodule update --init --recursive qmk_firmware
 # Build in release mode
 cargo build --release
 
-# Binary will be at target/release/keyboard-configurator
+# Binary will be at target/release/lazyqmk
 ```
 
 ## First Run - Onboarding Wizard
@@ -23,7 +23,7 @@ cargo build --release
 On first run, the onboarding wizard will guide you through configuration:
 
 ```bash
-./target/release/keyboard-configurator
+./target/release/lazyqmk
 ```
 
 The wizard will prompt you for:
@@ -44,13 +44,13 @@ Configuration is saved to:
 touch my_layout.md
 
 # Open in editor
-keyboard-configurator my_layout.md
+lazyqmk my_layout.md
 ```
 
 ### Loading an Existing Layout
 
 ```bash
-keyboard-configurator path/to/existing_layout.md
+lazyqmk path/to/existing_layout.md
 ```
 
 ## Core Workflows

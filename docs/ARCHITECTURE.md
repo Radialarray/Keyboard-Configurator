@@ -1,8 +1,8 @@
-# Keyboard Configurator - Architecture Documentation
+# LazyQMK - Architecture Documentation
 
 > **Last Updated:** 2025-12-06
 
-Comprehensive technical architecture and design decisions for the keyboard-configurator project.
+Comprehensive technical architecture and design decisions for the LazyQMK project.
 
 ---
 
@@ -33,7 +33,7 @@ Comprehensive technical architecture and design decisions for the keyboard-confi
 
 ## Overview
 
-keyboard-configurator is a terminal-based keyboard layout editor built using **Model-View-Controller (MVC)** architecture with centralized state management. It provides a visual interface for editing mechanical keyboard layouts and generating QMK firmware.
+LazyQMK is a terminal-based keyboard layout editor built using **Model-View-Controller (MVC)** architecture with centralized state management. It provides a visual interface for editing mechanical keyboard layouts and generating QMK firmware.
 
 ### Core Features
 
@@ -894,9 +894,9 @@ layout_variant: "LAYOUT_split_3x6_3_ex2"
 ### Configuration Storage
 
 **Location**
-- Linux: `~/.config/KeyboardConfigurator/config.toml`
-- macOS: `~/Library/Application Support/KeyboardConfigurator/config.toml`
-- Windows: `%APPDATA%\KeyboardConfigurator\config.toml`
+- Linux: `~/.config/LazyQMK/config.toml`
+- macOS: `~/Library/Application Support/LazyQMK/config.toml`
+- Windows: `%APPDATA%\LazyQMK\config.toml`
 
 **Format (TOML)**
 ```toml
@@ -917,9 +917,9 @@ theme = "auto"
 ### Template Directory
 
 **Location:**
-- Linux: `~/.config/KeyboardConfigurator/templates/`
-- macOS: `~/Library/Application Support/KeyboardConfigurator/templates/`
-- Windows: `%APPDATA%\KeyboardConfigurator\templates\`
+- Linux: `~/.config/LazyQMK/templates/`
+- macOS: `~/Library/Application Support/LazyQMK/templates/`
+- Windows: `%APPDATA%\LazyQMK\templates\`
 
 **Structure:**
 ```
