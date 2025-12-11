@@ -3,7 +3,7 @@
 Auto-generated from all feature plans. Last updated: 2025-11-24
 
 ## Active Technologies
-- Rust 1.75+ (using Rust 1.88.0 per startup_errors.md) + Ratatui 0.29 (TUI framework), Crossterm 0.29 (terminal backend), Serde 1.0 (serialization) (archived/021-dependency-updates)
+- Rust 1.91.1+ + Ratatui 0.29 (TUI framework), Crossterm 0.29 (terminal backend), Serde 1.0 (serialization) (archived/021-dependency-updates)
 - Human-readable files (Markdown layouts, TOML 0.9 configuration, JSON5 1.3 parsing, serde_yml 0.0.12 for YAML) (archived/021-dependency-updates)
 - CLI: Clap 4.5, Config: dirs 6.0, Clipboard: arboard 3.6, UUID: 1.19 (archived/021-dependency-updates)
 
@@ -45,6 +45,7 @@ Rust 1.75+: Follow standard conventions
 - **Run tests after refactoring**: Verify no regressions
 - **Integration tests**: Tests requiring external dependencies (QMK CLI, etc.) should be marked with `#[ignore]`
 - **Note**: CI may use newer Rust/clippy versions with stricter lints. If CI fails but local passes, update Rust (`rustup update stable`) and re-run clippy
+- **Required Rust version**: 1.91.1 or newer (matches CI to ensure consistent clippy behavior)
 
 ### Code Quality Standards
 
