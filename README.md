@@ -21,33 +21,12 @@ You can find my current layout as an example in the `examples` folder.
 That said, if you're interested in helping make this more robust, broaden hardware support, or refine functionality, contributions and support from the community are highly appreciated. PRs and feedback are very welcome!. 
 
 
-## ✨ Features
-
-### Core Capabilities
-- **Visual Layout Editor** - See your keyboard geometry as you edit with accurate physical positioning
-- **Multi-Layer Support** - Create and manage unlimited QMK layers with easy tab-based navigation
-- **Smart Color System** - Four-level priority system (key → key category → layer category → layer default)
-- **Category Organization** - Group keys by function (navigation, symbols, modifiers, etc.)
-- **Searchable Keycode Picker** - Fuzzy search through 600+ QMK keycodes with instant filtering
-- **Language-Specific Keycodes** - Support for german keycodes
-
-### Firmware Integration
-- **Direct QMK Integration** - Uses custom QMK firmware fork with LED/RGB lighting support
-- **Background Compilation** - Build firmware without blocking the UI
-- **Live Build Progress** - Real-time compilation output and error reporting
-
-### Developer-Friendly
-- **Human-Readable Markdown** - Layouts stored as `.md` files with YAML frontmatter
-- **Version Control Ready** - Plain text format perfect for git or a dotfile manager like [chezmoi](https://github.com/twpayne/chezmoi)
-- **Template System** - Save and share common layouts across keyboards
-- **OS Theme Integration** - Automatic dark/light mode detection from system settings
-
 ## 📦 Installation
 
 > [!IMPORTANT]
 > **Custom QMK Fork Required**: LazyQMK requires a custom QMK firmware fork for full functionality, especially LED/RGB lighting support. Using the official QMK firmware will result in limited features.
 
-### Fast Track: Pre-built Binary + Custom QMK Fork (Recommended)
+### Pre-built Binary + Custom QMK Fork (Recommended)
 
 **Step 1: Download and install LazyQMK for your platform**
 
@@ -127,24 +106,26 @@ The onboarding wizard will ask for:
 
 That's it! You're ready to start editing your layout.
 
----
+## ✨ Features
 
-### Alternative: Build from Source
+### Core Capabilities
+- **Visual Layout Editor** - See your keyboard geometry as you edit with accurate physical positioning
+- **Multi-Layer Support** - Create and manage unlimited QMK layers with easy tab-based navigation
+- **Smart Color System** - Four-level priority system (key → key category → layer category → layer default)
+- **Category Organization** - Group keys by function (navigation, symbols, modifiers, etc.)
+- **Searchable Keycode Picker** - Fuzzy search through 600+ QMK keycodes with instant filtering
+- **Language-Specific Keycodes** - Support for german keycodes
 
-**Prerequisites:**
-- **Rust** 1.75+ with `cargo` - [Install Rust](https://rustup.rs/)
-- **Git** - For cloning repositories
+### Firmware Integration
+- **Direct QMK Integration** - Uses custom QMK firmware fork with LED/RGB lighting support
+- **Background Compilation** - Build firmware without blocking the UI
+- **Live Build Progress** - Real-time compilation output and error reporting
 
-**Step 1: Build LazyQMK**
-
-```bash
-git clone --recursive https://github.com/Radialarray/LazyQMK.git
-cd LazyQMK
-cargo build --release
-sudo ln -s $(pwd)/target/release/lazyqmk /usr/local/bin/lazyqmk
-```
-
-**Step 2 & 3:** Follow the same QMK fork setup and configuration steps from the Fast Track above.
+### Developer-Friendly
+- **Human-Readable Markdown** - Layouts stored as `.md` files with YAML frontmatter
+- **Version Control Ready** - Plain text format perfect for git or a dotfile manager like [chezmoi](https://github.com/twpayne/chezmoi)
+- **Template System** - Save and share common layouts across keyboards
+- **OS Theme Integration** - Automatic dark/light mode detection from system settings
 
 ## 🚀 Quick Start
 
@@ -356,6 +337,27 @@ Contributions are welcome! This project is experimental and there's room for imp
 - **Documentation**: Improve guides, add examples, clarify confusing parts
 
 Please read [ARCHITECTURE.md](docs/ARCHITECTURE.md) and [AGENTS.md](AGENTS.md) before contributing.
+
+## 🛠️ Developer Guide
+
+### Building from Source
+
+If you want to build LazyQMK from source:
+
+**Prerequisites:**
+- **Rust** 1.75+ with `cargo` - [Install Rust](https://rustup.rs/)
+- **Git** - For cloning repositories
+
+**Build Steps:**
+
+```bash
+git clone --recursive https://github.com/Radialarray/LazyQMK.git
+cd LazyQMK
+cargo build --release
+sudo ln -s $(pwd)/target/release/lazyqmk /usr/local/bin/lazyqmk
+```
+
+After building, follow the QMK fork setup and configuration steps from the Installation section above.
 
 ## 📚 Additional Resources
 
