@@ -33,9 +33,11 @@ Rust 1.75+: Follow standard conventions
 
 ### Testing Requirements
 - **Always run tests before and after changes**: `cargo test`
+- **All tests must pass locally before committing**: No exceptions
 - **Check for warnings**: `cargo clippy`
 - **Ensure all tests pass**: Target 100% pass rate
 - **Run tests after refactoring**: Verify no regressions
+- **Integration tests**: Tests requiring external dependencies (QMK CLI, etc.) should be marked with `#[ignore]`
 
 ### Code Quality Standards
 
