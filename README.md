@@ -109,13 +109,6 @@ Or download manually from the [releases page](https://github.com/Radialarray/Laz
 ```bash
 # Clone custom QMK firmware fork (with LED/RGB support + submodules)
 git clone --recurse-submodules https://github.com/Radialarray/qmk_firmware.git ~/qmk_firmware
-cd ~/qmk_firmware
-
-# If you already cloned without submodules, initialize them:
-# git submodule update --init --recursive
-
-# Set up QMK (installs dependencies and submodules)
-qmk setup -H ~/qmk_firmware
 ```
 
 **Step 3: Launch LazyQMK and configure**
