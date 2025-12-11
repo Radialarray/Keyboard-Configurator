@@ -24,13 +24,12 @@ priority = 1
 [[contexts.main.bindings]]
 keys = ["Home", "End"]
 action = "Jump to first/last key"
-priority = 10
+priority = 20
 
 [[contexts.main.bindings]]
 keys = ["Tab"]
 action = "Next layer"
-hint = "Layer"
-priority = 2
+priority = 11
 
 [[contexts.main.bindings]]
 keys = ["Shift+Tab"]
@@ -40,8 +39,8 @@ priority = 11
 [[contexts.main.bindings]]
 keys = ["Enter"]
 action = "Open keycode picker"
-hint = "Keycode"
-priority = 3
+hint = "Edit"
+priority = 2
 
 [[contexts.main.bindings]]
 keys = ["x", "Delete"]
@@ -51,13 +50,12 @@ priority = 12
 [[contexts.main.bindings]]
 keys = ["c"]
 action = "Set key color"
-hint = "Individual Color"
-priority = 4
+hint = "Color"
+priority = 3
 
 [[contexts.main.bindings]]
 keys = ["Shift+C"]
 action = "Set layer color"
-hint = "Layer Color"
 priority = 13
 
 [[contexts.main.bindings]]
@@ -74,7 +72,7 @@ priority = 15
 keys = ["Shift+L"]
 action = "Layer manager"
 hint = "Layers"
-priority = 5
+priority = 4
 
 [[contexts.main.bindings]]
 keys = ["Ctrl+K"]
@@ -95,8 +93,7 @@ priority = 18
 [[contexts.main.bindings]]
 keys = ["y", "Ctrl+C"]
 action = "Copy key"
-hint = "Copy"
-priority = 6
+priority = 19
 
 [[contexts.main.bindings]]
 keys = ["d", "Ctrl+X"]
@@ -126,36 +123,32 @@ priority = 23
 [[contexts.main.bindings]]
 keys = ["Ctrl+S"]
 action = "Save layout"
-hint = "Save"
-priority = 7
+priority = 24
 
 [[contexts.main.bindings]]
 keys = ["Shift+E"]
 action = "Edit metadata"
-priority = 24
+priority = 25
 
 [[contexts.main.bindings]]
 keys = ["Ctrl+G"]
 action = "Generate firmware"
-priority = 25
+priority = 26
 
 [[contexts.main.bindings]]
 keys = ["Ctrl+B"]
 action = "Build firmware"
-hint = "Build"
-priority = 8
+priority = 27
 
 [[contexts.main.bindings]]
 keys = ["Shift+B"]
 action = "View build log"
-hint = "Build Log"
-priority = 26
+priority = 28
 
 [[contexts.main.bindings]]
 keys = ["Shift+S"]
 action = "Settings"
-hint = "Settings"
-priority = 9
+priority = 29
 
 [[contexts.main.bindings]]
 keys = ["t"]
@@ -181,7 +174,7 @@ priority = 30
 keys = ["?"]
 action = "Toggle help"
 hint = "Help"
-priority = 100
+priority = 5
 
 [[contexts.main.bindings]]
 keys = ["Ctrl+Q"]

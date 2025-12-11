@@ -86,11 +86,7 @@ impl StatusBar {
             && state.active_popup.is_none();
 
         // Build the help line first (always shown at bottom)
-        let help_message = Self::get_contextual_help(state);
-        let help_line = Line::from(vec![
-            Span::styled("Help: ", Style::default().fg(theme.primary)),
-            Span::raw(help_message),
-        ]);
+        let help_line = Self::get_contextual_help_line(state, theme);
 
         // Build content lines (status/hints, description, clipboard, build)
         let mut content_lines: Vec<Line> = Vec::new();
@@ -150,11 +146,13 @@ impl StatusBar {
         f.render_widget(status, area);
     }
 
-    /// Get a line of contextual hints from the help registry
+    /// Get a line of contextual hints from the help registry (top hints line)
     fn get_hints_line(state: &AppState, theme: &Theme) -> Line<'static> {
         let context_name = Self::get_current_context(state);
         let registry = HelpRegistry::default();
-        let hints = registry.format_status_bar_hints(context_name, 8);
+        
+        // Get top priority hints for this context (limit to 5 for space)
+        let hints = registry.format_status_bar_hints(context_name, 5);
 
         if hints.is_empty() {
             return Line::from("");
@@ -223,57 +221,53 @@ impl StatusBar {
         }
     }
 
-    /// Get contextual help message based on current application state
-    const fn get_contextual_help(state: &AppState) -> &'static str {
-        use super::PopupType;
-
-        match &state.active_popup {
-            Some(PopupType::KeycodePicker) => {
-                "↑↓: Navigate | Enter: Select | Esc: Cancel | Tab: Switch | Type: Search"
-            }
-            Some(PopupType::ColorPicker) => {
-                "←→↑↓: Navigate | Tab: Switch | Enter: Apply | Esc: Cancel"
-            }
-            Some(PopupType::CategoryPicker) | Some(PopupType::LayoutPicker) => {
-                "↑↓: Navigate | Enter: Select | Esc: Cancel"
-            }
-            Some(PopupType::CategoryManager) => {
-                "n: New | r: Rename | c: Color | d: Delete | Enter: Select | Esc: Close"
-            }
-            Some(PopupType::LayerManager) => {
-                "n: New | r: Rename | v: Toggle Colors | d: Delete | Shift+↑↓: Reorder | Esc: Close"
-            }
-            Some(PopupType::LayerPicker) => "↑↓: Navigate | Enter: Select layer | Esc: Cancel",
-            Some(PopupType::TemplateBrowser) => {
-                "↑↓: Navigate | Enter: Load | /: Search | Esc: Cancel"
-            }
-            Some(PopupType::TemplateSaveDialog) | Some(PopupType::MetadataEditor) => {
-                "Tab: Next field | Enter: Save | Esc: Cancel | Type: Edit"
-            }
-            Some(PopupType::HelpOverlay) => "↑↓: Scroll | Home/End: Jump | ?: Close",
-            Some(PopupType::BuildLog) => "↑↓: Scroll | Home/End: Jump | Esc: Close",
-            Some(PopupType::UnsavedChangesPrompt) => "y: Save and quit | n: Discard | Esc: Cancel",
-            Some(PopupType::SetupWizard) => {
-                "Enter: Next | Esc: Back/Cancel | ↑↓: Navigate | Type: Input"
-            }
-            Some(PopupType::SettingsManager) => "↑↓: Navigate | Enter: Change | Esc: Close",
-            Some(PopupType::TapKeycodePicker) => {
-                "↑↓: Navigate | Enter: Select tap keycode | Esc: Cancel"
-            }
-            Some(PopupType::ModifierPicker) => {
-                "↑↓←→: Navigate | Space: Toggle | Enter: Confirm | Esc: Cancel"
-            }
-            Some(PopupType::KeyEditor) => {
-                "Enter: Reassign | D: Description | C: Color | Esc: Close"
-            }
-            None => {
-                // Main keyboard editing mode
-                if state.selection_mode.is_some() {
-                    "↑↓←→: Move | Space: Toggle | y: Copy | d: Cut | Esc: Exit"
+    /// Get contextual help line from help registry (bottom help line)
+    fn get_contextual_help_line(state: &AppState, theme: &Theme) -> Line<'static> {
+        let context_name = Self::get_current_context(state);
+        let registry = HelpRegistry::default();
+        
+        // Get next set of hints for help line (offset by 5 to avoid duplicating top hints)
+        let all_hints = registry.get_status_bar_hints(context_name);
+        
+        // Skip the first 5 (already shown in top hints) and take next 6
+        let help_hints: Vec<_> = all_hints
+            .iter()
+            .skip(5)
+            .take(6)
+            .map(|binding| {
+                let key = if !binding.alt_keys.is_empty() {
+                    format!("{}/{}", binding.keys.join(","), binding.alt_keys.join(","))
                 } else {
-                    "↑↓←→: Navigate | Enter: Edit | Shift+C: Color | Shift+L: Layers | ?: Help"
-                }
-            }
+                    binding.keys.join(",")
+                };
+                let action = binding.hint.as_ref()
+                    .unwrap_or(&binding.action);
+                (key, action.as_str())
+            })
+            .collect();
+
+        if help_hints.is_empty() {
+            return Line::from(vec![
+                Span::styled("Help: ", Style::default().fg(theme.primary)),
+                Span::raw("Press ? for help"),
+            ]);
         }
+
+        let mut spans: Vec<Span<'static>> = Vec::new();
+        spans.push(Span::styled("Help: ", Style::default().fg(theme.primary)));
+
+        for (i, (key, action)) in help_hints.into_iter().enumerate() {
+            if i > 0 {
+                spans.push(Span::raw(" | "));
+            }
+            spans.push(Span::styled(
+                key.to_string(),
+                Style::default().fg(theme.accent),
+            ));
+            spans.push(Span::raw(": "));
+            spans.push(Span::raw(action.to_string()));
+        }
+
+        Line::from(spans)
     }
 }
