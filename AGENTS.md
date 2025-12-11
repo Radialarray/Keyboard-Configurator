@@ -39,6 +39,21 @@ Rust 1.75+: Follow standard conventions
 
 ### Code Quality Standards
 
+#### Privacy & Personal Information
+- **NEVER include personal information** in code, comments, or commits:
+  - ❌ Real names (use generic placeholders like "user", "developer", "author")
+  - ❌ Email addresses (use example.com domains or GitHub no-reply emails)
+  - ❌ Personal file paths (use `/home/user/`, `/Users/user/`, `C:\Users\user\`)
+  - ❌ Private URLs or server addresses
+  - ❌ API keys, tokens, or credentials
+- **Use generic examples** in documentation:
+  - ✅ `my_custom_keymap` instead of personal keymap names
+  - ✅ `user@example.com` instead of real email addresses
+  - ✅ `/Users/user/dev/LazyQMK/` instead of personal paths
+- **Git author identity**: Always use your GitHub username and no-reply email
+  - Configure: `git config user.name "YourGitHubUsername"`
+  - Configure: `git config user.email "123456+username@users.noreply.github.com"`
+
 #### Dead Code Management
 - Remove truly unused code (functions, structs, enums that are never referenced)
 - Keep `#[allow(dead_code)]` annotations when:
@@ -187,6 +202,7 @@ Before committing changes:
 - [ ] Complex logic has inline comments
 - [ ] Commit message follows convention
 - [ ] No unrelated changes included
+- [ ] No personal information in code, comments, or commit messages
 - [ ] git diff reviewed for accuracy
 
 ### Troubleshooting
