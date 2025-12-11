@@ -68,9 +68,9 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             name: lazyqmk-linux-x86_64.tar.gz
-          - target: x86_64-apple-darwin
-            os: macos-13  # Intel runner
-            name: lazyqmk-macos-x86_64.tar.gz
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: lazyqmk-linux-aarch64.tar.gz
           - target: aarch64-apple-darwin
             os: macos-latest  # ARM64 runner
             name: lazyqmk-macos-aarch64.tar.gz
@@ -105,15 +105,27 @@ jobs:
           path: target
           key: ${{ matrix.target }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }} --verbose
 
       - name: Strip binary (Linux and macOS)
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-13' || matrix.os == 'macos-latest'
-        run: strip target/${{ matrix.target }}/release/lazyqmk
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+        run: |
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            aarch64-linux-gnu-strip target/${{ matrix.target }}/release/lazyqmk || true
+          else
+            strip target/${{ matrix.target }}/release/lazyqmk || true
+          fi
 
       - name: Prepare package (Unix)
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-13' || matrix.os == 'macos-latest'
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
         run: |
           mkdir -p package
           cp target/${{ matrix.target }}/release/lazyqmk package/
@@ -195,7 +207,7 @@ jobs:
           echo "| Platform | Architecture | Download |" >> changelog.md
           echo "|----------|--------------|----------|" >> changelog.md
           echo "| Linux | x86_64 | [lazyqmk-linux-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${TAG}/lazyqmk-linux-x86_64.tar.gz) |" >> changelog.md
-          echo "| macOS | Intel (x86_64) | [lazyqmk-macos-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${TAG}/lazyqmk-macos-x86_64.tar.gz) |" >> changelog.md
+          echo "| Linux | ARM64 | [lazyqmk-linux-aarch64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${TAG}/lazyqmk-linux-aarch64.tar.gz) |" >> changelog.md
           echo "| macOS | Apple Silicon (ARM64) | [lazyqmk-macos-aarch64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${TAG}/lazyqmk-macos-aarch64.tar.gz) |" >> changelog.md
           echo "| Windows | x86_64 | [lazyqmk-windows-x86_64.zip](https://github.com/${{ github.repository }}/releases/download/${TAG}/lazyqmk-windows-x86_64.zip) |" >> changelog.md
           echo "" >> changelog.md
