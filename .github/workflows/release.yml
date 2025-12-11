@@ -67,13 +67,13 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            name: lazyqmk-linux-x86_64.tar.gz
+            name: lazyqmk-linux-x86_64.zip
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
-            name: lazyqmk-linux-aarch64.tar.gz
+            name: lazyqmk-linux-aarch64.zip
           - target: aarch64-apple-darwin
             os: macos-latest  # ARM64 runner
-            name: lazyqmk-macos-aarch64.tar.gz
+            name: lazyqmk-macos-aarch64.zip
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             name: lazyqmk-windows-x86_64.zip
@@ -129,9 +129,9 @@ jobs:
         run: |
           mkdir -p package
           cp target/${{ matrix.target }}/release/lazyqmk package/
-          cp README.md LICENSE QUICKSTART.md package/
+          cp README.md LICENSE package/
           cd package
-          tar czf ../${{ matrix.name }} *
+          zip -r ../${{ matrix.name }} *
           cd ..
           shasum -a 256 ${{ matrix.name }} > ${{ matrix.name }}.sha256
 
@@ -141,7 +141,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path package
           Copy-Item target/${{ matrix.target }}/release/lazyqmk.exe package/
-          Copy-Item README.md, LICENSE, QUICKSTART.md package/
+          Copy-Item README.md, LICENSE package/
           Compress-Archive -Path package/* -DestinationPath ${{ matrix.name }}
           $hash = (Get-FileHash ${{ matrix.name }} -Algorithm SHA256).Hash.ToLower()
           "$hash  ${{ matrix.name }}" | Out-File -Encoding ASCII ${{ matrix.name }}.sha256
@@ -206,9 +206,9 @@ jobs:
           echo "" >> changelog.md
           echo "| Platform | Architecture | Download |" >> changelog.md
           echo "|----------|--------------|----------|" >> changelog.md
-          echo "| Linux | x86_64 | [lazyqmk-linux-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${TAG}/lazyqmk-linux-x86_64.tar.gz) |" >> changelog.md
-          echo "| Linux | ARM64 | [lazyqmk-linux-aarch64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${TAG}/lazyqmk-linux-aarch64.tar.gz) |" >> changelog.md
-          echo "| macOS | Apple Silicon (ARM64) | [lazyqmk-macos-aarch64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${TAG}/lazyqmk-macos-aarch64.tar.gz) |" >> changelog.md
+          echo "| Linux | x86_64 | [lazyqmk-linux-x86_64.zip](https://github.com/${{ github.repository }}/releases/download/${TAG}/lazyqmk-linux-x86_64.zip) |" >> changelog.md
+          echo "| Linux | ARM64 | [lazyqmk-linux-aarch64.zip](https://github.com/${{ github.repository }}/releases/download/${TAG}/lazyqmk-linux-aarch64.zip) |" >> changelog.md
+          echo "| macOS | Apple Silicon (ARM64) | [lazyqmk-macos-aarch64.zip](https://github.com/${{ github.repository }}/releases/download/${TAG}/lazyqmk-macos-aarch64.zip) |" >> changelog.md
           echo "| Windows | x86_64 | [lazyqmk-windows-x86_64.zip](https://github.com/${{ github.repository }}/releases/download/${TAG}/lazyqmk-windows-x86_64.zip) |" >> changelog.md
           echo "" >> changelog.md
           echo "### Checksums" >> changelog.md
