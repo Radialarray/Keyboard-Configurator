@@ -260,7 +260,7 @@ impl StatusBar {
                 spans.push(Span::raw(" | "));
             }
             spans.push(Span::styled(
-                key.to_string(),
+                key.clone(),
                 Style::default().fg(theme.accent),
             ));
             spans.push(Span::raw(": "));

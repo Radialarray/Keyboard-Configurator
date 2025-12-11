@@ -44,6 +44,7 @@ Rust 1.75+: Follow standard conventions
 - **Ensure all tests pass**: Target 100% pass rate
 - **Run tests after refactoring**: Verify no regressions
 - **Integration tests**: Tests requiring external dependencies (QMK CLI, etc.) should be marked with `#[ignore]`
+- **Note**: CI may use newer Rust/clippy versions with stricter lints. If CI fails but local passes, update Rust (`rustup update stable`) and re-run clippy
 
 ### Code Quality Standards
 
