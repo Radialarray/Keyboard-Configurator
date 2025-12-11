@@ -230,7 +230,7 @@ impl KeycodeDb {
         let mut lookup = HashMap::new();
         let mut patterns = Vec::new();
 
-        // Build lookup table
+        // Build lookup table for base keycodes
         for (idx, keycode) in all_keycodes.iter().enumerate() {
             lookup.insert(keycode.code.clone(), idx);
 
@@ -247,12 +247,34 @@ impl KeycodeDb {
             }
         }
 
-        // Load language-specific keycodes
+        // Load language-specific keycodes and merge them into the database so
+        // validation recognizes DE_/FR_/… codes.
         let languages = Self::load_languages()?;
+        let mut categories = index.categories;
+
+        for lang in &languages {
+            // Add a synthetic category for the language (helps picker grouping)
+            categories.push(KeycodeCategory {
+                id: format!("lang_{}", lang.language.id),
+                name: lang.language.name.clone(),
+                description: lang
+                    .language
+                    .description
+                    .clone()
+                    .unwrap_or_else(|| format!("{} layout", lang.language.name)),
+            });
+
+            // Insert language keycodes into lookup and master list
+            for kc in &lang.keycodes {
+                let idx = all_keycodes.len();
+                lookup.insert(kc.code.clone(), idx);
+                all_keycodes.push(kc.clone());
+            }
+        }
 
         Ok(Self {
             keycodes: all_keycodes,
-            categories: index.categories,
+            categories,
             lookup,
             patterns,
             languages,

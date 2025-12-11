@@ -107,9 +107,12 @@ Or download manually from the [releases page](https://github.com/Radialarray/Laz
 **Step 2: Clone the custom QMK firmware fork**
 
 ```bash
-# Clone custom QMK firmware fork (with LED/RGB support)
-git clone https://github.com/Radialarray/qmk_firmware.git ~/qmk_firmware
+# Clone custom QMK firmware fork (with LED/RGB support + submodules)
+git clone --recurse-submodules https://github.com/Radialarray/qmk_firmware.git ~/qmk_firmware
 cd ~/qmk_firmware
+
+# If you already cloned without submodules, initialize them:
+# git submodule update --init --recursive
 
 # Set up QMK (installs dependencies and submodules)
 qmk setup -H ~/qmk_firmware
@@ -295,7 +298,12 @@ qmk doctor
 
 **Solution**:
 - Ensure you're using the custom QMK fork (Step 2)
-- Update the QMK firmware: `cd ~/qmk_firmware && git pull && make git-submodule`
+- Update the QMK firmware (with submodules):
+  ```bash
+  cd ~/qmk_firmware
+  git pull
+  git submodule update --init --recursive
+  ```
 - Check if your keyboard exists in `keyboards/` directory in QMK firmware
 - Try typing part of the keyboard name (fuzzy search)
 
