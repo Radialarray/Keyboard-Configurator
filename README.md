@@ -32,7 +32,9 @@ That said, if you're interested in helping make this more robust, broaden hardwa
 - **Language-Specific Keycodes** - Support for german keycodes
 
 ### Firmware Integration
-- **Direct QMK Integration** - Uses custom QMK firmware fork with full keyboard database access (I added support for lighting in the custom firmware fork you can find here: [Custom QMK Firmware Fork](https://github.com/Radialarray/qmk_firmware)). It could potentially work with normal QMK firmware, but LEDs are not supported.
+- **Direct QMK Integration** - Uses custom QMK firmware fork with LED/RGB lighting support
+- **Background Compilation** - Build firmware without blocking the UI
+- **Live Build Progress** - Real-time compilation output and error reporting
 
 ### Developer-Friendly
 - **Human-Readable Markdown** - Layouts stored as `.md` files with YAML frontmatter
@@ -42,63 +44,150 @@ That said, if you're interested in helping make this more robust, broaden hardwa
 
 ## 📦 Installation
 
-### Prerequisites
-- **Rust** 1.75+ with `cargo`
-- **QMK Firmware** - Local clone of the QMK repository
-- **Terminal** - Modern terminal with Unicode support (iTerm2, Alacritty, Windows Terminal, etc.)
+> [!IMPORTANT]
+> **Custom QMK Fork Required**: LazyQMK requires a custom QMK firmware fork for full functionality, especially LED/RGB lighting support. Using the official QMK firmware will result in limited features.
 
-### From Latest Release
+### Fast Track: Pre-built Binary + Custom QMK Fork (Recommended)
 
-```bash
-# Install via cargo
-cargo install --git https://github.com/Radialarray/LazyQMK.git --tag v0.7.0
+**Step 1: Download and install LazyQMK for your platform**
 
-# Or download pre-built binary from releases page
-# https://github.com/Radialarray/LazyQMK/releases
-```
-
-### From Source
+<details open>
+<summary><b>Linux (x86_64)</b></summary>
 
 ```bash
-# Clone with QMK submodule
-git clone --recursive https://github.com/Radialarray/LazyQMK.git
-cd LazyQMK
+wget https://github.com/Radialarray/LazyQMK/releases/download/v0.9.2/lazyqmk-linux-x86_64.zip
+unzip lazyqmk-linux-x86_64.zip
+chmod +x lazyqmk
+sudo mv lazyqmk /usr/local/bin/
+```
+</details>
 
-# Build in release mode
-cargo build --release
+<details>
+<summary><b>Linux (ARM64)</b></summary>
 
-# Binary at: target/release/lazyqmk
+```bash
+wget https://github.com/Radialarray/LazyQMK/releases/download/v0.9.2/lazyqmk-linux-aarch64.zip
+unzip lazyqmk-linux-aarch64.zip
+chmod +x lazyqmk
+sudo mv lazyqmk /usr/local/bin/
+```
+</details>
+
+<details>
+<summary><b>macOS (Apple Silicon)</b></summary>
+
+```bash
+wget https://github.com/Radialarray/LazyQMK/releases/download/v0.9.2/lazyqmk-macos-aarch64.zip
+unzip lazyqmk-macos-aarch64.zip
+chmod +x lazyqmk
+sudo mv lazyqmk /usr/local/bin/
 ```
 
-## 🚀 Quick Start
+**⚠️ macOS Security Note**: The first time you run `lazyqmk`, macOS will block it because the binary isn't signed.
 
-### First Run - Onboarding Wizard
+To allow it:
+1. macOS will show a security warning when you try to run `lazyqmk`
+2. Go to **System Settings → Privacy & Security**
+3. Click **"Allow Anyway"** next to the LazyQMK message
+4. Run `lazyqmk` again and click **"Open"** in the dialog
+</details>
 
-On first launch, the onboarding wizard guides you through setup:
+<details>
+<summary><b>Windows (x86_64)</b></summary>
+
+```powershell
+curl -L -o lazyqmk-windows-x86_64.zip https://github.com/Radialarray/LazyQMK/releases/download/v0.9.2/lazyqmk-windows-x86_64.zip
+Expand-Archive lazyqmk-windows-x86_64.zip -DestinationPath .
+# Move lazyqmk.exe to a directory in your PATH (or run from current directory)
+```
+</details>
+
+Or download manually from the [releases page](https://github.com/Radialarray/LazyQMK/releases/latest).
+
+**Step 2: Clone the custom QMK firmware fork**
+
+```bash
+# Clone custom QMK firmware fork (with LED/RGB support)
+git clone https://github.com/Radialarray/qmk_firmware.git ~/qmk_firmware
+cd ~/qmk_firmware
+
+# Set up QMK (installs dependencies and submodules)
+qmk setup -H ~/qmk_firmware
+```
+
+**Step 3: Launch LazyQMK and configure**
 
 ```bash
 lazyqmk
 ```
 
-You'll configure:
-1. **QMK Firmware Path** - Path to your local QMK repository (needed to compile the created firmware)
-2. **Keyboard Selection** - Choose from QMK's extensive keyboard database
-3. **Layout Variant** - Select your physical layout (if multiple options)
+The onboarding wizard will ask for:
+- **QMK Firmware Path**: Path to the custom fork you just cloned
+  - Linux: `/home/YOUR_USERNAME/qmk_firmware`
+  - macOS: `/Users/YOUR_USERNAME/qmk_firmware`
+  - Windows: `C:\Users\YOUR_USERNAME\qmk_firmware`
+- **Keyboard**: Your keyboard name (e.g., `crkbd/rev1` for Corne)
+- **Layout Variant**: Your physical layout (e.g., `LAYOUT_split_3x6_3`)
 
-Configuration saved to:
-- **Linux**: `~/.config/LazyQMK/config.toml`
-- **macOS**: `~/Library/Application Support/LazyQMK/config.toml`
-- **Windows**: `%APPDATA%\LazyQMK\config.toml`
+That's it! You're ready to start editing your layout.
+
+---
+
+### Alternative: Build from Source
+
+**Prerequisites:**
+- **Rust** 1.75+ with `cargo` - [Install Rust](https://rustup.rs/)
+- **Git** - For cloning repositories
+
+**Step 1: Build LazyQMK**
+
+```bash
+git clone --recursive https://github.com/Radialarray/LazyQMK.git
+cd LazyQMK
+cargo build --release
+sudo ln -s $(pwd)/target/release/lazyqmk /usr/local/bin/lazyqmk
+```
+
+**Step 2 & 3:** Follow the same QMK fork setup and configuration steps from the Fast Track above.
+
+## 🚀 Quick Start
 
 ### Basic Workflow
 
-1. **Navigate** - Arrow keys or `hjkl` (VIM-style)
-2. **Edit Key** - Press `Enter` to open keycode picker
-3. **Search Keycode** - Type to fuzzy search (e.g., "ctrl" finds all Ctrl keys)
-4. **Assign** - Press `Enter` to apply keycode
-5. **Switch Layers** - `Tab` / `Shift+Tab`
-6. **Save** - `Ctrl+S`
-7. **Build Firmware** - `Ctrl+B` (background compilation with live progress)
+Once configured, your typical workflow looks like this:
+
+1. **Navigate** - Use arrow keys (`↑↓←→`) or VIM-style (`hjkl`) to move between keys
+2. **Edit Key** - Press `Enter` to open the searchable keycode picker
+3. **Search Keycode** - Type to fuzzy search (e.g., "ctrl" finds all Ctrl-related keys)
+4. **Assign Keycode** - Press `Enter` to apply the selected keycode to the key
+5. **Switch Layers** - Use `Tab` / `Shift+Tab` to navigate between layers
+6. **Manage Layers** - Press `Ctrl+N` to create new layers, `Ctrl+D` to delete
+7. **Organize Keys** - Press `c` to assign categories, `i` to set individual colors
+8. **Save Layout** - Press `Ctrl+S` to save your changes to the Markdown file
+9. **Build Firmware** - Press `Ctrl+B` to compile firmware (runs in background with live progress)
+
+### Your First Layout
+
+1. Launch LazyQMK: `lazyqmk`
+2. You'll see your keyboard's base layer with default keycodes
+3. Navigate to a key using arrow keys
+4. Press `Enter` to change it
+5. Type "esc" and press `Enter` to assign `KC_ESC`
+6. Press `Ctrl+S` to save
+7. Press `Ctrl+B` to build firmware - watch the build log in real-time!
+
+### Creating Custom Layouts
+
+LazyQMK stores layouts as Markdown files in your layouts directory:
+- **Linux**: `~/.local/share/LazyQMK/layouts/`
+- **macOS**: `~/Library/Application Support/LazyQMK/layouts/`
+- **Windows**: `%APPDATA%\LazyQMK\layouts\`
+
+You can:
+- Edit layouts directly in LazyQMK (recommended)
+- Edit Markdown files manually with any text editor
+- Version control layouts with git
+- Share layouts with others (plain text `.md` files)
 
 ## ⌨️ Keyboard Shortcuts
 
@@ -108,10 +197,14 @@ Configuration saved to:
 - `↑↓←→` or `hjkl` - Navigate keyboard
 - `Enter` - Open keycode picker
 - `Tab` / `Shift+Tab` - Switch between layers
+- `Ctrl+N` - Create new layer
+- `Ctrl+D` - Delete current layer
+- `c` - Assign category to key
+- `i` - Set individual key color
 - `Ctrl+S` - Save layout
 - `Ctrl+Q` - Quit application
-- `Ctrl+B` - Build firmware
-- `Ctrl+G` - Generate firmware files
+- `Ctrl+B` - Build firmware (compile)
+- `Ctrl+G` - Generate firmware files only (no compile)
 - `?` - Show help overlay
 
 ## 📋 File Format
@@ -165,7 +258,111 @@ tags: ["colemak", "programming"]
 
 Each key displays its color source indicator in the top-right corner.
 
+## 🔧 Troubleshooting
 
+### LazyQMK won't start / Configuration wizard loops
+
+**Issue**: LazyQMK starts but immediately shows the wizard again, or fails to save configuration.
+
+**Solution**:
+- Ensure the QMK firmware path you entered exists and contains a valid QMK installation
+- Check that you have write permissions to the config directory
+- Verify the custom QMK fork is properly set up (run `qmk doctor` in the QMK directory)
+
+### Build fails / "QMK CLI not found"
+
+**Issue**: Pressing `Ctrl+B` shows errors about missing QMK CLI or compilation fails.
+
+**Solution**:
+```bash
+# Install QMK CLI if not already installed
+python3 -m pip install --user qmk
+
+# Verify QMK CLI is in PATH
+qmk --version
+
+# If not in PATH, add it (Linux/macOS):
+export PATH="$HOME/.local/bin:$PATH"  # Add to ~/.bashrc or ~/.zshrc
+
+# Verify QMK setup
+cd ~/qmk_firmware  # your custom fork path
+qmk doctor
+```
+
+### Keyboard not found in database
+
+**Issue**: Your keyboard doesn't appear in the keyboard picker during setup.
+
+**Solution**:
+- Ensure you're using the custom QMK fork (Step 2)
+- Update the QMK firmware: `cd ~/qmk_firmware && git pull && make git-submodule`
+- Check if your keyboard exists in `keyboards/` directory in QMK firmware
+- Try typing part of the keyboard name (fuzzy search)
+
+### LED/RGB features not working
+
+**Issue**: Layouts compile but LED colors don't work on the keyboard.
+
+**Solution**:
+- ⚠️ Verify you're using the **custom QMK fork**, not standard QMK
+- The custom fork is at: https://github.com/Radialarray/qmk_firmware
+- Standard QMK firmware does not support LED features from LazyQMK
+- Check your config file points to the custom fork path
+
+### Layout file corrupted / Parse errors
+
+**Issue**: LazyQMK won't load your layout or shows parse errors.
+
+**Solution**:
+- Open the `.md` layout file in a text editor
+- Check YAML frontmatter is properly formatted (must have `---` delimiters)
+- Verify all table rows have correct number of columns (match keyboard layout)
+- Look for invalid keycodes or syntax errors in key definitions
+- Compare with example layout in `examples/` folder
+
+### Permission denied errors
+
+**Issue**: Can't save layouts or configuration.
+
+**Solution**:
+```bash
+# Linux/macOS - ensure config directory exists with correct permissions
+mkdir -p ~/.config/LazyQMK
+chmod 755 ~/.config/LazyQMK
+
+mkdir -p ~/.local/share/LazyQMK/layouts
+chmod 755 ~/.local/share/LazyQMK/layouts
+```
+
+### Getting Help
+
+If you encounter issues not covered here:
+1. Check existing [GitHub Issues](https://github.com/Radialarray/LazyQMK/issues)
+2. Open a new issue with:
+   - LazyQMK version (`lazyqmk --version`)
+   - Operating system and version
+   - QMK firmware path and git remote info
+   - Steps to reproduce the problem
+   - Error messages or logs
+
+## 🤝 Contributing
+
+Contributions are welcome! This project is experimental and there's room for improvement:
+
+- **Hardware Support**: Test with more keyboards, fix compatibility issues
+- **Features**: New keycode categories, improved UI/UX, additional QMK features
+- **Bug Fixes**: Report and fix issues you encounter
+- **Documentation**: Improve guides, add examples, clarify confusing parts
+
+Please read [ARCHITECTURE.md](docs/ARCHITECTURE.md) and [AGENTS.md](AGENTS.md) before contributing.
+
+## 📚 Additional Resources
+
+- [Custom QMK Firmware Fork](https://github.com/Radialarray/qmk_firmware) - Required for LED/RGB support
+- [QMK Documentation](https://docs.qmk.fm/) - Official QMK firmware docs
+- [Example Layout](examples/corne_choc_pro_layout.md) - Reference Corne layout
+- [Architecture Guide](docs/ARCHITECTURE.md) - Technical architecture details
+- [Features Documentation](docs/FEATURES.md) - Complete feature list
 
 ## 📄 License
 
