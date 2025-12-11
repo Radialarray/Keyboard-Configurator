@@ -55,7 +55,7 @@ That said, if you're interested in helping make this more robust, broaden hardwa
 <summary><b>Linux (x86_64)</b></summary>
 
 ```bash
-wget https://github.com/Radialarray/LazyQMK/releases/download/v0.9.2/lazyqmk-linux-x86_64.zip
+wget https://github.com/Radialarray/LazyQMK/releases/latest/download/lazyqmk-linux-x86_64.zip
 unzip lazyqmk-linux-x86_64.zip
 chmod +x lazyqmk
 sudo mv lazyqmk /usr/local/bin/
@@ -66,7 +66,7 @@ sudo mv lazyqmk /usr/local/bin/
 <summary><b>Linux (ARM64)</b></summary>
 
 ```bash
-wget https://github.com/Radialarray/LazyQMK/releases/download/v0.9.2/lazyqmk-linux-aarch64.zip
+wget https://github.com/Radialarray/LazyQMK/releases/latest/download/lazyqmk-linux-aarch64.zip
 unzip lazyqmk-linux-aarch64.zip
 chmod +x lazyqmk
 sudo mv lazyqmk /usr/local/bin/
@@ -77,7 +77,7 @@ sudo mv lazyqmk /usr/local/bin/
 <summary><b>macOS (Apple Silicon)</b></summary>
 
 ```bash
-wget https://github.com/Radialarray/LazyQMK/releases/download/v0.9.2/lazyqmk-macos-aarch64.zip
+wget https://github.com/Radialarray/LazyQMK/releases/latest/download/lazyqmk-macos-aarch64.zip
 unzip lazyqmk-macos-aarch64.zip
 chmod +x lazyqmk
 sudo mv lazyqmk /usr/local/bin/
@@ -96,7 +96,7 @@ To allow it:
 <summary><b>Windows (x86_64)</b></summary>
 
 ```powershell
-curl -L -o lazyqmk-windows-x86_64.zip https://github.com/Radialarray/LazyQMK/releases/download/v0.9.2/lazyqmk-windows-x86_64.zip
+curl -L -o lazyqmk-windows-x86_64.zip https://github.com/Radialarray/LazyQMK/releases/latest/download/lazyqmk-windows-x86_64.zip
 Expand-Archive lazyqmk-windows-x86_64.zip -DestinationPath .
 # Move lazyqmk.exe to a directory in your PATH (or run from current directory)
 ```
