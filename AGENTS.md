@@ -1,6 +1,6 @@
 # LazyQMK Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2025-11-24
+Auto-generated from all feature plans. Last updated: 2025-12-12
 
 ## Active Technologies
 - Rust 1.91.1+ + Ratatui 0.29 (TUI framework), Crossterm 0.29 (terminal backend), Serde 1.0 (serialization) (archived/021-dependency-updates)
@@ -27,6 +27,7 @@ cargo build --release                        # Build release binary
 Rust 1.75+: Follow standard conventions
 
 ## Recent Changes
+- 023-idle-effect: Added idle effect screensaver for RGB lighting with configurable timeout (default 1 min), duration (default 5 min), and 9 selectable effects (default Breathing). Generates QMK C state machine for idle → effect → off transitions. Settings managed via TUI Settings Manager and stored per-layout in markdown files.
 - archived/021-dependency-updates: Updated all dependencies to latest versions (json5 1.3, dirs 6.0, ratatui 0.29, crossterm 0.29, clap 4.5, serde_yml, toml 0.9, arboard 3.6, uuid 1.19), fixed 43 ratatui deprecation warnings, migrated from deprecated serde_yaml to serde_yml
 - archived/020-robust-keyboard-picker: Added JSON5 parser support, robust QMK config discovery and merging
 - archived/002-fix-startup-warnings: Added Rust 1.75+ (using Rust 1.88.0 per startup_errors.md) + Ratatui 0.26 (TUI framework), Crossterm 0.27 (terminal backend), Serde 1.0 (serialization)

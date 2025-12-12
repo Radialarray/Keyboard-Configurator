@@ -1,6 +1,6 @@
 # LazyQMK - Features Documentation
 
-> **Last Updated:** 2025-12-06
+> **Last Updated:** 2025-12-12
 
 A comprehensive terminal-based keyboard layout editor for mechanical keyboards with QMK firmware support.
 
@@ -124,6 +124,17 @@ Each key displays a color source indicator in its top-right corner.
 - Build log viewer with scrolling (Shift+B)
 - Copy build log to clipboard (Ctrl+C in log view)
 - Multiple output formats: UF2 (RP2040), HEX (AVR), BIN (ARM)
+
+**Idle Effect Screensaver**
+- Configurable RGB screensaver that activates after keyboard inactivity
+- Three-state system: Normal → Idle Effect Animation → LEDs Off
+- Customizable idle timeout (default: 1 minute)
+- Customizable effect duration (default: 5 minutes before LEDs turn off)
+- 9 selectable RGB effects: Breathing (default), Rainbow Beacon, Rainbow Pinwheels, Solid Color, Alphas Mods, Gradient Up/Down, Gradient Left/Right, Band, Band Pinwheel
+- Per-layout settings stored in markdown files
+- Automatically restores previous RGB mode on keypress
+- Conflicts with RGB_MATRIX_TIMEOUT (suppressed when idle effect enabled)
+- Configurable via Settings Manager (Shift+S)
 
 ### Configuration & Setup
 

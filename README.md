@@ -120,6 +120,7 @@ That's it! You're ready to start editing your layout.
 - **Direct QMK Integration** - Uses custom QMK firmware fork with LED/RGB lighting support
 - **Background Compilation** - Build firmware without blocking the UI
 - **Live Build Progress** - Real-time compilation output and error reporting
+- **Idle Effect Screensaver** - Configurable RGB screensaver that triggers after keyboard inactivity (customizable timeout, duration, and animation effect)
 
 ### Developer-Friendly
 - **Human-Readable Markdown** - Layouts stored as `.md` files with YAML frontmatter
