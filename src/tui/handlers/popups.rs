@@ -243,26 +243,46 @@ fn handle_keycode_picker_event(state: &mut AppState, event: KeycodePickerEvent) 
 
             // Check if we're in a tap dance form picker flow
             if let Some(mut form) = state.tap_dance_form_cache.take() {
-                // Validate that the keycode is basic (no parameterized keycodes in tap dances)
-                if !is_basic_keycode(&keycode) {
-                    state.set_error("Only basic keycodes allowed in tap dances");
+                // Check if this is a parameterized keycode that needs more input
+                // (e.g., MO() needs a layer number)
+                if start_parameterized_keycode_flow(state, &keycode) {
+                    // Parameterized flow started - keep form cached and pick target for later
                     state.tap_dance_form_cache = Some(form);
+                    // Pick target remains set for when the parameterized keycode is completed
                     return Ok(false);
                 }
-
+                
                 // Apply keycode to the appropriate field based on pick target
                 if let Some(target) = state.tap_dance_form_pick_target.take() {
                     use crate::tui::tap_dance_form::FormRow;
                     match target {
-                        FormRow::Single => {
-                            form.set_single_tap(keycode.clone());
-                            state.set_status(format!("Single tap set to: {keycode}"));
-                        }
-                        FormRow::Double => {
-                            form.set_double_tap(keycode.clone());
-                            state.set_status(format!("Double tap set to: {keycode}"));
+                        FormRow::Single | FormRow::Double => {
+                            // Single/Double taps must be basic keycodes (no parameterized)
+                            if !is_basic_keycode(&keycode) {
+                                state.set_error("Only basic keycodes allowed for single/double tap");
+                                state.tap_dance_form_cache = Some(form);
+                                state.tap_dance_form_pick_target = Some(target);
+                                return Ok(false);
+                            }
+                            
+                            if target == FormRow::Single {
+                                form.set_single_tap(keycode.clone());
+                                state.set_status(format!("Single tap set to: {keycode}"));
+                            } else {
+                                form.set_double_tap(keycode.clone());
+                                state.set_status(format!("Double tap set to: {keycode}"));
+                            }
                         }
                         FormRow::Hold => {
+                            // Hold action can be any keycode, including layer keycodes (MO, TG, etc.)
+                            // But still reject complex parameterized keycodes like LT, MT
+                            if !is_basic_or_layer_keycode(&keycode) {
+                                state.set_error("Hold action: use basic keycodes or layer keycodes (MO, TG, TO, etc.)");
+                                state.tap_dance_form_cache = Some(form);
+                                state.tap_dance_form_pick_target = Some(target);
+                                return Ok(false);
+                            }
+                            
                             form.set_hold(keycode.clone());
                             state.set_status(format!("Hold set to: {keycode}"));
                         }
@@ -952,6 +972,32 @@ fn is_basic_keycode(code: &str) -> bool {
     !code.contains('(') && !code.contains('@')
 }
 
+/// Check if a keycode is a basic keycode OR a simple layer keycode (MO, TG, TO, etc.)
+/// Allows: KC_A, MO(1), TG(2), TO(3), TT(1), OSL(2)
+/// Rejects: LT(1, KC_A), MT(MOD_LCTL, KC_A), MO(@layer_id), etc.
+fn is_basic_or_layer_keycode(code: &str) -> bool {
+    // Basic keycodes are always allowed
+    if is_basic_keycode(code) {
+        return true;
+    }
+    
+    // Reject @ layer references (not yet supported in tap dance hold)
+    if code.contains('@') {
+        return false;
+    }
+    
+    // Check if it's a simple layer keycode (single parameter, layer number)
+    // MO(n), TG(n), TO(n), TT(n), OSL(n) are allowed
+    // LT(n, KC_X), MT(...), LM(...) etc. are NOT allowed
+    if let Some(prefix) = code.split('(').next() {
+        matches!(prefix, "MO" | "TG" | "TO" | "TT" | "OSL" | "DF")
+            && code.matches('(').count() == 1  // Only one opening paren
+            && !code.contains(',')              // No comma (no second parameter)
+    } else {
+        false
+    }
+}
+
 /// Handle input for setup wizard
 pub fn handle_setup_wizard_input(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
     // Delegate to wizard's handle_input function
@@ -1468,5 +1514,30 @@ mod tests {
         assert_eq!(extract_td_name("TD()"), None); // Empty name
         assert_eq!(extract_td_name("KC_A"), None); // Not a TD
         assert_eq!(extract_td_name("TD(incomplete"), None); // Missing closing paren
+    }
+
+    #[test]
+    fn test_is_basic_or_layer_keycode() {
+        // Basic keycodes should be allowed
+        assert!(is_basic_or_layer_keycode("KC_A"));
+        assert!(is_basic_or_layer_keycode("KC_ENTER"));
+        assert!(is_basic_or_layer_keycode("KC_LSFT"));
+        
+        // Simple layer keycodes should be allowed
+        assert!(is_basic_or_layer_keycode("MO(1)"));
+        assert!(is_basic_or_layer_keycode("TG(2)"));
+        assert!(is_basic_or_layer_keycode("TO(3)"));
+        assert!(is_basic_or_layer_keycode("TT(1)"));
+        assert!(is_basic_or_layer_keycode("OSL(2)"));
+        assert!(is_basic_or_layer_keycode("DF(0)"));
+        
+        // Complex parameterized keycodes should be rejected
+        assert!(!is_basic_or_layer_keycode("LT(1, KC_SPC)"));
+        assert!(!is_basic_or_layer_keycode("MT(MOD_LCTL, KC_A)"));
+        assert!(!is_basic_or_layer_keycode("LM(1, MOD_LSFT)"));
+        assert!(!is_basic_or_layer_keycode("LCTL_T(KC_A)"));
+        
+        // Layer references should be rejected
+        assert!(!is_basic_or_layer_keycode("MO(@layer_id)"));
     }
 }

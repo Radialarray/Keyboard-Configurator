@@ -51,8 +51,8 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout as RatatuiLayout, Rect},
     style::{Modifier, Style},
-    text::Line,
-    widgets::{Block, Borders, Clear, Paragraph},
+    text::{Line, Span},
+    widgets::{Block, Borders, Clear, Paragraph, Wrap},
     Frame, Terminal,
 };
 use std::io;
@@ -846,6 +846,11 @@ fn render(f: &mut Frame, state: &AppState) {
     if let Some(popup_type) = &state.active_popup {
         render_popup(f, popup_type, state);
     }
+
+    // Render error overlay on top of everything if error is present
+    if let Some(ref error) = state.error_message {
+        render_error_overlay(f, error, &state.theme);
+    }
 }
 
 /// Render title bar with layout name and dirty indicator
@@ -1016,6 +1021,72 @@ fn render_unsaved_prompt(f: &mut Frame, theme: &Theme) {
     f.render_widget(prompt, area);
 }
 
+/// Render error overlay on top of all other UI elements
+fn render_error_overlay(f: &mut Frame, error: &str, theme: &Theme) {
+    let area = centered_rect(70, 40, f.area());
+
+    // Clear the background area first
+    f.render_widget(Clear, area);
+
+    // Render opaque background with error color
+    let background = Block::default().style(Style::default().bg(theme.background));
+    f.render_widget(background, area);
+
+    // Split into title and message
+    let chunks = RatatuiLayout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Title
+            Constraint::Min(3),    // Error message
+            Constraint::Length(2), // Help text
+        ])
+        .split(area);
+
+    // Title with error styling
+    let title = Paragraph::new("ERROR")
+        .style(
+            Style::default()
+                .fg(theme.error)
+                .add_modifier(Modifier::BOLD),
+        )
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .style(Style::default().fg(theme.error).bg(theme.background)),
+        );
+    f.render_widget(title, chunks[0]);
+
+    // Error message with word wrap
+    let error_text = Paragraph::new(error)
+        .style(Style::default().fg(theme.text))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Details ")
+                .style(Style::default().bg(theme.background)),
+        )
+        .wrap(Wrap { trim: true });
+    f.render_widget(error_text, chunks[1]);
+
+    // Help text
+    let help = Paragraph::new(vec![Line::from(vec![
+        Span::styled(
+            "Enter/Esc",
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" Dismiss"),
+    ])])
+    .style(Style::default().fg(theme.text).bg(theme.background))
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .style(Style::default().bg(theme.background)),
+    );
+    f.render_widget(help, chunks[2]);
+}
+
 /// Render template save dialog
 fn render_template_save_dialog(f: &mut Frame, state: &AppState) {
     let area = centered_rect(70, 60, f.area());
@@ -1157,6 +1228,18 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 
 /// Handle keyboard input events
 fn handle_key_event(state: &mut AppState, key: event::KeyEvent) -> Result<bool> {
+    use crossterm::event::KeyCode;
+
+    // If error overlay is shown, allow dismissing with Enter or Esc
+    if state.error_message.is_some() {
+        if matches!(key.code, KeyCode::Enter | KeyCode::Esc) {
+            state.clear_error();
+            return Ok(false);
+        }
+        // Block all other input while error is shown
+        return Ok(false);
+    }
+
     // Route to popup handler if popup is active
     if state.active_popup.is_some() {
         return handlers::handle_popup_input(state, key);
