@@ -93,6 +93,11 @@ fn open_picker_for_param_index(state: &mut AppState, param_idx: usize) {
             state.active_popup = Some(PopupType::TapKeycodePicker);
             state.set_status(&message);
         }
+        ParamType::TapDance => {
+            // TODO: Implement tap dance picker in Phase 3
+            // For now, show a message that this is not yet implemented
+            state.set_status("Tap Dance parameter selection not yet implemented");
+        }
     }
 }
 
@@ -975,6 +980,7 @@ pub fn handle_popup_input(state: &mut AppState, key: event::KeyEvent) -> Result<
         Some(PopupType::TapKeycodePicker) => handle_tap_keycode_picker_input(state, key),
         Some(PopupType::ModifierPicker) => handle_modifier_picker_input(state, key),
         Some(PopupType::KeyEditor) => key_editor::handle_input(state, key),
+        Some(PopupType::TapDanceEditor) => super::handle_tap_dance_editor_input(state, key),
         _ => {
             // Escape closes any popup
             if key.code == KeyCode::Esc {
@@ -1005,6 +1011,7 @@ mod tests {
             uncolored_key_behavior: crate::models::UncoloredKeyBehavior::default(),
             idle_effect_settings: crate::models::IdleEffectSettings::default(),
             tap_hold_settings: crate::models::TapHoldSettings::default(),
+            tap_dances: vec![],
         };
         let mut state = AppState::new(
             layout,

@@ -36,6 +36,7 @@ pub mod modifier_picker;
 pub mod onboarding_wizard;
 pub mod settings_manager;
 pub mod status_bar;
+pub mod tap_dance_editor;
 pub mod template_browser;
 pub mod theme;
 
@@ -273,6 +274,8 @@ pub enum PopupType {
     ModifierPicker,
     /// Key editor popup for viewing/editing key properties
     KeyEditor,
+    /// Tap dance editor popup
+    TapDanceEditor,
 }
 
 /// Selection mode for multi-key operations
@@ -314,14 +317,16 @@ pub enum ActiveComponent {
     TemplateBrowser(TemplateBrowser),
     /// Layout picker component (for loading saved layouts)
     LayoutPicker(LayoutPicker),
-    /// Layout variant picker component (for switching QMK keyboard layout variants)
-    LayoutVariantPicker(LayoutVariantPicker),
+    /// Tap dance editor component
+    TapDanceEditor(tap_dance_editor::TapDanceEditor),
     /// Build log component
     BuildLog(BuildLog),
     /// Help overlay component
     HelpOverlay(HelpOverlay),
     /// Settings manager component
     SettingsManager(settings_manager::SettingsManager),
+    /// Layout variant picker component (for switching QMK layout variants)
+    LayoutVariantPicker(LayoutVariantPicker),
 }
 
 /// Application state - single source of truth
@@ -698,6 +703,13 @@ impl AppState {
         self.active_popup = Some(PopupType::SettingsManager);
     }
 
+    /// Open the tap dance editor component
+    pub fn open_tap_dance_editor(&mut self) {
+        let editor = tap_dance_editor::TapDanceEditor::new(&self.layout);
+        self.active_component = Some(ActiveComponent::TapDanceEditor(editor));
+        self.active_popup = Some(PopupType::TapDanceEditor);
+    }
+
     /// Close the currently active component
     pub fn close_component(&mut self) {
         self.active_component = None;
@@ -932,6 +944,11 @@ fn render_popup(f: &mut Frame, popup_type: &PopupType, state: &AppState) {
         }
         PopupType::KeyEditor => {
             key_editor::render_key_editor(f, state);
+        }
+        PopupType::TapDanceEditor => {
+            if let Some(ActiveComponent::TapDanceEditor(ref editor)) = state.active_component {
+                editor.render(f, f.area(), &state.theme);
+            }
         }
     }
 }

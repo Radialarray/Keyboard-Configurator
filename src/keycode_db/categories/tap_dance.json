@@ -1,0 +1,23 @@
+{
+  "category": {
+    "id": "tap_dance",
+    "name": "Tap Dance",
+    "description": "Keys with different actions on single/double tap or hold"
+  },
+  "keycodes": [
+    {
+      "code": "TD()",
+      "name": "Tap Dance",
+      "category": "tap_dance",
+      "pattern": "TD\\(([A-Za-z0-9_]+)\\)",
+      "description": "Tap once/twice/hold for different actions",
+      "params": [
+        {
+          "type": "tapdance",
+          "name": "action",
+          "description": "Tap dance action name"
+        }
+      ]
+    }
+  ]
+}
