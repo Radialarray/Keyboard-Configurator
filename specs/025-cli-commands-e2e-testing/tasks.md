@@ -24,7 +24,10 @@
   - [ ] `normalize_output(content) -> String` (strip timestamps/UUIDs)
   - [ ] Support `UPDATE_GOLDEN=1` env var
 
-### Validate Command
+### Validate Command (API)
+```
+lazyqmk validate --layout <file> [--json] [--strict]
+```
 - [ ] Create `src/cli/validate.rs`
 - [ ] Implement `ValidateArgs` struct with clap derive
 - [ ] Implement validation logic (delegate to existing validator)
@@ -38,7 +41,11 @@
   - [ ] JSON output structure
   - [ ] Strict mode behavior
 
-### Generate Command
+### Generate Command (API)
+```
+lazyqmk generate --layout <file> --qmk-path <dir> --out-dir <dir> \
+                 [--layout-name <name>] [--format keymap|config|all] [--deterministic]
+```
 - [ ] Create `src/cli/generate.rs`
 - [ ] Implement `GenerateArgs` struct
 - [ ] Add `--deterministic` flag logic
@@ -54,7 +61,10 @@
   - [ ] Idle effect on vs off
   - [ ] RGB timeout precedence
 
-### Inspect Command
+### Inspect Command (API)
+```
+lazyqmk inspect --layout <file> --section <metadata|layers|categories|tap-dances|settings> [--json]
+```
 - [ ] Create `src/cli/inspect.rs`
 - [ ] Implement `InspectArgs` struct
 - [ ] Add section parsers (metadata, layers, categories, tap-dances, settings)
@@ -63,7 +73,10 @@
   - [ ] Each section type
   - [ ] Invalid section → exit 1
 
-### Keycode Utilities
+### Keycode Utilities (API)
+```
+lazyqmk keycode resolve --layout <file> --expr "<keycode>" [--json]
+```
 - [ ] Create `src/cli/keycode.rs`
 - [ ] Implement `keycode resolve` subcommand
 - [ ] Add UUID→index resolution logic

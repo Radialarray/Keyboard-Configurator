@@ -1343,3 +1343,135 @@ No new external dependencies required.
 - `lazyqmk export` - Export to VIA JSON or other formats
 - `lazyqmk lint` - Static analysis and best practices checker
 - `lazyqmk diff` - Compare two layouts
+
+---
+
+## CLI Command API (Draft)
+
+### Top-level structure
+```
+lazyqmk <command> [subcommand] [flags] [options]
+```
+- All commands support `--help`.
+- All reporting commands should accept `--json` for machine-readable output.
+- Exit codes: `0` success; `1` user/validation error; `2+` IO/infra errors.
+
+### Commands and key flags
+
+1) **validate**
+```
+lazyqmk validate --layout <file> [--json] [--strict]
+```
+- Output: validation report; optional JSON schema as defined above.
+
+2) **inspect**
+```
+lazyqmk inspect --layout <file> --section <metadata|layers|categories|tap-dances|settings> [--json]
+```
+- Output: section data (table or JSON).
+
+3) **generate**
+```
+lazyqmk generate --layout <file> --qmk-path <dir> --out-dir <dir> \
+                 [--layout-name <name>] [--format keymap|config|all] [--deterministic]
+```
+- Output: writes `keymap.c` / `config.h`; prints summary; deterministic mode for goldens.
+
+4) **keycode resolve**
+```
+lazyqmk keycode resolve --layout <file> --expr "<keycode>" [--json]
+```
+- Output: resolved keycode, layer index/name, validity.
+
+5) **layer-refs**
+```
+lazyqmk layer-refs --layout <file> [--json]
+```
+- Output: inbound refs per layer; transparency warnings.
+
+6) **tap-dance**
+```
+lazyqmk tap-dance list --layout <file> [--json]
+lazyqmk tap-dance add --layout <file> --name <name> --single <kc> [--double <kc>] [--hold <kc>]
+lazyqmk tap-dance delete --layout <file> --name <name> [--force]
+lazyqmk tap-dance validate --layout <file> [--json]
+```
+- Output: lists/validates tap dances; add/delete mutates layout file.
+
+7) **category**
+```
+lazyqmk category list --layout <file> [--json]
+lazyqmk category add --layout <file> --id <id> --name <name> --color <hex>
+lazyqmk category delete --layout <file> --id <id> [--force]
+```
+- Output: category inventory and mutation.
+
+8) **list-keyboards / list-layouts / geometry**
+```
+lazyqmk list-keyboards --qmk-path <dir> [--filter <regex>] [--json]
+lazyqmk list-layouts --qmk-path <dir> --keyboard <path> [--json]
+lazyqmk geometry --qmk-path <dir> --keyboard <path> --layout-name <name> [--json]
+```
+- Gated for QMK presence; contract tests marked `#[ignore]` or behind feature flag.
+
+9) **config**
+```
+lazyqmk config show [--json]
+lazyqmk config set [--qmk-path <dir>] [--output-dir <dir>] [--theme auto|light|dark]
+```
+- Output: current config or status of set operation.
+
+10) **template**
+```
+lazyqmk template list [--json]
+lazyqmk template save --layout <file> --name <name> [--tags <tag1,tag2>]
+lazyqmk template apply --name <name> --out <file>
+```
+- Output: template inventory and file operations.
+
+11) **keycodes**
+```
+lazyqmk keycodes [--category <name>] [--json]
+```
+- Output: keycode list filtered by category.
+
+12) **help**
+```
+lazyqmk help [topic]
+```
+- Output: pulls content from `src/data/help.toml`.
+
+---
+
+## Agent Selection & Parallelization Guidance
+
+Use this to choose coding agents and parallelize safely:
+
+- **Complexity bands**
+  - *coder-low*: Simple, isolated wiring (arg structs, basic IO, adding tests/fixtures) in 1–2 files.
+  - *coder-high*: Cross-cutting CLI plumbing, JSON schemas, deterministic gen, or file mutation logic touching multiple modules.
+  - *Do-it-yourself*: Architectural changes (command tree design, error-code standards) or overlapping refactors across CLI + services.
+
+- **Isolation rules**
+  - Parallelize only when commands touch **non-overlapping files/modules**.
+  - Avoid parallel work when modifying shared surfaces: `src/main.rs` command tree, shared CLI helpers, or common services (validator/generator/tap-dance/category services).
+  - Safe to parallelize:
+    - Adding new E2E tests that only touch `tests/cli_*.rs` and goldens.
+    - Adding fixtures in `tests/fixtures/` while another agent adds docs.
+    - Implementing unrelated subcommands that each live in separate module files under `src/cli/` and don’t modify shared helpers.
+  - Not safe to parallelize:
+    - Simultaneous edits to `src/main.rs` or shared CLI helper modules.
+    - Concurrent changes to generation/validation services consumed by multiple commands.
+    - Shared golden normalization helpers.
+
+- **Recommended agent mapping**
+  - Command scaffolding & clap args (per new subcommand) → *coder-low* if isolated.
+  - Shared CLI infra, JSON schema structs, deterministic output hooks, file mutation (tap-dance/category) → *coder-high*.
+  - Test fixture/golden helper build-out → *coder-low*.
+  - Golden output normalization logic → *coder-high* (affects many tests).
+
+- **Parallelization playbook**
+  - Step 1: Implement/lock the command tree and shared helpers (single agent).
+  - Step 2: Parallelize independent subcommands in separate modules (`src/cli/<cmd>.rs`) once shared helpers are stable.
+  - Step 3: Add tests/goldens in parallel, as long as they target different files.
+  - Step 4: Serialize work when touching generator/validator internals or golden normalization.
