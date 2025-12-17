@@ -48,6 +48,94 @@ Rust 1.75+: Follow standard conventions
 - **Note**: CI may use newer Rust/clippy versions with stricter lints. If CI fails but local passes, update Rust (`rustup update stable`) and re-run clippy
 - **Required Rust version**: 1.91.1 or newer (matches CI to ensure consistent clippy behavior)
 
+#### Test Categories
+LazyQMK has three categories of tests:
+
+1. **CI Tests (Automated)** - Run on every push/PR
+   - Unit tests: `cargo test --lib`
+   - Integration tests: `cargo test --tests`
+   - Currently: 234 tests run automatically in CI
+
+2. **Manual Integration Tests** - Require QMK submodule or external dependencies
+   - Marked with `#[ignore]` attribute
+   - Must be run manually before releases
+   - See Pre-Release Testing section below
+
+3. **Pre-Release Tests** - Critical validation before creating releases
+   - Test real QMK firmware generation
+   - Validate QMK metadata commands with actual submodule
+   - Ensure end-to-end workflows function correctly
+
+#### Pre-Release Testing Requirements
+
+**IMPORTANT:** Before creating a new release, ALL pre-release tests MUST be run and pass.
+
+These tests validate integration with the QMK firmware submodule and are too resource-intensive for CI. They are marked with `#[ignore]` and must be run manually.
+
+##### 1. Initialize QMK Submodule
+```bash
+# Initialize the qmk_firmware submodule (~500MB, one-time setup)
+git submodule update --init --recursive qmk_firmware
+
+# Optional: Install QMK CLI if testing full pipeline
+pip3 install qmk
+qmk setup
+```
+
+##### 2. Run QMK Metadata Integration Tests (15 tests)
+```bash
+# Test list-keyboards command with real QMK firmware
+cargo test --test cli_qmk_tests -- --ignored
+
+# Expected: All 15 tests pass
+# These validate: list-keyboards, list-layouts, geometry commands
+```
+
+##### 3. Run Full Pipeline Integration Tests (3 tests)
+```bash
+# Test complete firmware generation with all features
+cargo test --test firmware_gen_tests -- --ignored
+
+# Test QMK CLI integration
+cargo test --test qmk_info_json_tests -- --ignored
+
+# Test tap dance full pipeline
+cargo test --test cli_tap_dance_tests -- --ignored
+
+# Expected: All 3 tests pass
+# These validate: End-to-end firmware generation, QMK compilation
+```
+
+##### 4. Verify All Tests Pass
+```bash
+# Summary: Total pre-release tests
+cargo test -- --ignored 2>&1 | grep "test result"
+
+# Expected output should show:
+# - QMK tests: 15 passed
+# - Pipeline tests: 3 passed
+# - Total: 18+ passed (some config tests may be included)
+```
+
+##### 5. Final Validation Checklist
+- [ ] All CI tests pass: `cargo test --tests && cargo test --lib`
+- [ ] All pre-release tests pass: `cargo test -- --ignored`
+- [ ] Clippy clean: `cargo clippy --all-features -- -D warnings`
+- [ ] Tested on target platform (macOS/Linux/Windows)
+- [ ] QMK submodule is at expected commit
+- [ ] Version number updated in `Cargo.toml`
+- [ ] CHANGELOG reviewed (auto-generated from commits)
+
+**Only proceed with release creation if all checklist items are complete.**
+
+##### Why These Tests Are Manual
+- **QMK submodule:** 500MB+ repository, expensive for CI
+- **Compilation time:** 5-10 minutes for full firmware builds
+- **External dependencies:** Requires QMK CLI tools
+- **Cost/benefit:** 18 tests vs. significant CI resource usage
+
+These tests provide critical validation that fixtures and mocks cannot replace. They ensure LazyQMK works correctly with real QMK firmware before releases go to users.
+
 ### Help System Source of Truth
 - **Context help and help menu text must come from `src/data/help.toml`**. Do not hardcode help strings in code; add or update entries in `help.toml` instead.
 

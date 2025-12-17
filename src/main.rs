@@ -49,16 +49,35 @@ enum Command {
     Validate(cli::ValidateArgs),
     /// Generate QMK firmware files (keymap.c, config.h)
     Generate(cli::GenerateArgs),
+    /// Display help topics and keybindings
+    #[command(name = "show-help")]
+    ShowHelp(cli::HelpArgs),
     /// Inspect specific sections of a layout file
     Inspect(cli::InspectArgs),
     /// Resolve layer UUID references in keycodes
     Keycode(cli::KeycodeArgs),
+    /// List available keycodes from the embedded keycode database
+    Keycodes(cli::KeycodesArgs),
     /// Manage tap dance definitions
     #[command(name = "tap-dance")]
     TapDance(cli::TapDanceArgs),
     /// Show layer references and transparency warnings
     #[command(name = "layer-refs")]
     LayerRefs(cli::LayerRefsArgs),
+    /// List all compilable keyboards in QMK firmware directory
+    #[command(name = "list-keyboards")]
+    ListKeyboards(cli::ListKeyboardsArgs),
+    /// List layout variants for a specific keyboard
+    #[command(name = "list-layouts")]
+    ListLayouts(cli::ListLayoutsArgs),
+    /// Display matrix, LED, and visual coordinate mappings
+    Geometry(cli::GeometryArgs),
+    /// Manage application configuration
+    Config(cli::ConfigArgs),
+    /// Manage categories in a layout
+    Category(cli::CategoryArgs),
+    /// Manage layout templates
+    Template(cli::TemplateArgs),
 }
 
 fn main() -> Result<()> {
@@ -83,6 +102,13 @@ fn main() -> Result<()> {
                     e.exit_code
                 }
             },
+            Command::ShowHelp(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
             Command::Inspect(args) => match args.execute() {
                 Ok(()) => ExitCode::Success,
                 Err(e) => {
@@ -97,6 +123,13 @@ fn main() -> Result<()> {
                     e.exit_code
                 }
             },
+            Command::Keycodes(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
             Command::TapDance(args) => match args.execute() {
                 Ok(()) => ExitCode::Success,
                 Err(e) => {
@@ -105,6 +138,48 @@ fn main() -> Result<()> {
                 }
             },
             Command::LayerRefs(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::ListKeyboards(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::ListLayouts(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::Geometry(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::Config(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::Category(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::Template(args) => match args.execute() {
                 Ok(()) => ExitCode::Success,
                 Err(e) => {
                     eprintln!("Error: {}", e.message);
