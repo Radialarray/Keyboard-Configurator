@@ -133,7 +133,7 @@ fn test_reproduction_td_selection_flow() {
         state
             .active_component
             .as_ref()
-            .map(|c| std::mem::discriminant(c))
+            .map(std::mem::discriminant)
     );
     println!("  active_popup: {:?}", state.active_popup);
 
@@ -200,7 +200,7 @@ fn test_reproduction_td_selection_flow() {
         state
             .active_component
             .as_ref()
-            .map(|c| std::mem::discriminant(c))
+            .map(std::mem::discriminant)
     );
     println!("  active_popup: {:?}", state.active_popup);
     println!(

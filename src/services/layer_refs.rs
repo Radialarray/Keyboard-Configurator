@@ -407,7 +407,7 @@ mod tests {
         assert_eq!(index.get(&2).unwrap()[0].position, Position::new(0, 1));
 
         // Layer 0 has no inbound references
-        assert!(index.get(&0).is_none());
+        assert!(!index.contains_key(&0));
     }
 
     #[test]

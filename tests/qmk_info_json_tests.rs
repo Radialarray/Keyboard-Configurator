@@ -373,7 +373,7 @@ fn test_parse_keebart_corne_choc_pro() {
 }
 
 #[test]
-#[ignore] // Requires QMK CLI installed - run manually with: cargo test -- --ignored
+#[ignore = "Requires QMK CLI installed - run manually with: cargo test -- --ignored"]
 fn test_scan_keyboards_finds_crkbd() {
     if !qmk_submodule_exists() {
         eprintln!("Skipping test: QMK submodule not initialized");

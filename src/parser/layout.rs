@@ -249,6 +249,14 @@ fn parse_content(lines: &[&str], layout: &mut Layout) -> Result<()> {
             continue;
         }
 
+        // Check for tap dances section (## Tap Dances)
+        if line == "## Tap Dances" {
+            line_num = parse_tap_dances(lines, line_num, layout).with_context(|| {
+                format!("Error parsing tap dances at line {}", line_num + 1)
+            })?;
+            continue;
+        }
+
         line_num += 1;
     }
 
@@ -895,6 +903,121 @@ fn parse_key_descriptions(lines: &[&str], start_line: usize, layout: &mut Layout
     Ok(line_num)
 }
 
+/// Parses the tap dances section.
+///
+/// Format:
+/// ```markdown
+/// ## Tap Dances
+///
+/// - **name**:
+///   - Single Tap: KC_ESC
+///   - Double Tap: KC_CAPS
+///   - Hold: KC_LCTL
+/// ```
+#[allow(clippy::unnecessary_wraps)]
+fn parse_tap_dances(lines: &[&str], start_line: usize, layout: &mut Layout) -> Result<usize> {
+    use crate::models::TapDanceAction;
+
+    let mut line_num = start_line + 1; // Skip "## Tap Dances" header
+
+    // State for parsing current tap dance
+    let mut current_name: Option<String> = None;
+    let mut current_single: Option<String> = None;
+    let mut current_double: Option<String> = None;
+    let mut current_hold: Option<String> = None;
+
+    // Helper to finish current tap dance
+    let finish_current_td = |name: Option<String>,
+                              single: Option<String>,
+                              double: Option<String>,
+                              hold: Option<String>,
+                              layout: &mut Layout|
+     -> Result<()> {
+        if let (Some(name), Some(single)) = (name, single) {
+            let mut td = TapDanceAction::new(name, single);
+            if let Some(double) = double {
+                td = td.with_double_tap(double);
+            }
+            if let Some(hold) = hold {
+                td = td.with_hold(hold);
+            }
+            // Validate before adding
+            td.validate()?;
+            layout.tap_dances.push(td);
+        }
+        Ok(())
+    };
+
+    while line_num < lines.len() {
+        let line = lines[line_num];
+        let trimmed = line.trim();
+
+        // Skip empty lines
+        if trimmed.is_empty() {
+            line_num += 1;
+            continue;
+        }
+
+        // Stop at next section
+        if trimmed.starts_with("##") || trimmed.starts_with("---") {
+            // Finish current tap dance if any
+            finish_current_td(
+                current_name.take(),
+                current_single.take(),
+                current_double.take(),
+                current_hold.take(),
+                layout,
+            )?;
+            break;
+        }
+
+        // Parse tap dance name: - **name**: (check trimmed version)
+        if trimmed.starts_with("- **") && trimmed.ends_with("**:") {
+            // Finish previous tap dance if any
+            finish_current_td(
+                current_name.take(),
+                current_single.take(),
+                current_double.take(),
+                current_hold.take(),
+                layout,
+            )?;
+
+            // Extract name from: - **name**:
+            let name = trimmed
+                .strip_prefix("- **")
+                .and_then(|s| s.strip_suffix("**:"))
+                .map(str::to_string);
+            current_name = name;
+            line_num += 1;
+            continue;
+        }
+
+        // Parse properties: "  - Single Tap: KC_ESC" (use original line to preserve indent)
+        if line.starts_with("  - ") {
+            if let Some(keycode_part) = line.strip_prefix("  - Single Tap: ") {
+                current_single = Some(keycode_part.trim().to_string());
+            } else if let Some(keycode_part) = line.strip_prefix("  - Double Tap: ") {
+                current_double = Some(keycode_part.trim().to_string());
+            } else if let Some(keycode_part) = line.strip_prefix("  - Hold: ") {
+                current_hold = Some(keycode_part.trim().to_string());
+            }
+        }
+
+        line_num += 1;
+    }
+
+    // Finish last tap dance if any
+    finish_current_td(
+        current_name,
+        current_single,
+        current_double,
+        current_hold,
+        layout,
+    )?;
+
+    Ok(line_num)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1140,5 +1263,69 @@ version: '1.0'
             Some("Another test".to_string()),
             "Key 0:0:1 description mismatch"
         );
+    }
+}
+
+#[cfg(test)]
+mod tap_dance_parsing_tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_tap_dances_from_markdown() {
+        use crate::models::{TapDanceAction, Layer, RgbColor, Position, KeyDefinition};
+        use crate::parser::template_gen;
+        
+        // Create a simple layout with tap dances
+        let mut layout = Layout::new("Test Layout").expect("Failed to create layout");
+        layout.tap_dances = vec![
+            TapDanceAction {
+                name: "esc_caps".to_string(),
+                single_tap: "KC_ESC".to_string(),
+                double_tap: Some("KC_CAPS".to_string()),
+                hold: None,
+            },
+            TapDanceAction {
+                name: "shift_ctrl".to_string(),
+                single_tap: "KC_LSFT".to_string(),
+                double_tap: Some("KC_CAPS".to_string()),
+                hold: Some("KC_LCTL".to_string()),
+            },
+        ];
+        
+        // Add a simple layer
+        let mut layer = Layer::new(0, "Base", RgbColor::new(128, 128, 128)).expect("Failed to create layer");
+        layer.keys = vec![
+            KeyDefinition::new(Position::new(0, 0), "KC_A"),
+            KeyDefinition::new(Position::new(0, 1), "KC_B"),
+        ];
+        layout.layers.push(layer);
+        
+        // Generate markdown from the layout
+        let markdown = template_gen::generate_markdown(&layout).expect("Failed to generate markdown");
+        
+        println!("Generated markdown:\n{}", markdown);
+        
+        // Parse it back
+        let parsed_layout = parse_markdown_layout_str(&markdown).expect("Parse failed");
+        
+        println!("Parsed {} tap dances", parsed_layout.tap_dances.len());
+        for td in &parsed_layout.tap_dances {
+            println!("  - {}: single={}, double={:?}, hold={:?}", 
+                td.name, td.single_tap, td.double_tap, td.hold);
+        }
+
+        assert_eq!(parsed_layout.tap_dances.len(), 2, "Should parse 2 tap dances");
+        
+        let td1 = &parsed_layout.tap_dances[0];
+        assert_eq!(td1.name, "esc_caps");
+        assert_eq!(td1.single_tap, "KC_ESC");
+        assert_eq!(td1.double_tap, Some("KC_CAPS".to_string()));
+        assert_eq!(td1.hold, None);
+        
+        let td2 = &parsed_layout.tap_dances[1];
+        assert_eq!(td2.name, "shift_ctrl");
+        assert_eq!(td2.single_tap, "KC_LSFT");
+        assert_eq!(td2.double_tap, Some("KC_CAPS".to_string()));
+        assert_eq!(td2.hold, Some("KC_LCTL".to_string()));
     }
 }

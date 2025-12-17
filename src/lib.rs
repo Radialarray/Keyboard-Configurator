@@ -14,6 +14,7 @@
 // Module declarations
 pub mod app;
 pub mod branding;
+pub mod cli;
 pub mod config;
 pub mod constants;
 pub mod firmware;

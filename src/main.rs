@@ -6,6 +6,7 @@
 // Module declarations
 mod app;
 mod branding;
+mod cli;
 mod config;
 mod constants;
 mod firmware;
@@ -17,7 +18,7 @@ mod shortcuts;
 mod tui;
 
 use anyhow::Result;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use constants::{APP_BINARY_NAME, APP_DESCRIPTION, APP_NAME};
 use std::path::PathBuf;
 
@@ -25,7 +26,11 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    /// Path to layout markdown file
+    /// Subcommand to execute (if none provided, launches TUI)
+    #[command(subcommand)]
+    command: Option<Command>,
+
+    /// Path to layout markdown file (TUI mode only)
     #[arg(value_name = "FILE")]
     layout_path: Option<PathBuf>,
 
@@ -38,9 +43,155 @@ struct Cli {
     qmk_path: Option<PathBuf>,
 }
 
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Validate a layout file for errors and warnings
+    Validate(cli::ValidateArgs),
+    /// Generate QMK firmware files (keymap.c, config.h)
+    Generate(cli::GenerateArgs),
+    /// Display help topics and keybindings
+    #[command(name = "show-help")]
+    ShowHelp(cli::HelpArgs),
+    /// Inspect specific sections of a layout file
+    Inspect(cli::InspectArgs),
+    /// Resolve layer UUID references in keycodes
+    Keycode(cli::KeycodeArgs),
+    /// List available keycodes from the embedded keycode database
+    Keycodes(cli::KeycodesArgs),
+    /// Manage tap dance definitions
+    #[command(name = "tap-dance")]
+    TapDance(cli::TapDanceArgs),
+    /// Show layer references and transparency warnings
+    #[command(name = "layer-refs")]
+    LayerRefs(cli::LayerRefsArgs),
+    /// List all compilable keyboards in QMK firmware directory
+    #[command(name = "list-keyboards")]
+    ListKeyboards(cli::ListKeyboardsArgs),
+    /// List layout variants for a specific keyboard
+    #[command(name = "list-layouts")]
+    ListLayouts(cli::ListLayoutsArgs),
+    /// Display matrix, LED, and visual coordinate mappings
+    Geometry(cli::GeometryArgs),
+    /// Manage application configuration
+    Config(cli::ConfigArgs),
+    /// Manage categories in a layout
+    Category(cli::CategoryArgs),
+    /// Manage layout templates
+    Template(cli::TemplateArgs),
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    // Handle CLI subcommands first (headless mode)
+    if let Some(command) = cli.command {
+        use cli::ExitCode;
+        
+        let exit_code = match command {
+            Command::Validate(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::Generate(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::ShowHelp(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::Inspect(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::Keycode(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::Keycodes(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::TapDance(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::LayerRefs(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::ListKeyboards(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::ListLayouts(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::Geometry(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::Config(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::Category(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+            Command::Template(args) => match args.execute() {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {}", e.message);
+                    e.exit_code
+                }
+            },
+        };
+        
+        std::process::exit(exit_code as i32);
+    }
+
+    // TUI mode - print branding
     println!("{} v{}", APP_NAME, env!("CARGO_PKG_VERSION"));
     println!("{}", APP_DESCRIPTION);
     println!();
