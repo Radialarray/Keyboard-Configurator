@@ -73,6 +73,17 @@ pub fn generate_markdown(layout: &Layout) -> Result<String> {
         output.push_str(&settings_section);
     }
 
+    // Generate tap dances section if any exist
+    if !layout.tap_dances.is_empty() {
+        // Add separator if nothing else was written after layers
+        if !has_key_descriptions(layout) && layout.categories.is_empty() && generate_settings(layout).is_none() {
+            output.push_str("---\n\n");
+        } else {
+            output.push('\n');
+        }
+        output.push_str(&generate_tap_dances(layout));
+    }
+
     Ok(output)
 }
 
@@ -451,6 +462,24 @@ fn generate_settings(layout: &Layout) -> Option<String> {
     }
 
     Some(output)
+}
+
+/// Generates the tap dances section.
+fn generate_tap_dances(layout: &Layout) -> String {
+    let mut output = String::from("## Tap Dances\n\n");
+
+    for td in &layout.tap_dances {
+        output.push_str(&format!("- **{}**:\n", td.name));
+        output.push_str(&format!("  - Single Tap: {}\n", td.single_tap));
+        if let Some(ref double) = td.double_tap {
+            output.push_str(&format!("  - Double Tap: {double}\n"));
+        }
+        if let Some(ref hold) = td.hold {
+            output.push_str(&format!("  - Hold: {hold}\n"));
+        }
+    }
+
+    output
 }
 
 /// Performs an atomic file write using temp file + rename pattern.

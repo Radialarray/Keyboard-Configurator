@@ -41,7 +41,7 @@ fn test_tap_dance_validation_valid_names() {
 
 #[test]
 fn test_tap_dance_validation_invalid_names() {
-    let empty_name = TapDanceAction::new("".to_string(), "KC_A".to_string());
+    let empty_name = TapDanceAction::new(String::new(), "KC_A".to_string());
     assert!(empty_name.validate().is_err());
 
     let space = TapDanceAction::new("my tap".to_string(), "KC_A".to_string());
@@ -56,17 +56,17 @@ fn test_tap_dance_validation_invalid_names() {
 
 #[test]
 fn test_tap_dance_validation_empty_keycodes() {
-    let empty_single = TapDanceAction::new("test".to_string(), "".to_string());
+    let empty_single = TapDanceAction::new("test".to_string(), String::new());
     assert!(empty_single.validate().is_err());
 
     // Note: with_double_tap and with_hold wrap values in Some(), even empty strings
     // The validation should catch these as errors
     let mut empty_double = TapDanceAction::new("test".to_string(), "KC_A".to_string());
-    empty_double.double_tap = Some("".to_string());
+    empty_double.double_tap = Some(String::new());
     assert!(empty_double.validate().is_err());
 
     let mut empty_hold = TapDanceAction::new("test".to_string(), "KC_A".to_string());
-    empty_hold.hold = Some("".to_string());
+    empty_hold.hold = Some(String::new());
     assert!(empty_hold.validate().is_err());
 }
 

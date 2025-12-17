@@ -75,7 +75,7 @@ impl<'a> FirmwareGenerator<'a> {
     ///
     /// Creates a QMK keymap file with PROGMEM arrays for each layer.
     /// Keys are ordered by LED index as required by QMK.
-    fn generate_keymap_c(&self) -> Result<String> {
+    pub fn generate_keymap_c(&self) -> Result<String> {
         let mut code = String::new();
 
         // File header
@@ -941,7 +941,7 @@ impl<'a> FirmwareGenerator<'a> {
     /// Note: `RGB_MATRIX_LED_COUNT` should be defined in the keyboard's variant-specific
     /// keyboard.json file, not in the keymap config.h.
     #[allow(clippy::cast_possible_truncation)]
-    fn generate_merged_config_h(&self) -> Result<String> {
+    pub fn generate_merged_config_h(&self) -> Result<String> {
         use crate::models::HoldDecisionMode;
 
         let mut content = String::new();
