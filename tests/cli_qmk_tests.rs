@@ -6,6 +6,7 @@
 //! - `geometry`: Display coordinate mappings for keyboard layout
 
 use std::process::Command;
+use std::path::PathBuf;
 
 mod fixtures;
 
@@ -15,18 +16,26 @@ fn lazyqmk_bin() -> String {
         .unwrap_or_else(|_| "target/release/lazyqmk".to_string())
 }
 
+/// Path to the mock QMK fixture for testing without full submodule
+fn mock_qmk_fixture() -> PathBuf {
+    // CARGO_MANIFEST_DIR is always set by cargo test to the project root
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+        .expect("CARGO_MANIFEST_DIR should be set by cargo");
+    PathBuf::from(manifest_dir).join("tests/fixtures/mock_qmk")
+}
+
 // ============================================================================
 // list-keyboards TESTS
 // ============================================================================
 
 /// Test: list-keyboards with valid QMK path returns keyboards successfully
 #[test]
-#[ignore = "requires QMK submodule"]
 fn test_list_keyboards_valid_path() {
-    let qmk_path = "qmk_firmware";
+    let fixture_path = mock_qmk_fixture();
 
     let output = Command::new(lazyqmk_bin())
-        .args(["list-keyboards", "--qmk-path", qmk_path])
+        .args(["list-keyboards", "--qmk-path", "dummy"])
+        .env("LAZYQMK_QMK_FIXTURE", &fixture_path)
         .output()
         .expect("Failed to execute command");
 
