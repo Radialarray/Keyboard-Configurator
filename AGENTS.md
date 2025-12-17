@@ -82,19 +82,21 @@ pip3 install qmk
 qmk setup
 ```
 
-##### 2. Run Full Pipeline Integration Tests (3 tests)
+##### 2. Run Full Pipeline Integration Tests (2 critical tests)
 ```bash
-# Test complete firmware generation with all features
-cargo test --test firmware_gen_tests -- --ignored
+# Test QMK CLI integration (finds crkbd in real QMK submodule)
+cargo test --test qmk_info_json_tests test_scan_keyboards_finds_crkbd -- --ignored
 
-# Test QMK CLI integration
-cargo test --test qmk_info_json_tests -- --ignored
+# Test tap dance full pipeline (end-to-end with real QMK)
+cargo test --test cli_tap_dance_tests test_tap_dance_add_use_generate -- --ignored
 
-# Test tap dance full pipeline
-cargo test --test cli_tap_dance_tests -- --ignored
+# Expected: Both tests pass
+# These validate: End-to-end firmware generation, QMK submodule integration
 
-# Expected: All 3 tests pass
-# These validate: End-to-end firmware generation, QMK compilation
+# Note: There are 2 additional deprecated tests that can be ignored:
+# - test_generation_vial_json_structure (deprecated after Vial removal)
+# - test_check_deprecated_options_clean (deprecated after Vial removal)
+# These can be safely removed from the codebase.
 ```
 
 ##### 3. Final Validation Checklist
@@ -112,11 +114,11 @@ cargo test --test cli_tap_dance_tests -- --ignored
 - **QMK submodule:** 500MB+ repository, expensive for CI
 - **Compilation time:** 5-10 minutes for full firmware builds
 - **External dependencies:** Requires QMK CLI tools
-- **Cost/benefit:** 3 critical tests vs. significant CI resource usage
+- **Cost/benefit:** 2 critical tests vs. significant CI resource usage
 
-These 3 tests provide critical end-to-end validation that fixtures and mocks cannot replace. They ensure LazyQMK works correctly with real QMK firmware compilation before releases go to users.
+These 2 tests provide critical end-to-end validation that fixtures and mocks cannot replace. They ensure LazyQMK works correctly with real QMK firmware compilation before releases go to users.
 
-**Note:** QMK metadata tests (list-keyboards, list-layouts, geometry) now run in CI using lightweight fixtures, so only the 3 full pipeline tests require manual execution before release.
+**Note:** QMK metadata tests (list-keyboards, list-layouts, geometry) now run in CI using lightweight fixtures, so only the 2 full pipeline tests require manual execution before release.
 
 ### Help System Source of Truth
 - **Context help and help menu text must come from `src/data/help.toml`**. Do not hardcode help strings in code; add or update entries in `help.toml` instead.

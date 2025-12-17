@@ -585,26 +585,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires QMK firmware"]
-    fn test_check_deprecated_options_clean() {
-        // DEPRECATED: This test is skipped as Vial-specific checks are no longer used
-        // after migration to standard QMK
-        let temp_dir = TempDir::new().unwrap();
-        let qmk_path = temp_dir.path().join("qmk");
-        let keyboard_dir = qmk_path.join("keyboards/test_keyboard");
-        fs::create_dir_all(&keyboard_dir).unwrap();
-
-        // Create clean files
-        fs::write(keyboard_dir.join("rules.mk"), "# Clean rules.mk\n").unwrap();
-        fs::write(keyboard_dir.join("config.h"), "// Clean config.h\n").unwrap();
-
-        let warnings = super::check_deprecated_options(&qmk_path, "test_keyboard");
-        assert!(warnings.is_empty());
-    }
-
-
-
-    #[test]
     fn test_orphaned_tap_dance_warning() {
         use crate::models::layout::TapDanceAction;
 
