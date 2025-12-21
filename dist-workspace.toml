@@ -1,0 +1,34 @@
+[workspace]
+members = ["cargo:."]
+
+[dist]
+# pin cargo-dist version for reproducibility
+cargo-dist-version = "0.30.3"
+# Use cargo-dist via GitHub Actions
+ci = "github"
+
+# Target platforms to build
+# Matches prior release matrix
+# (linux x86_64, linux arm64, macOS arm64, Windows x86_64)
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "aarch64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+]
+
+# Installers to generate
+installers = ["shell", "homebrew"]
+
+# Publish Homebrew formula to this tap
+tap = "Radialarray/homebrew-lazyqmk"
+
+# Prevent gigantic source tarballs / submodules
+source-tarball = false
+recursive-tarball = false
+
+# Optional: publish job list (homebrew enabled by default via tap)
+publish-jobs = ["homebrew"]
+
+# Keep cargo-dist from overwriting workflow if we need to hand-edit it
+allow-dirty = ["ci"]

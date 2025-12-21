@@ -6,6 +6,7 @@ authors = ["LazyQMK Contributors"]
 description = "Interactive terminal workspace for QMK firmware for mechanical keyboards"
 license = "MIT"
 repository = "https://github.com/Radialarray/LazyQMK"
+homepage = "https://github.com/Radialarray/LazyQMK"
 readme = "README.md"
 keywords = ["keyboard", "qmk", "tui", "terminal", "editor"]
 categories = ["command-line-utilities", "text-editors"]
@@ -39,6 +40,10 @@ opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
+
+[profile.dist]
+inherits = "release"
+lto = "thin"
 
 [profile.dev]
 opt-level = 0
