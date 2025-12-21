@@ -23,12 +23,22 @@ jobs:
     runs-on: ubuntu-22.04
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
-      tag: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || (!github.event.pull_request && github.ref_name) || '' }}
-      tag-flag: ${{ github.event_name == 'workflow_dispatch' && format('--tag={0}', github.event.inputs.tag) || (!github.event.pull_request && format('--tag={0}', github.ref_name)) || '' }}
-      publishing: ${{ !github.event.pull_request }}
+      tag: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || (github.ref_type == 'tag' && github.ref_name) || '' }}
+      tag-flag: ${{ github.event_name == 'workflow_dispatch' && format('--tag={0}', github.event.inputs.tag) || (github.ref_type == 'tag' && format('--tag={0}', github.ref_name)) || '' }}
+      publishing: ${{ github.event_name == 'workflow_dispatch' || github.ref_type == 'tag' }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+      - name: guard tag
+        id: plan_guard
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "do_plan=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "do_plan=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "do_plan=" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -43,7 +53,12 @@ jobs:
           path: ~/.cargo/bin/dist
       - id: plan
         run: |
-          dist ${{ (!github.event.pull_request && format('host --steps=create --tag={0}', github.ref_name)) || 'plan' }} --output-format=json > plan-dist-manifest.json
+          if [ -n "${{ steps.plan_guard.outputs.do_plan || '' }}" ]; then
+            dist plan --output-format=json > plan-dist-manifest.json
+          else
+            # Not publishing (branch/PR): do a no-op plan so downstream steps have a manifest
+            dist plan --output-format=json > plan-dist-manifest.json
+          fi
           echo "manifest=$(jq -c '.')" >> "$GITHUB_OUTPUT"
       - name: Upload dist-manifest.json
         uses: actions/upload-artifact@v4
