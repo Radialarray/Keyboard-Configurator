@@ -122,7 +122,7 @@ IFS=$'\n' INSTALLERS=($(printf '%s\n' "${INSTALLERS[@]}" | sort))
   echo
   echo "### Install prebuilt binaries via Homebrew"
   echo '```sh'
-  echo "brew install radialarray/tap/${PROJECT_LABEL,,}"
+  echo "brew install Radialarray/lazyqmk/${PROJECT_LABEL,,}"
   echo '```'
 
   echo
