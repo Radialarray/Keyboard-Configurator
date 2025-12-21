@@ -268,6 +268,7 @@ jobs:
   edit-release-notes:
     name: edit release notes
     needs:
+      - plan
       - host
       - publish-homebrew-formula
     if: ${{ needs.host.result == 'success' }}
