@@ -11,6 +11,7 @@
 
 mod backend;
 
+#[cfg(debug_assertions)]
 use tauri::Manager;
 use tokio::sync::Mutex;
 
@@ -90,11 +91,11 @@ pub fn run() {
             is_backend_running,
             get_backend_url,
         ])
-        .setup(|app| {
+        .setup(|_app| {
             // Open devtools in debug builds
             #[cfg(debug_assertions)]
             {
-                let window = app.get_webview_window("main").unwrap();
+                let window = _app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
             Ok(())
