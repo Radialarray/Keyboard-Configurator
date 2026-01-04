@@ -22,9 +22,19 @@ export default defineConfig({
 		}
 	],
 
-	webServer: {
-		command: 'npm run build && npm run preview',
-		port: 4173,
-		reuseExistingServer: !process.env.CI
-	}
+	webServer: [
+		// Start backend first and wait for health check
+		{
+			command: 'cd .. && cargo run --features web --bin lazyqmk-web',
+			url: 'http://localhost:3001/health',
+			reuseExistingServer: !process.env.CI,
+			timeout: 120000 // 2 minutes for cargo build
+		},
+		// Start frontend after backend is healthy
+		{
+			command: 'npm run build && npm run preview',
+			port: 4173,
+			reuseExistingServer: !process.env.CI
+		}
+	]
 });
