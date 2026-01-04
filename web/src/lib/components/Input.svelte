@@ -8,6 +8,7 @@
 		disabled?: boolean;
 		required?: boolean;
 		class?: string;
+		id?: string;
 		min?: number | string;
 		max?: number | string;
 		oninput?: (e: Event & { currentTarget: HTMLInputElement }) => void;
@@ -21,6 +22,7 @@
 		disabled = false,
 		required = false,
 		class: className = '',
+		id,
 		min,
 		max,
 		oninput,
@@ -29,6 +31,7 @@
 </script>
 
 <input
+	{id}
 	{type}
 	bind:value
 	{placeholder}

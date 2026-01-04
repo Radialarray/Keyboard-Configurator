@@ -438,8 +438,9 @@
 								</div>
 								<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
 									<div>
-										<label class="block text-xs font-medium text-muted-foreground mb-1">Name</label>
+										<label for="td-name-{i}" class="block text-xs font-medium text-muted-foreground mb-1">Name</label>
 										<Input
+											id="td-name-{i}"
 											value={td.name}
 											oninput={(e) => updateTapDance(i, 'name', e.currentTarget.value)}
 											placeholder="TD_NAME"
@@ -447,10 +448,11 @@
 										/>
 									</div>
 									<div>
-										<label class="block text-xs font-medium text-muted-foreground mb-1"
+										<label for="td-single-{i}" class="block text-xs font-medium text-muted-foreground mb-1"
 											>Single Tap</label
 										>
 										<Input
+											id="td-single-{i}"
 											value={td.single_tap || td.tap || ''}
 											oninput={(e) => updateTapDance(i, 'single_tap', e.currentTarget.value)}
 											placeholder="KC_A"
@@ -458,10 +460,11 @@
 										/>
 									</div>
 									<div>
-										<label class="block text-xs font-medium text-muted-foreground mb-1"
+										<label for="td-double-{i}" class="block text-xs font-medium text-muted-foreground mb-1"
 											>Double Tap</label
 										>
 										<Input
+											id="td-double-{i}"
 											value={td.double_tap || ''}
 											oninput={(e) => updateTapDance(i, 'double_tap', e.currentTarget.value)}
 											placeholder="KC_B"
@@ -469,8 +472,9 @@
 										/>
 									</div>
 									<div>
-										<label class="block text-xs font-medium text-muted-foreground mb-1">Hold</label>
+										<label for="td-hold-{i}" class="block text-xs font-medium text-muted-foreground mb-1">Hold</label>
 										<Input
+											id="td-hold-{i}"
 											value={td.hold || ''}
 											oninput={(e) => updateTapDance(i, 'hold', e.currentTarget.value)}
 											placeholder="KC_LCTL"
@@ -508,18 +512,20 @@
 								</div>
 								<div class="grid grid-cols-3 gap-3">
 									<div>
-										<label class="block text-xs font-medium text-muted-foreground mb-1">Name</label>
+										<label for="combo-name-{i}" class="block text-xs font-medium text-muted-foreground mb-1">Name</label>
 										<Input
+											id="combo-name-{i}"
 											value={combo.name}
 											oninput={(e) => updateCombo(i, 'name', e.currentTarget.value)}
 											placeholder="Combo Name"
 										/>
 									</div>
 									<div>
-										<label class="block text-xs font-medium text-muted-foreground mb-1"
+										<label for="combo-keys-{i}" class="block text-xs font-medium text-muted-foreground mb-1"
 											>Trigger Keys (comma-separated)</label
 										>
 										<Input
+											id="combo-keys-{i}"
 											value={combo.keys.join(', ')}
 											oninput={(e) => updateCombo(i, 'keys', e.currentTarget.value)}
 											placeholder="KC_A, KC_B"
@@ -527,9 +533,10 @@
 										/>
 									</div>
 									<div>
-										<label class="block text-xs font-medium text-muted-foreground mb-1">Output</label
+										<label for="combo-output-{i}" class="block text-xs font-medium text-muted-foreground mb-1">Output</label
 										>
 										<Input
+											id="combo-output-{i}"
 											value={combo.output}
 											oninput={(e) => updateCombo(i, 'output', e.currentTarget.value)}
 											placeholder="KC_ESC"
@@ -563,10 +570,11 @@
 					</div>
 
 					<div>
-						<label class="block text-sm font-medium text-muted-foreground mb-1"
+						<label for="idle-timeout" class="block text-sm font-medium text-muted-foreground mb-1"
 							>Idle Timeout (seconds)</label
 						>
 						<Input
+							id="idle-timeout"
 							type="number"
 							value={Math.round((layout.idle_effect_settings?.idle_timeout_ms ?? 60000) / 1000)}
 							oninput={(e) =>
@@ -580,10 +588,11 @@
 					</div>
 
 					<div>
-						<label class="block text-sm font-medium text-muted-foreground mb-1"
+						<label for="idle-duration" class="block text-sm font-medium text-muted-foreground mb-1"
 							>Effect Duration (seconds)</label
 						>
 						<Input
+							id="idle-duration"
 							type="number"
 							value={Math.round(
 								(layout.idle_effect_settings?.idle_effect_duration_ms ?? 300000) / 1000
@@ -599,8 +608,9 @@
 					</div>
 
 					<div>
-						<label class="block text-sm font-medium text-muted-foreground mb-1">Effect Mode</label>
+						<label for="idle-effect-mode" class="block text-sm font-medium text-muted-foreground mb-1">Effect Mode</label>
 						<select
+							id="idle-effect-mode"
 							class="w-full px-3 py-2 border border-border rounded-lg bg-background"
 							value={layout.idle_effect_settings?.idle_effect_mode ?? 'Breathing'}
 							onchange={(e) => updateIdleEffect('idle_effect_mode', e.currentTarget.value)}
