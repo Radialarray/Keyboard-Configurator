@@ -12,7 +12,7 @@ use std::fmt::Write as _;
 ///
 /// Creates a comprehensive color documentation that includes:
 /// 1. Color priority explanation (individual > category > layer > default)
-/// 2. Color reference table mapping [1], [2], etc. to hex colors and sources
+/// 2. Color reference table mapping \[1\], \[2\], etc. to hex colors and sources
 /// 3. Full category listing with colors and descriptions
 ///
 /// # Examples
