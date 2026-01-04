@@ -48,3 +48,8 @@ web/vite.config.ts.timestamp-*
 web/test-results/
 web/playwright-report/
 web/playwright/.cache/
+
+# Tauri desktop app
+web/src-tauri/target/
+web/src-tauri/gen/
+web/src-tauri/Cargo.lock

@@ -1,333 +1,414 @@
-# SvelteKit Frontend Setup Instructions
+# LazyQMK Web Editor Setup
+
+This document covers setup for the LazyQMK web editor, including:
+- Local development
+- Docker deployment
+- Tauri desktop application
 
 ## Quick Start
 
-```bash
-# 1. Install dependencies
-cd web
-npm install
+### Option 1: Local Development (Recommended for Development)
 
-# 2. Start the backend (in another terminal)
-cd ..
+```bash
+# Terminal 1: Start the backend
 cargo run --features web --bin lazyqmk-web
 
-# 3. Start the frontend dev server
+# Terminal 2: Start the frontend
 cd web
+npm install
 npm run dev
 ```
 
 Visit http://localhost:5173
 
-## What Was Created
-
-### Project Structure
-
-```
-web/
-├── src/
-│   ├── lib/
-│   │   ├── api/              # API client
-│   │   │   ├── types.ts      # TypeScript types matching Rust backend
-│   │   │   ├── client.ts     # API client with all endpoints
-│   │   │   ├── index.ts      # Exports
-│   │   │   └── client.test.ts # API client tests
-│   │   ├── components/       # UI components
-│   │   │   ├── Button.svelte # Button component with variants
-│   │   │   ├── Button.test.ts # Button tests
-│   │   │   ├── Card.svelte   # Card container
-│   │   │   ├── Input.svelte  # Input field
-│   │   │   └── index.ts      # Exports
-│   │   └── utils/
-│   │       ├── cn.ts         # Class name utility (tailwind-merge + clsx)
-│   │       └── index.ts      # Exports
-│   ├── routes/
-│   │   ├── +layout.svelte        # Root layout with dark mode
-│   │   ├── +page.svelte          # Dashboard (/)
-│   │   ├── layouts/
-│   │   │   ├── +page.svelte      # Layout list (/layouts)
-│   │   │   └── [name]/
-│   │   │       └── +page.svelte  # Layout editor (/layouts/[name])
-│   │   ├── keycodes/
-│   │   │   └── +page.svelte      # Keycode browser (/keycodes)
-│   │   └── settings/
-│   │       └── +page.svelte      # Settings (/settings)
-│   ├── test/
-│   │   └── setup.ts          # Vitest setup
-│   ├── app.html              # HTML template
-│   └── app.css               # Global styles (Tailwind)
-├── e2e/
-│   ├── dashboard.spec.ts     # Dashboard E2E tests
-│   └── layouts.spec.ts       # Layouts E2E tests with mocking
-├── static/
-│   └── favicon.png           # Favicon
-├── package.json              # Dependencies
-├── vite.config.ts            # Vite config with backend proxy
-├── svelte.config.js          # SvelteKit config
-├── tailwind.config.js        # Tailwind config
-├── postcss.config.js         # PostCSS config
-├── tsconfig.json             # TypeScript config
-├── playwright.config.ts      # Playwright config
-└── README.md                 # Full documentation
-```
-
-### Routes Implemented
-
-1. **/ (Dashboard)**
-   - Backend health check
-   - Quick links to all sections
-   - Connection status display
-
-2. **/layouts (Layout List)**
-   - Lists all layout files from workspace
-   - Shows metadata (name, description, modified date)
-   - Click to open layout editor
-
-3. **/layouts/[name] (Layout Editor)**
-   - View layout metadata
-   - View layers with colors
-   - Placeholder for visual editor (future)
-
-4. **/keycodes (Keycode Browser)**
-   - Browse all QMK keycodes
-   - Filter by category
-   - Search by name/code
-   - Shows descriptions
-
-5. **/settings (Settings)**
-   - Configure QMK firmware path
-   - View workspace root
-   - Save configuration
-
-### API Client
-
-The `ApiClient` class provides methods for all backend endpoints:
-
-```typescript
-import { apiClient } from '$lib/api';
-
-// Health check
-const health = await apiClient.health();
-
-// Layouts
-const layouts = await apiClient.listLayouts();
-const layout = await apiClient.getLayout('my-layout.md');
-await apiClient.saveLayout('my-layout.md', layout);
-
-// Keycodes
-const keycodes = await apiClient.listKeycodes('KC_A', 'basic');
-const categories = await apiClient.listCategories();
-
-// Config
-const config = await apiClient.getConfig();
-await apiClient.updateConfig({ qmk_firmware_path: '/path/to/qmk' });
-
-// Geometry
-const geometry = await apiClient.getGeometry('crkbd', 'LAYOUT_split_3x6_3');
-```
-
-### Components
-
-Three base components are included:
-
-1. **Button** - Multiple variants (default, destructive, outline, secondary, ghost, link)
-2. **Card** - Container with border and shadow
-3. **Input** - Styled text input with Tailwind classes
-
-All components use Svelte 5 runes ($props, $state, etc.)
-
-### Testing
-
-**Unit Tests (Vitest)**
-```bash
-npm run test              # Run once
-npm run test:watch        # Watch mode
-npm run test:ui           # Open UI
-```
-
-- API client tests (mocked fetch)
-- Component tests (testing-library/svelte)
-
-**E2E Tests (Playwright)**
-```bash
-npm run test:e2e          # Run tests
-npm run test:e2e:ui       # Open UI
-```
-
-- Dashboard navigation tests
-- Layouts page with mocked API responses
-- Tests work with or without real backend
-
-## Development Workflow
-
-### 1. With Real Backend
+### Option 2: Docker (Recommended for Deployment)
 
 ```bash
-# Terminal 1: Backend
+# Production build
+docker compose up
+
+# Development with hot reloading
+docker compose --profile dev up
+```
+
+### Option 3: Desktop App (Tauri)
+
+```bash
+cd web
+npm install
+npm run tauri:dev
+```
+
+---
+
+## Local Development
+
+### Prerequisites
+
+- **Rust**: 1.91.1 or later (for backend)
+- **Node.js**: 20.x or later (for frontend)
+- **npm**: 10.x or later
+
+### Backend Setup
+
+The backend is a Rust Axum server that provides the REST API:
+
+```bash
+# Build and run the backend
 cargo run --features web --bin lazyqmk-web
 
-# Terminal 2: Frontend
+# With custom options
+cargo run --features web --bin lazyqmk-web -- \
+  --port 3001 \
+  --workspace ~/my-layouts \
+  --verbose
+```
+
+**Backend Options:**
+- `--port`: Port to listen on (default: 3001)
+- `--host`: Host to bind to (default: 127.0.0.1)
+- `--workspace`: Directory containing layout files (default: current directory)
+- `--verbose`: Enable debug logging
+
+### Frontend Setup
+
+```bash
 cd web
+npm install
 npm run dev
 ```
 
-### 2. With Mocked Backend (E2E Tests)
+The dev server runs on http://localhost:5173 and proxies API calls to http://localhost:3001.
 
-E2E tests automatically mock API responses:
+### Changing the Backend URL
 
-```typescript
-await page.route('**/api/layouts', async (route) => {
-  await route.fulfill({
-    status: 200,
-    body: JSON.stringify({ layouts: [...] })
-  });
-});
-```
-
-### 3. Backend Proxy Configuration
-
-Dev server proxies `/api` and `/health` to `http://localhost:3000` (see `vite.config.ts`).
-
-To change backend URL:
+Edit `vite.config.ts`:
 
 ```typescript
-// vite.config.ts
 server: {
   proxy: {
     '/api': {
-      target: 'http://localhost:8080', // Change port
+      target: 'http://localhost:3001',  // Change this
       changeOrigin: true
     }
   }
 }
 ```
 
-## Customization
+---
 
-### Adding a New Route
+## Docker Deployment
 
-1. Create `src/routes/myroute/+page.svelte`
-2. Import components: `import { Button, Card } from '$components'`
-3. Use API client: `import { apiClient } from '$api'`
-4. Add navigation link in dashboard
+### Directory Structure
 
-### Adding a New Component
-
-1. Create `src/lib/components/MyComponent.svelte`
-2. Export in `src/lib/components/index.ts`
-3. Add tests in `src/lib/components/MyComponent.test.ts`
-4. Use in routes: `import { MyComponent } from '$components'`
-
-### Updating API Types
-
-When backend types change:
-
-1. Update `src/lib/api/types.ts` to match Rust types
-2. Update `ApiClient` methods if endpoints changed
-3. Run tests: `npm run test && npm run check`
-
-## Production Build
-
-```bash
-npm run build       # Build to build/
-npm run preview     # Preview production build
+```
+LazyQMK/
+├── Dockerfile           # Backend production image
+├── Dockerfile.dev       # Backend development image
+├── docker-compose.yml   # Orchestration
+└── web/
+    └── Dockerfile       # Frontend production image
 ```
 
-### Deployment Options
+### Environment Variables
 
-- **Static**: Vercel, Netlify, Cloudflare Pages (default adapter-auto)
-- **Node.js**: Install `@sveltejs/adapter-node` and update svelte.config.js
-- **Docker**: See README.md for Dockerfile example
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LAZYQMK_WORKSPACE` | `./examples` | Path to layout files directory |
+| `QMK_FIRMWARE_PATH` | `./qmk_firmware` | Path to QMK firmware (for keyboard geometry) |
+| `LAZYQMK_CONFIG_DIR` | Named volume | Directory for app configuration |
+
+### Production Deployment
+
+```bash
+# Build and start all services
+docker compose up --build
+
+# Run in background
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop services
+docker compose down
+```
+
+**Access:**
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:3001
+
+### Development with Docker
+
+Use the `dev` profile for hot reloading:
+
+```bash
+# Start development containers
+docker compose --profile dev up
+
+# Only backend (for frontend on host)
+docker compose --profile dev up backend-dev
+```
+
+### Volume Mounts
+
+The docker-compose.yml mounts several directories:
+
+1. **Workspace** (`/app/workspace`): Your layout markdown files
+   ```bash
+   export LAZYQMK_WORKSPACE=/path/to/my/layouts
+   docker compose up
+   ```
+
+2. **QMK Firmware** (`/app/qmk_firmware`): Required for keyboard geometry
+   ```bash
+   export QMK_FIRMWARE_PATH=/path/to/qmk_firmware
+   docker compose up
+   ```
+
+3. **Config** (`/home/lazyqmk/.config/LazyQMK`): Persistent configuration
+
+### Building Individual Images
+
+```bash
+# Backend only
+docker build -t lazyqmk-backend .
+
+# Frontend only
+docker build -t lazyqmk-frontend -f web/Dockerfile .
+```
+
+### Custom docker-compose.override.yml
+
+For local customization, create `docker-compose.override.yml`:
+
+```yaml
+services:
+  backend:
+    volumes:
+      - /my/custom/layouts:/app/workspace:rw
+      - /my/qmk_firmware:/app/qmk_firmware:ro
+    environment:
+      - RUST_LOG=debug
+```
+
+---
+
+## Tauri Desktop Application
+
+The Tauri app wraps the web frontend in a native window and can spawn/manage the backend process.
+
+### Prerequisites
+
+- **Rust**: 1.70 or later
+- **Node.js**: 20.x or later
+- **Platform-specific dependencies**:
+  - **macOS**: Xcode Command Line Tools
+  - **Linux**: `libwebkit2gtk-4.1-dev`, `libssl-dev`, `libayatana-appindicator3-dev`
+  - **Windows**: Visual Studio Build Tools, WebView2
+
+### Development
+
+```bash
+cd web
+npm install
+
+# Start in development mode
+npm run tauri:dev
+```
+
+This will:
+1. Start the Vite dev server
+2. Build and run the Tauri app
+3. Open devtools automatically
+
+### Building for Production
+
+```bash
+# Build the backend first
+cargo build --release --features web --bin lazyqmk-web
+
+# Build the desktop app
+cd web
+npm run tauri:build
+```
+
+Output locations:
+- **macOS**: `web/src-tauri/target/release/bundle/dmg/`
+- **Linux**: `web/src-tauri/target/release/bundle/deb/` and `appimage/`
+- **Windows**: `web/src-tauri/target/release/bundle/msi/`
+
+### Backend Connection
+
+The Tauri app can connect to the backend in two ways:
+
+1. **Spawn Backend**: The app spawns `lazyqmk-web` as a child process
+   - Uses Tauri commands: `start_backend`, `stop_backend`
+   - Backend is bundled with the app or found in PATH
+
+2. **External Backend**: Connect to an existing backend
+   - Set `PUBLIC_API_URL` environment variable
+   - Useful when running backend via Docker
+
+### Frontend Tauri Integration
+
+Use the Tauri API in Svelte components:
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+// Start the backend
+const result = await invoke('start_backend', { 
+  workspacePath: '/path/to/layouts' 
+});
+
+// Get backend URL
+const url = await invoke('get_backend_url');
+
+// Check if running
+const isRunning = await invoke('is_backend_running');
+
+// Stop backend
+await invoke('stop_backend');
+```
+
+### Icons
+
+Place app icons in `web/src-tauri/icons/`:
+- `32x32.png`
+- `128x128.png`
+- `128x128@2x.png`
+- `icon.icns` (macOS)
+- `icon.ico` (Windows)
+
+Generate icons from a source image:
+```bash
+npm run tauri icon /path/to/icon.png
+```
+
+---
+
+## Testing
+
+### Unit Tests
+
+```bash
+cd web
+npm run test              # Run once
+npm run test:watch        # Watch mode
+npm run test:ui           # Open UI
+```
+
+### E2E Tests
+
+```bash
+npm run test:e2e          # Run tests
+npm run test:e2e:ui       # Open UI
+```
+
+E2E tests mock the API, so they work without a running backend.
+
+### Backend Tests
+
+```bash
+cargo test --features web
+```
+
+---
+
+## Project Structure
+
+```
+web/
+├── src/
+│   ├── lib/
+│   │   ├── api/              # API client
+│   │   ├── components/       # UI components
+│   │   └── utils/            # Utilities
+│   ├── routes/               # SvelteKit routes
+│   ├── app.html              # HTML template
+│   └── app.css               # Global styles
+├── src-tauri/                # Tauri desktop app
+│   ├── src/
+│   │   ├── main.rs           # Entry point
+│   │   ├── lib.rs            # Tauri setup
+│   │   └── backend.rs        # Backend spawning
+│   ├── tauri.conf.json       # Tauri config
+│   └── Cargo.toml            # Rust dependencies
+├── e2e/                      # E2E tests
+├── Dockerfile                # Frontend Docker image
+├── package.json              # Node dependencies
+├── svelte.config.js          # SvelteKit config
+├── vite.config.ts            # Vite config
+└── tailwind.config.js        # Tailwind config
+```
+
+---
 
 ## Troubleshooting
 
-### "Cannot find module 'mode-watcher'"
+### Docker: "Cannot connect to backend"
 
-Install dependencies:
+1. Check backend is running: `docker compose ps`
+2. Check backend logs: `docker compose logs backend`
+3. Verify health check: `curl http://localhost:3001/health`
+
+### Docker: Volume permissions
+
+If you see permission errors:
+
 ```bash
+# Fix ownership (Linux)
+sudo chown -R 1000:1000 /path/to/workspace
+
+# Or run as root (not recommended for production)
+docker compose up --user root
+```
+
+### Tauri: "Cannot find lazyqmk-web binary"
+
+Build the backend first:
+```bash
+cargo build --release --features web --bin lazyqmk-web
+```
+
+Or install it:
+```bash
+cargo install --path . --features web --bin lazyqmk-web
+```
+
+### Tauri: WebView not found (Linux)
+
+Install WebKitGTK:
+```bash
+# Ubuntu/Debian
+sudo apt install libwebkit2gtk-4.1-dev
+
+# Fedora
+sudo dnf install webkit2gtk4.1-devel
+```
+
+### Frontend: "Cannot find module 'vite'"
+
+```bash
+cd web
+rm -rf node_modules package-lock.json
 npm install
 ```
 
-### Backend Connection Failed
+---
 
-1. Check backend is running: `curl http://localhost:3000/health`
-2. Check proxy config in `vite.config.ts`
-3. Check CORS in backend (should allow `http://localhost:5173`)
+## API Reference
 
-### TypeScript Errors
+All endpoints are documented in [`ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 
-```bash
-npm run check          # Full type check
-npm run check:watch    # Watch mode
-```
-
-### Dark Mode Not Working
-
-Ensure `ModeWatcher` component is in `src/routes/+layout.svelte`
-
-## Next Steps
-
-This is a solid foundation. Future enhancements:
-
-1. **Visual Layout Editor**
-   - Canvas-based keyboard renderer
-   - Drag-and-drop key assignment
-   - Real-time preview
-
-2. **Advanced Features**
-   - Undo/redo for edits
-   - Layout import/export
-   - Firmware compilation from UI
-   - Build log viewer
-
-3. **UI Improvements**
-   - Keyboard shortcuts
-   - Toast notifications
-   - Loading skeletons
-   - Better mobile support
-
-4. **State Management**
-   - Svelte stores for global state
-   - Optimistic updates
-   - Offline support
-
-## Architecture Notes
-
-### Why This Stack?
-
-- **SvelteKit**: Fast, modern, great DX
-- **Svelte 5**: Latest features (runes, snippets)
-- **Tailwind**: Utility-first, customizable
-- **shadcn-svelte**: High-quality component patterns
-- **Vitest**: Fast unit testing
-- **Playwright**: Reliable E2E testing
-
-### Design Decisions
-
-1. **API Client Pattern**: Centralized client with typed responses
-2. **Component Library**: Copy-paste approach (no heavy dependencies)
-3. **Route Structure**: File-based routing (SvelteKit convention)
-4. **Testing Strategy**: Unit tests for logic, E2E for user flows
-5. **Styling**: Tailwind with design tokens for consistency
-
-### Backend Integration
-
-Frontend expects these backend routes (all implemented):
-
-- `GET /health` - HealthResponse
-- `GET /api/layouts` - LayoutListResponse
-- `GET /api/layouts/{filename}` - Layout
-- `PUT /api/layouts/{filename}` - void (204)
-- `GET /api/keycodes?search=&category=` - KeycodeListResponse
-- `GET /api/keycodes/categories` - CategoryListResponse
-- `GET /api/config` - ConfigResponse
-- `PUT /api/config` - void (204)
-- `GET /api/keyboards/{keyboard}/geometry/{layout}` - GeometryResponse
-
-All types in `src/lib/api/types.ts` match Rust backend definitions.
-
-## Support
-
-For issues or questions:
-1. Check README.md in web/ directory
-2. Review test files for examples
-3. See ARCHITECTURE.md in project root (Rust backend docs)
+Quick reference:
+- `GET /health` - Health check
+- `GET /api/layouts` - List layouts
+- `GET /api/layouts/{filename}` - Get layout
+- `PUT /api/layouts/{filename}` - Save layout
+- `GET /api/keycodes` - Search keycodes
+- `GET /api/keycodes/categories` - List categories
+- `GET /api/config` - Get config
+- `PUT /api/config` - Update config
+- `GET /api/keyboards/{keyboard}/geometry/{layout}` - Get geometry
