@@ -1,6 +1,20 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Dashboard smoke tests', () => {
+	test.beforeEach(async ({ page }) => {
+		// Mock the health check API to avoid backend dependency
+		await page.route('**/api/health', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					status: 'ok',
+					version: '0.10.0'
+				})
+			});
+		});
+	});
+
 	test('loads the dashboard page', async ({ page }) => {
 		await page.goto('/');
 		
@@ -8,12 +22,12 @@ test.describe('Dashboard smoke tests', () => {
 		await expect(page.getByRole('heading', { name: 'LazyQMK Dashboard' })).toBeVisible();
 		
 		// Check that the backend status card is present
-		await expect(page.getByText('Backend Status')).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Backend Status', level: 2 })).toBeVisible();
 		
-		// Check that navigation cards are present
-		await expect(page.getByText('Layouts')).toBeVisible();
-		await expect(page.getByText('Keycodes')).toBeVisible();
-		await expect(page.getByText('Settings')).toBeVisible();
+		// Check that navigation cards are present by their headings
+		await expect(page.getByRole('heading', { name: 'Layouts', level: 2 })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Keycodes', level: 2 })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Settings', level: 2 })).toBeVisible();
 	});
 
 	test('navigates to layouts page', async ({ page }) => {
