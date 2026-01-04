@@ -3,13 +3,15 @@
 
 	interface InputProps {
 		type?: string;
-		value?: string;
+		value?: string | number;
 		placeholder?: string;
 		disabled?: boolean;
 		required?: boolean;
 		class?: string;
-		oninput?: (e: Event) => void;
-		onchange?: (e: Event) => void;
+		min?: number | string;
+		max?: number | string;
+		oninput?: (e: Event & { currentTarget: HTMLInputElement }) => void;
+		onchange?: (e: Event & { currentTarget: HTMLInputElement }) => void;
 	}
 
 	let {
@@ -19,6 +21,8 @@
 		disabled = false,
 		required = false,
 		class: className = '',
+		min,
+		max,
 		oninput,
 		onchange
 	}: InputProps = $props();
@@ -30,6 +34,8 @@
 	{placeholder}
 	{disabled}
 	{required}
+	{min}
+	{max}
 	class={cn(
 		'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
 		className

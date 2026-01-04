@@ -7,7 +7,12 @@ import type {
 	ConfigResponse,
 	ConfigUpdateRequest,
 	GeometryResponse,
-	ApiError
+	ApiError,
+	ValidationResponse,
+	InspectResponse,
+	ExportResponse,
+	GenerateResponse,
+	EffectsListResponse
 } from './types';
 
 export class ApiClient {
@@ -69,6 +74,29 @@ export class ApiClient {
 		});
 	}
 
+	async validateLayout(filename: string): Promise<ValidationResponse> {
+		return this.request<ValidationResponse>(
+			`/api/layouts/${encodeURIComponent(filename)}/validate`
+		);
+	}
+
+	async inspectLayout(filename: string): Promise<InspectResponse> {
+		return this.request<InspectResponse>(`/api/layouts/${encodeURIComponent(filename)}/inspect`);
+	}
+
+	async exportLayout(filename: string): Promise<ExportResponse> {
+		return this.request<ExportResponse>(`/api/layouts/${encodeURIComponent(filename)}/export`);
+	}
+
+	async generateFirmware(filename: string): Promise<GenerateResponse> {
+		return this.request<GenerateResponse>(
+			`/api/layouts/${encodeURIComponent(filename)}/generate`,
+			{
+				method: 'POST'
+			}
+		);
+	}
+
 	// Keycode Operations
 	async listKeycodes(search?: string, category?: string): Promise<KeycodeListResponse> {
 		const params = new URLSearchParams();
@@ -93,6 +121,11 @@ export class ApiClient {
 			method: 'PUT',
 			body: JSON.stringify(config)
 		});
+	}
+
+	// Effects Operations
+	async listEffects(): Promise<EffectsListResponse> {
+		return this.request<EffectsListResponse>('/api/effects');
 	}
 
 	// Geometry Operations

@@ -25,7 +25,8 @@ export const load: PageLoad = async ({ params, fetch }) => {
 
 		const layout: Layout = await response.json();
 		return {
-			layout
+			layout,
+			filename: params.name
 		};
 	} catch (e) {
 		throw error(404, {
