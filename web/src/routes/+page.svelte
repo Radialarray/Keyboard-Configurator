@@ -1,3 +1,7 @@
+<svelte:head>
+	<title>LazyQMK Dashboard</title>
+</svelte:head>
+
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { apiClient, type HealthResponse } from '$api';
@@ -60,6 +64,17 @@
 			</a>
 		</Card>
 
+		<!-- Templates Card -->
+		<Card class="p-6">
+			<h2 class="text-xl font-semibold mb-4">Templates</h2>
+			<p class="text-muted-foreground mb-4">
+				Browse and apply layout templates
+			</p>
+			<a href="/templates">
+				<Button>Browse Templates</Button>
+			</a>
+		</Card>
+
 		<!-- Keycodes Card -->
 		<Card class="p-6">
 			<h2 class="text-xl font-semibold mb-4">Keycodes</h2>
@@ -79,6 +94,28 @@
 			</p>
 			<a href="/settings">
 				<Button>Open Settings</Button>
+			</a>
+		</Card>
+
+		<!-- Setup Wizard Card -->
+		<Card class="p-6 border-primary/50">
+			<h2 class="text-xl font-semibold mb-4">New Layout</h2>
+			<p class="text-muted-foreground mb-4">
+				Create a new layout with the setup wizard
+			</p>
+			<a href="/setup">
+				<Button>Start Setup Wizard</Button>
+			</a>
+		</Card>
+
+		<!-- Build Firmware Card -->
+		<Card class="p-6" data-testid="build-card">
+			<h2 class="text-xl font-semibold mb-4">Build Firmware</h2>
+			<p class="text-muted-foreground mb-4">
+				Compile QMK firmware from your layouts
+			</p>
+			<a href="/build">
+				<Button data-testid="build-button">Build Firmware</Button>
 			</a>
 		</Card>
 	</div>

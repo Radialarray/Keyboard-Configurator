@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { KeyGeometryInfo, KeyAssignment } from '$api/types';
+	import type { KeyGeometryInfo, KeyAssignment, Layer, Category } from '$api/types';
 	import {
 		transformGeometry,
 		getKeyTransform,
@@ -7,6 +7,7 @@
 		KEY_BORDER_RADIUS,
 		type KeySvgData
 	} from '$lib/utils/geometry';
+	import { resolveKeyColor } from '$lib/utils/colorResolution';
 
 	interface Props {
 		/** Raw geometry data from the backend API */
@@ -15,8 +16,14 @@
 		keyAssignments?: KeyAssignment[];
 		/** Currently selected key index (visual index) */
 		selectedKeyIndex?: number | null;
+		/** Set of selected key indices for multi-selection */
+		selectedKeyIndices?: Set<number>;
+		/** Current layer (for color resolution) */
+		layer?: Layer;
+		/** Categories (for color resolution) */
+		categories?: Category[];
 		/** Callback when a key is clicked */
-		onKeyClick?: (visualIndex: number, matrixRow: number, matrixCol: number) => void;
+		onKeyClick?: (visualIndex: number, matrixRow: number, matrixCol: number, shiftKey: boolean) => void;
 		/** Custom class for the container */
 		class?: string;
 	}
@@ -25,6 +32,9 @@
 		geometry,
 		keyAssignments = [],
 		selectedKeyIndex = null,
+		selectedKeyIndices = new Set(),
+		layer,
+		categories = [],
 		onKeyClick,
 		class: className = ''
 	}: Props = $props();
@@ -37,6 +47,18 @@
 		const map = new Map<number, string>();
 		for (const assignment of keyAssignments) {
 			map.set(assignment.visual_index, formatKeycode(assignment.keycode));
+		}
+		return map;
+	});
+
+	// Create a lookup map from visual index to resolved color
+	const colorMap = $derived.by(() => {
+		const map = new Map<number, string | undefined>();
+		if (layer) {
+			for (const assignment of keyAssignments) {
+				const color = resolveKeyColor(assignment, layer, categories);
+				map.set(assignment.visual_index, color);
+			}
 		}
 		return map;
 	});
@@ -72,8 +94,8 @@
 		return label;
 	}
 
-	function handleKeyClick(key: KeySvgData) {
-		onKeyClick?.(key.visualIndex, key.matrixRow, key.matrixCol);
+	function handleKeyClick(key: KeySvgData, event: MouseEvent) {
+		onKeyClick?.(key.visualIndex, key.matrixRow, key.matrixCol, event.shiftKey);
 	}
 
 	/**
@@ -113,17 +135,18 @@
 
 			<!-- Render each key -->
 			{#each transformed.keys as key (getKeyId(key))}
-				{@const isSelected = selectedKeyIndex === key.visualIndex}
+				{@const isSelected = selectedKeyIndex === key.visualIndex || selectedKeyIndices.has(key.visualIndex)}
 				{@const label = keycodeMap.get(key.visualIndex) ?? ''}
 				{@const transform = getKeyTransform(key)}
 				{@const fontSize = getFontSize(label)}
+				{@const resolvedColor = colorMap.get(key.visualIndex)}
 
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<g
 					class="key-group"
 					transform={transform}
-					onclick={() => handleKeyClick(key)}
+					onclick={(e) => handleKeyClick(key, e)}
 					data-testid="key-{key.visualIndex}"
 					data-visual-index={key.visualIndex}
 					data-matrix-row={key.matrixRow}
@@ -138,6 +161,7 @@
 						rx={KEY_BORDER_RADIUS}
 						ry={KEY_BORDER_RADIUS}
 						class="key-bg {isSelected ? 'selected' : ''}"
+						style={resolvedColor && !isSelected ? `fill: ${resolvedColor}` : ''}
 						filter="url(#key-shadow)"
 					/>
 
@@ -150,6 +174,7 @@
 						rx={KEY_BORDER_RADIUS - 1}
 						ry={KEY_BORDER_RADIUS - 1}
 						class="key-top {isSelected ? 'selected' : ''}"
+						style={resolvedColor && !isSelected ? `fill: ${resolvedColor}; opacity: 0.8` : ''}
 					/>
 
 					<!-- Key label -->

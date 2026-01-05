@@ -1,3 +1,7 @@
+<svelte:head>
+	<title>Layouts - LazyQMK</title>
+</svelte:head>
+
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { apiClient, type LayoutSummary } from '$api';

@@ -12,7 +12,21 @@ import type {
 	InspectResponse,
 	ExportResponse,
 	GenerateResponse,
-	EffectsListResponse
+	EffectsListResponse,
+	TemplateListResponse,
+	TemplateInfo,
+	SaveTemplateRequest,
+	ApplyTemplateRequest,
+	KeyboardListResponse,
+	LayoutVariantsResponse,
+	CreateLayoutRequest,
+	SwitchVariantResponse,
+	StartBuildRequest,
+	StartBuildResponse,
+	JobStatusResponse,
+	JobLogsResponse,
+	CancelJobResponse,
+	BuildJob
 } from './types';
 
 export class ApiClient {
@@ -133,6 +147,96 @@ export class ApiClient {
 		return this.request<GeometryResponse>(
 			`/api/keyboards/${encodeURIComponent(keyboard)}/geometry/${encodeURIComponent(layout)}`
 		);
+	}
+
+	// Template Operations
+	async listTemplates(): Promise<TemplateListResponse> {
+		return this.request<TemplateListResponse>('/api/templates');
+	}
+
+	async getTemplate(filename: string): Promise<Layout> {
+		return this.request<Layout>(`/api/templates/${encodeURIComponent(filename)}`);
+	}
+
+	async saveAsTemplate(filename: string, request: SaveTemplateRequest): Promise<TemplateInfo> {
+		return this.request<TemplateInfo>(
+			`/api/layouts/${encodeURIComponent(filename)}/save-as-template`,
+			{
+				method: 'POST',
+				body: JSON.stringify(request)
+			}
+		);
+	}
+
+	async applyTemplate(
+		templateFilename: string,
+		request: ApplyTemplateRequest
+	): Promise<Layout> {
+		return this.request<Layout>(
+			`/api/templates/${encodeURIComponent(templateFilename)}/apply`,
+			{
+				method: 'POST',
+				body: JSON.stringify(request)
+			}
+		);
+	}
+
+	// Keyboard & Setup Wizard Operations
+	async listKeyboards(): Promise<KeyboardListResponse> {
+		return this.request<KeyboardListResponse>('/api/keyboards');
+	}
+
+	async listKeyboardLayouts(keyboard: string): Promise<LayoutVariantsResponse> {
+		return this.request<LayoutVariantsResponse>(
+			`/api/keyboards/${encodeURIComponent(keyboard)}/layouts`
+		);
+	}
+
+	async createLayout(request: CreateLayoutRequest): Promise<Layout> {
+		return this.request<Layout>('/api/layouts', {
+			method: 'POST',
+			body: JSON.stringify(request)
+		});
+	}
+
+	async switchLayoutVariant(filename: string, layoutVariant: string): Promise<SwitchVariantResponse> {
+		return this.request<SwitchVariantResponse>(
+			`/api/layouts/${encodeURIComponent(filename)}/switch-variant`,
+			{
+				method: 'POST',
+				body: JSON.stringify({ layout_variant: layoutVariant })
+			}
+		);
+	}
+
+	// Build Job Operations
+	async startBuild(layoutFilename: string): Promise<StartBuildResponse> {
+		const request: StartBuildRequest = { layout_filename: layoutFilename };
+		return this.request<StartBuildResponse>('/api/build/start', {
+			method: 'POST',
+			body: JSON.stringify(request)
+		});
+	}
+
+	async listBuildJobs(): Promise<BuildJob[]> {
+		return this.request<BuildJob[]>('/api/build/jobs');
+	}
+
+	async getBuildJob(jobId: string): Promise<JobStatusResponse> {
+		return this.request<JobStatusResponse>(`/api/build/jobs/${encodeURIComponent(jobId)}`);
+	}
+
+	async getBuildLogs(jobId: string, offset: number = 0, limit: number = 100): Promise<JobLogsResponse> {
+		const params = new URLSearchParams();
+		params.set('offset', offset.toString());
+		params.set('limit', limit.toString());
+		return this.request<JobLogsResponse>(`/api/build/jobs/${encodeURIComponent(jobId)}/logs?${params.toString()}`);
+	}
+
+	async cancelBuild(jobId: string): Promise<CancelJobResponse> {
+		return this.request<CancelJobResponse>(`/api/build/jobs/${encodeURIComponent(jobId)}/cancel`, {
+			method: 'POST'
+		});
 	}
 }
 

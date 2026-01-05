@@ -1,5 +1,15 @@
 <script lang="ts">
-	import { Button, Card, KeyboardPreview, Input, Tabs } from '$components';
+	import {
+		Button,
+		Card,
+		KeyboardPreview,
+		Input,
+		Tabs,
+		LayerManager,
+		KeycodePicker,
+		CategoryManager,
+		ColorPicker
+	} from '$components';
 	import { apiClient } from '$api';
 	import type { PageData } from './$types';
 	import type {
@@ -10,12 +20,22 @@
 		ValidationResponse,
 		InspectResponse,
 		ExportResponse,
-		GenerateResponse
+		GenerateResponse,
+		Category,
+		RgbColor,
+		LayoutVariantInfo,
+		SwitchVariantResponse
 	} from '$api/types';
+	import { ClipboardManager } from '$lib/utils/clipboard';
+	import { validateName, parseAndValidateTags, type ValidationError } from '$lib/utils/metadata';
 
 	let { data }: { data: PageData } = $props();
-	// Use $derived.by to properly react to data changes
-	let layout = $derived.by(() => data.layout);
+	// Initialize layout from data, but make it mutable state
+	let layout = $state(data.layout);
+	// React to data changes
+	$effect(() => {
+		layout = data.layout;
+	});
 	let filename = $derived(data.filename);
 	let isDirty = $state(false);
 	let saveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -24,6 +44,9 @@
 	// Tab navigation
 	const tabs = [
 		{ id: 'preview', label: 'Preview', icon: '⌨️' },
+		{ id: 'metadata', label: 'Metadata', icon: '📝' },
+		{ id: 'layers', label: 'Layers', icon: '📚' },
+		{ id: 'categories', label: 'Categories', icon: '🎨' },
 		{ id: 'tap-dance', label: 'Tap Dance', icon: '💃' },
 		{ id: 'combos', label: 'Combos', icon: '🔗' },
 		{ id: 'idle-effect', label: 'Idle Effect', icon: '💤' },
@@ -34,12 +57,53 @@
 	];
 	let activeTab = $state('preview');
 
+	// Metadata editing state
+	let metadataName = $state('');
+	let metadataDescription = $state('');
+	let metadataAuthor = $state('');
+	let metadataTagsInput = $state('');
+	let metadataErrors = $state<ValidationError[]>([]);
+
+	// Initialize metadata fields when layout loads
+	$effect(() => {
+		if (layout) {
+			metadataName = layout.metadata.name || '';
+			metadataDescription = layout.metadata.description || '';
+			metadataAuthor = layout.metadata.author || '';
+			metadataTagsInput = (layout.metadata.tags || []).join(', ');
+		}
+	});
+
 	// State for keyboard preview
 	let geometry = $state<GeometryResponse | null>(null);
 	let geometryError = $state<string | null>(null);
 	let geometryLoading = $state(false);
 	let selectedKeyIndex = $state<number | null>(null);
 	let selectedLayerIndex = $state(0);
+
+	// Multi-selection state
+	let selectionMode = $state(false);
+	let selectedKeyIndices = $state<Set<number>>(new Set());
+
+	// Clipboard state
+	const clipboard = new ClipboardManager();
+	let clipboardSize = $state(0);
+	let canUndo = $state(false);
+
+	// Update clipboard state for reactivity
+	function updateClipboardState() {
+		clipboardSize = clipboard.getClipboardSize();
+		canUndo = clipboard.canUndo(selectedLayerIndex);
+	}
+
+	// State for keycode picker
+	let keycodePickerOpen = $state(false);
+	let editingKeyVisualIndex = $state<number | null>(null);
+
+	// State for color/category editing
+	let showKeyColorPicker = $state(false);
+	let showLayerColorPicker = $state(false);
+	let showLayerCategorySelector = $state(false);
 
 	// State for validation/inspect/export/generate
 	let validationResult = $state<ValidationResponse | null>(null);
@@ -50,6 +114,22 @@
 	let exportLoading = $state(false);
 	let generateResult = $state<GenerateResponse | null>(null);
 	let generateLoading = $state(false);
+
+	// State for save as template
+	let showSaveTemplateDialog = $state(false);
+	let templateName = $state('');
+	let templateTags = $state('');
+	let saveTemplateLoading = $state(false);
+	let saveTemplateError = $state<string | null>(null);
+
+	// State for switch layout variant
+	let showVariantSwitchDialog = $state(false);
+	let availableVariants = $state<LayoutVariantInfo[]>([]);
+	let variantsLoading = $state(false);
+	let variantsError = $state<string | null>(null);
+	let switchingVariant = $state(false);
+	let switchVariantError = $state<string | null>(null);
+	let switchVariantWarning = $state<string | null>(null);
 
 	// Load geometry when layout is available
 	$effect(() => {
@@ -73,13 +153,166 @@
 		}
 	}
 
-	function handleKeyClick(visualIndex: number, matrixRow: number, matrixCol: number) {
-		selectedKeyIndex = visualIndex;
+	async function openVariantSwitch() {
+		if (!layout?.metadata.keyboard) {
+			variantsError = 'No keyboard defined for this layout';
+			return;
+		}
+		showVariantSwitchDialog = true;
+		variantsLoading = true;
+		variantsError = null;
+		switchVariantError = null;
+		switchVariantWarning = null;
+		try {
+			const response = await apiClient.listKeyboardLayouts(layout.metadata.keyboard);
+			availableVariants = response.variants;
+		} catch (e) {
+			variantsError = e instanceof Error ? e.message : 'Failed to load layout variants';
+		} finally {
+			variantsLoading = false;
+		}
+	}
+
+	async function switchToVariant(variantName: string) {
+		switchingVariant = true;
+		switchVariantError = null;
+		switchVariantWarning = null;
+		try {
+			const response: SwitchVariantResponse = await apiClient.switchLayoutVariant(filename, variantName);
+			layout = response.layout;
+			if (response.warning) {
+				switchVariantWarning = response.warning;
+			}
+			isDirty = false; // Layout was saved by the backend
+			showVariantSwitchDialog = false;
+			// Reload geometry for the new variant
+			if (layout.metadata.keyboard && layout.metadata.layout_variant) {
+				await loadGeometry(layout.metadata.keyboard, layout.metadata.layout_variant);
+			}
+		} catch (e) {
+			switchVariantError = e instanceof Error ? e.message : 'Failed to switch layout variant';
+		} finally {
+			switchingVariant = false;
+		}
+	}
+
+	function handleKeyClick(visualIndex: number, matrixRow: number, matrixCol: number, shiftKey: boolean) {
+		if (selectionMode || shiftKey) {
+			// Toggle selection in selection mode
+			const newSelection = new Set(selectedKeyIndices);
+			
+			// When shift-clicking without selection mode, include the previously selected key
+			// This allows shift-click multi-selection to work without enabling selection mode first
+			if (shiftKey && !selectionMode && selectedKeyIndex !== null && !newSelection.has(selectedKeyIndex)) {
+				newSelection.add(selectedKeyIndex);
+			}
+			
+			if (newSelection.has(visualIndex)) {
+				newSelection.delete(visualIndex);
+			} else {
+				newSelection.add(visualIndex);
+			}
+			selectedKeyIndices = newSelection;
+			// Keep single selection for key details panel
+			selectedKeyIndex = visualIndex;
+		} else {
+			// Single selection mode (default behavior)
+			selectedKeyIndex = visualIndex;
+			selectedKeyIndices = new Set();
+		}
+	}
+
+	function toggleSelectionMode() {
+		selectionMode = !selectionMode;
+		if (!selectionMode) {
+			selectedKeyIndices = new Set();
+		}
+	}
+
+	function clearSelection() {
+		selectedKeyIndices = new Set();
+		selectedKeyIndex = null;
+	}
+
+	// Clipboard operations
+	function handleCopy() {
+		if (!layout) return;
+		const count = clipboard.copyKeys(currentLayerKeys, selectedKeyIndices);
+		updateClipboardState();
+		console.log(`Copied ${count} keys`);
+	}
+
+	function handleCut() {
+		if (!layout) return;
+		const updatedKeys = clipboard.cutKeys(currentLayerKeys, selectedKeyIndices, selectedLayerIndex);
+		layout.layers[selectedLayerIndex].keys = updatedKeys;
+		layout.layers = [...layout.layers];
+		isDirty = true;
+		updateClipboardState();
+		console.log(`Cut ${selectedKeyIndices.size} keys`);
+	}
+
+	function handlePaste() {
+		if (!layout) return;
+		const selection: Set<number> = selectedKeyIndices.size > 0 ? selectedKeyIndices : 
+			(selectedKeyIndex !== null ? new Set([selectedKeyIndex]) : new Set());
+		
+		const updatedKeys = clipboard.pasteKeys(currentLayerKeys, selection, selectedLayerIndex);
+		if (updatedKeys) {
+			layout.layers[selectedLayerIndex].keys = updatedKeys;
+			layout.layers = [...layout.layers];
+			isDirty = true;
+			updateClipboardState();
+			console.log(`Pasted to ${selection.size} keys`);
+		}
+	}
+
+	function handleUndo() {
+		if (!layout) return;
+		const undoKeys = clipboard.undo(currentLayerKeys, selectedLayerIndex);
+		if (undoKeys) {
+			layout.layers[selectedLayerIndex].keys = undoKeys;
+			layout.layers = [...layout.layers];
+			isDirty = true;
+			updateClipboardState();
+			console.log('Undo successful');
+		}
+	}
+
+	function openKeycodePicker() {
+		if (selectedKeyIndex === null) return;
+		editingKeyVisualIndex = selectedKeyIndex;
+		keycodePickerOpen = true;
+	}
+
+	function handleKeycodeSelect(keycode: string) {
+		if (!layout || editingKeyVisualIndex === null) return;
+		
+		// Find the key in the current layer and update its keycode
+		const keyIndex = layout.layers[selectedLayerIndex].keys.findIndex(
+			(k) => k.visual_index === editingKeyVisualIndex
+		);
+		
+		if (keyIndex !== -1) {
+			layout.layers[selectedLayerIndex].keys[keyIndex].keycode = keycode;
+			layout.layers = [...layout.layers]; // Trigger reactivity
+			isDirty = true;
+		}
+		
+		keycodePickerOpen = false;
+		editingKeyVisualIndex = null;
+	}
+
+	function handleKeycodePickerClose() {
+		keycodePickerOpen = false;
+		editingKeyVisualIndex = null;
 	}
 
 	function handleLayerChange(index: number) {
 		selectedLayerIndex = index;
-		selectedKeyIndex = null;
+		// Clear selection when changing layers
+		selectedKeyIndices = new Set();
+		// Preserve key selection when switching layers
 	}
 
 	// Get key assignments for the current layer
@@ -198,6 +431,108 @@
 		isDirty = true;
 	}
 
+	// Layer management
+	function handleLayersChange(newLayers: typeof layout.layers) {
+		if (!layout) return;
+		layout.layers = newLayers;
+		layout = { ...layout };
+		isDirty = true;
+	}
+
+	// Category management
+	function handleCategoriesChange(newCategories: Category[]) {
+		if (!layout) return;
+		layout.categories = newCategories;
+		layout = { ...layout };
+		isDirty = true;
+	}
+
+	// Key color/category management
+	function setKeyColorOverride(color: RgbColor) {
+		if (!layout || selectedKeyIndex === null) return;
+		const keyIndex = layout.layers[selectedLayerIndex].keys.findIndex(
+			(k) => k.visual_index === selectedKeyIndex
+		);
+		if (keyIndex !== -1) {
+			// Create new key object with color override
+			const updatedKey = { ...layout.layers[selectedLayerIndex].keys[keyIndex], color_override: color };
+			// Create new keys array
+			const updatedKeys = [...layout.layers[selectedLayerIndex].keys];
+			updatedKeys[keyIndex] = updatedKey;
+			// Create new layers array with updated layer
+			const updatedLayers = [...layout.layers];
+			updatedLayers[selectedLayerIndex] = { ...layout.layers[selectedLayerIndex], keys: updatedKeys };
+			// Assign to trigger reactivity
+			layout.layers = updatedLayers;
+			// Force full layout reactivity
+			layout = { ...layout };
+			isDirty = true;
+		}
+		showKeyColorPicker = false;
+	}
+
+	function clearKeyColorOverride() {
+		if (!layout || selectedKeyIndex === null) return;
+		const keyIndex = layout.layers[selectedLayerIndex].keys.findIndex(
+			(k) => k.visual_index === selectedKeyIndex
+		);
+		if (keyIndex !== -1) {
+			// Create new key object without color override
+			const updatedKey = { ...layout.layers[selectedLayerIndex].keys[keyIndex] };
+			delete updatedKey.color_override;
+			// Create new keys array
+			const updatedKeys = [...layout.layers[selectedLayerIndex].keys];
+			updatedKeys[keyIndex] = updatedKey;
+			// Create new layers array with updated layer
+			const updatedLayers = [...layout.layers];
+			updatedLayers[selectedLayerIndex] = { ...layout.layers[selectedLayerIndex], keys: updatedKeys };
+			// Assign to trigger reactivity
+			layout.layers = updatedLayers;
+			// Force full layout reactivity
+			layout = { ...layout };
+			isDirty = true;
+		}
+		showKeyColorPicker = false;
+	}
+
+	function setKeyCategory(categoryId: string | undefined) {
+		if (!layout || selectedKeyIndex === null) return;
+		const keyIndex = layout.layers[selectedLayerIndex].keys.findIndex(
+			(k) => k.visual_index === selectedKeyIndex
+		);
+		if (keyIndex !== -1) {
+			// Create new key object with category
+			const updatedKey = { ...layout.layers[selectedLayerIndex].keys[keyIndex], category_id: categoryId };
+			// Create new keys array
+			const updatedKeys = [...layout.layers[selectedLayerIndex].keys];
+			updatedKeys[keyIndex] = updatedKey;
+			// Create new layers array with updated layer
+			const updatedLayers = [...layout.layers];
+			updatedLayers[selectedLayerIndex] = { ...layout.layers[selectedLayerIndex], keys: updatedKeys };
+			// Assign to trigger reactivity
+			layout.layers = updatedLayers;
+			// Force full layout reactivity
+			layout = { ...layout };
+			isDirty = true;
+		}
+	}
+
+	// Layer color/category management
+	function setLayerDefaultColor(color: RgbColor) {
+		if (!layout) return;
+		layout.layers[selectedLayerIndex].default_color = color;
+		layout.layers = [...layout.layers];
+		isDirty = true;
+		showLayerColorPicker = false;
+	}
+
+	function setLayerCategory(categoryId: string | undefined) {
+		if (!layout) return;
+		layout.layers[selectedLayerIndex].category_id = categoryId;
+		layout.layers = [...layout.layers];
+		isDirty = true;
+	}
+
 	// Validate
 	async function runValidation() {
 		if (!filename) return;
@@ -268,6 +603,116 @@
 			generateLoading = false;
 		}
 	}
+
+	// Save as template
+	function openSaveTemplateDialog() {
+		templateName = layout?.metadata.name || '';
+		templateTags = '';
+		saveTemplateError = null;
+		showSaveTemplateDialog = true;
+	}
+
+	function closeSaveTemplateDialog() {
+		showSaveTemplateDialog = false;
+		templateName = '';
+		templateTags = '';
+		saveTemplateError = null;
+	}
+
+	async function saveAsTemplate() {
+		if (!filename || !templateName.trim()) {
+			saveTemplateError = 'Please enter a template name';
+			return;
+		}
+
+		saveTemplateLoading = true;
+		saveTemplateError = null;
+
+		try {
+			const tags = templateTags
+				.split(',')
+				.map((t) => t.trim())
+				.filter((t) => t.length > 0);
+
+			await apiClient.saveAsTemplate(filename, {
+				name: templateName.trim(),
+				tags
+			});
+
+			closeSaveTemplateDialog();
+			// Show success message
+			saveStatus = 'saved';
+			saveError = 'Saved as template!';
+			setTimeout(() => {
+				if (saveStatus === 'saved') saveStatus = 'idle';
+			}, 3000);
+		} catch (e) {
+			saveTemplateError = e instanceof Error ? e.message : 'Failed to save template';
+		} finally {
+			saveTemplateLoading = false;
+		}
+	}
+
+	// Metadata editing functions
+	function updateMetadataField(field: 'name' | 'description' | 'author' | 'tags', value: string) {
+		if (!layout) return;
+		
+		if (field === 'name') {
+			metadataName = value;
+			layout.metadata.name = value;
+		} else if (field === 'description') {
+			metadataDescription = value;
+			layout.metadata.description = value;
+		} else if (field === 'author') {
+			metadataAuthor = value;
+			layout.metadata.author = value;
+		} else if (field === 'tags') {
+			metadataTagsInput = value;
+			// Don't update layout.metadata.tags until validation passes
+		}
+		
+		// Validate metadata
+		validateMetadataFields();
+		
+		// Only mark dirty if validation passes for critical fields (name)
+		if (field === 'name') {
+			const nameError = validateName(value);
+			if (!nameError) {
+				isDirty = true;
+			}
+		} else {
+			isDirty = true;
+		}
+	}
+
+	function validateMetadataFields() {
+		const errors: ValidationError[] = [];
+		
+		// Validate name
+		const nameError = validateName(metadataName);
+		if (nameError) {
+			errors.push(nameError);
+		}
+		
+		// Validate and parse tags
+		const tagsResult = parseAndValidateTags(metadataTagsInput);
+		if (!tagsResult.valid) {
+			errors.push({ field: 'tags', message: tagsResult.error });
+		} else if (layout) {
+			// Update tags in layout if valid
+			layout.metadata.tags = tagsResult.tags;
+		}
+		
+		metadataErrors = errors;
+	}
+
+	function getFieldError(field: string): string | null {
+		const error = metadataErrors.find(e => e.field === field);
+		return error ? error.message : null;
+	}
+
+	// Check if save should be blocked due to metadata validation errors
+	const canSave = $derived(!metadataErrors.some(e => e.field === 'name' || e.field === 'tags'));
 </script>
 
 <div class="container mx-auto p-6">
@@ -290,9 +735,10 @@
 			{:else if saveStatus === 'error'}
 				<span class="text-sm text-red-500">{saveError}</span>
 			{/if}
-			<Button onclick={saveLayout} disabled={!isDirty || saveStatus === 'saving'}>
+			<Button onclick={saveLayout} disabled={!isDirty || !canSave || saveStatus === 'saving'} data-testid="save-button">
 				{saveStatus === 'saving' ? 'Saving...' : 'Save'}
 			</Button>
+			<Button onclick={openSaveTemplateDialog} variant="outline" data-testid="save-template-button">Save as Template</Button>
 			<a href="/layouts">
 				<Button>Back</Button>
 			</a>
@@ -304,7 +750,150 @@
 
 	<!-- Tab Content -->
 	{#if layout}
-		{#if activeTab === 'preview'}
+		{#if activeTab === 'metadata'}
+			<!-- Metadata Tab -->
+			<Card class="p-6 max-w-3xl">
+				<h2 class="text-lg font-semibold mb-4">Layout Metadata</h2>
+				<p class="text-sm text-muted-foreground mb-6">
+					Edit the basic information about this layout. Changes are saved when you click the Save button.
+				</p>
+
+				<div class="space-y-6">
+					<!-- Name Field -->
+					<div>
+						<label for="metadata-name" class="block text-sm font-medium mb-2">
+							Name <span class="text-destructive">*</span>
+						</label>
+						<Input
+							id="metadata-name"
+							type="text"
+							value={metadataName}
+							oninput={(e) => updateMetadataField('name', e.currentTarget.value)}
+							placeholder="My Awesome Layout"
+							data-testid="metadata-name-input"
+							class="w-full"
+						/>
+						{#if getFieldError('name')}
+							<p class="text-sm text-destructive mt-1" data-testid="metadata-name-error">
+								{getFieldError('name')}
+							</p>
+						{/if}
+						<p class="text-xs text-muted-foreground mt-1">
+							Maximum 100 characters. This appears in the layout list and exports.
+						</p>
+					</div>
+
+					<!-- Description Field -->
+					<div>
+						<label for="metadata-description" class="block text-sm font-medium mb-2">
+							Description
+						</label>
+						<textarea
+							id="metadata-description"
+							value={metadataDescription}
+							oninput={(e) => updateMetadataField('description', e.currentTarget.value)}
+							placeholder="A brief description of this layout..."
+							rows={3}
+							data-testid="metadata-description-input"
+							class="w-full px-3 py-2 border border-border rounded-lg bg-background resize-y"
+						></textarea>
+						<p class="text-xs text-muted-foreground mt-1">
+							Optional. Describe the layout's purpose, features, or design philosophy.
+						</p>
+					</div>
+
+					<!-- Author Field -->
+					<div>
+						<label for="metadata-author" class="block text-sm font-medium mb-2">
+							Author
+						</label>
+						<Input
+							id="metadata-author"
+							type="text"
+							value={metadataAuthor}
+							oninput={(e) => updateMetadataField('author', e.currentTarget.value)}
+							placeholder="Your Name"
+							data-testid="metadata-author-input"
+							class="w-full"
+						/>
+						<p class="text-xs text-muted-foreground mt-1">
+							Optional. Your name or username.
+						</p>
+					</div>
+
+					<!-- Tags Field -->
+					<div>
+						<label for="metadata-tags" class="block text-sm font-medium mb-2">
+							Tags
+						</label>
+						<Input
+							id="metadata-tags"
+							type="text"
+							value={metadataTagsInput}
+							oninput={(e) => updateMetadataField('tags', e.currentTarget.value)}
+							placeholder="corne, 42-key, minimal"
+							data-testid="metadata-tags-input"
+							class="w-full font-mono text-sm"
+						/>
+						{#if getFieldError('tags')}
+							<p class="text-sm text-destructive mt-1" data-testid="metadata-tags-error">
+								{getFieldError('tags')}
+							</p>
+						{/if}
+						<p class="text-xs text-muted-foreground mt-1">
+							Comma-separated tags. Tags must be lowercase with hyphens and alphanumeric characters only (e.g., "42-key", "gaming").
+						</p>
+						{#if layout.metadata.tags && layout.metadata.tags.length > 0}
+							<div class="flex flex-wrap gap-2 mt-2">
+								{#each layout.metadata.tags as tag}
+									<span class="inline-flex items-center px-2 py-1 rounded bg-primary/10 text-primary text-xs font-mono">
+										{tag}
+									</span>
+								{/each}
+							</div>
+						{/if}
+					</div>
+
+					<!-- Read-only Metadata -->
+					<div class="border-t border-border pt-4">
+						<h3 class="text-sm font-semibold mb-3">System Information</h3>
+						<dl class="grid grid-cols-2 gap-4 text-sm">
+							<div>
+								<dt class="font-medium text-muted-foreground">Keyboard</dt>
+								<dd class="font-mono text-xs">{layout.metadata.keyboard || 'N/A'}</dd>
+							</div>
+							<div>
+								<dt class="font-medium text-muted-foreground">Layout Variant</dt>
+								<dd class="font-mono text-xs flex items-center gap-2">
+									{layout.metadata.layout_variant || 'N/A'}
+									{#if layout.metadata.keyboard}
+										<Button size="sm" variant="outline" onclick={openVariantSwitch}>
+											Switch
+										</Button>
+									{/if}
+								</dd>
+							</div>
+							<div>
+								<dt class="font-medium text-muted-foreground">Created</dt>
+								<dd>{new Date(layout.metadata.created).toLocaleString()}</dd>
+							</div>
+							<div>
+								<dt class="font-medium text-muted-foreground">Modified</dt>
+								<dd>{new Date(layout.metadata.modified).toLocaleString()}</dd>
+							</div>
+							<div>
+								<dt class="font-medium text-muted-foreground">Version</dt>
+								<dd>{layout.metadata.version || '1.0'}</dd>
+							</div>
+							<div>
+								<dt class="font-medium text-muted-foreground">Template</dt>
+								<dd>{layout.metadata.is_template ? 'Yes' : 'No'}</dd>
+							</div>
+						</dl>
+					</div>
+				</div>
+			</Card>
+		{:else if activeTab === 'preview'}
 			<!-- Preview Tab -->
 			<div class="space-y-6">
 				<!-- Metadata Card -->
@@ -356,11 +945,81 @@
 				<Card class="p-6">
 					<div class="flex items-center justify-between mb-4">
 						<h2 class="text-lg font-semibold">Keyboard Preview</h2>
-						{#if selectedKey}
-							<div class="text-sm text-muted-foreground">
-								Selected: <code class="px-2 py-0.5 bg-muted rounded">{selectedKey.keycode}</code>
-							</div>
+						<div class="flex items-center gap-3">
+							{#if selectedKeyIndices.size > 0}
+								<span class="text-sm text-muted-foreground">
+									{selectedKeyIndices.size} {selectedKeyIndices.size === 1 ? 'key' : 'keys'} selected
+								</span>
+							{/if}
+							{#if selectedKey}
+								<span class="text-sm text-muted-foreground">
+									Selected: <code class="px-2 py-0.5 bg-muted rounded">{selectedKey.keycode}</code>
+								</span>
+							{/if}
+						</div>
+					</div>
+
+					<!-- Selection and Clipboard Controls -->
+					<div class="mb-4 flex items-center gap-2 flex-wrap">
+						<Button
+							onclick={toggleSelectionMode}
+							size="sm"
+							variant={selectionMode ? 'default' : 'outline'}
+							data-testid="selection-mode-button"
+						>
+							{selectionMode ? '✓ Selection Mode' : 'Selection Mode'}
+						</Button>
+						{#if selectionMode || selectedKeyIndices.size > 0}
+							<Button
+								onclick={clearSelection}
+								size="sm"
+								variant="outline"
+								data-testid="clear-selection-button"
+							>
+								Clear Selection
+							</Button>
 						{/if}
+						<div class="h-4 w-px bg-border mx-1"></div>
+						<Button
+							onclick={handleCopy}
+							size="sm"
+							variant="outline"
+							disabled={selectedKeyIndices.size === 0}
+							data-testid="copy-button"
+							title="Copy selected keys (Ctrl+C)"
+						>
+							Copy
+						</Button>
+						<Button
+							onclick={handleCut}
+							size="sm"
+							variant="outline"
+							disabled={selectedKeyIndices.size === 0}
+							data-testid="cut-button"
+							title="Cut selected keys (Ctrl+X)"
+						>
+							Cut
+						</Button>
+						<Button
+							onclick={handlePaste}
+							size="sm"
+							variant="outline"
+							disabled={clipboardSize === 0}
+							data-testid="paste-button"
+							title="Paste clipboard (Ctrl+V)"
+						>
+							Paste {clipboardSize > 0 ? `(${clipboardSize})` : ''}
+						</Button>
+						<Button
+							onclick={handleUndo}
+							size="sm"
+							variant="outline"
+							disabled={!canUndo}
+							data-testid="undo-button"
+							title="Undo last operation (Ctrl+Z)"
+						>
+							Undo
+						</Button>
 					</div>
 
 					{#if geometryLoading}
@@ -377,6 +1036,9 @@
 							geometry={geometry.keys}
 							keyAssignments={currentLayerKeys}
 							{selectedKeyIndex}
+							{selectedKeyIndices}
+							layer={layout.layers[selectedLayerIndex]}
+							categories={layout.categories || []}
 							onKeyClick={handleKeyClick}
 							class="max-w-4xl mx-auto"
 						/>
@@ -390,8 +1052,8 @@
 				<!-- Key Details Card -->
 				{#if selectedKey}
 					<Card class="p-6">
-						<h2 class="text-lg font-semibold mb-4">Key Details</h2>
-						<dl class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+						<h2 class="text-lg font-semibold mb-4">Key Details & Customization</h2>
+						<dl class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
 							<div>
 								<dt class="font-medium text-muted-foreground">Visual Index</dt>
 								<dd class="font-mono">{selectedKey.visual_index}</dd>
@@ -411,9 +1073,85 @@
 								<dd class="font-mono">{selectedKey.keycode}</dd>
 							</div>
 						</dl>
+
+						<div class="border-t border-border pt-4 space-y-4">
+							<h3 class="font-medium text-sm">Key Customization</h3>
+
+							<!-- Edit Keycode Button -->
+							<div>
+								<p class="block text-xs font-medium text-muted-foreground mb-2">Keycode</p>
+								<Button onclick={openKeycodePicker} size="sm">Edit Keycode</Button>
+							</div>
+
+							<!-- Key Color Override -->
+							<div>
+								<p class="block text-xs font-medium text-muted-foreground mb-2">Color Override</p>
+								{#if selectedKey.color_override}
+									<div class="flex items-center gap-2">
+										<div
+											class="w-8 h-8 rounded border border-border"
+											style="background-color: rgb({selectedKey.color_override.r}, {selectedKey.color_override
+												.g}, {selectedKey.color_override.b})"
+										></div>
+										<Button onclick={() => (showKeyColorPicker = !showKeyColorPicker)} size="sm" variant="outline">
+											Change
+										</Button>
+										<Button onclick={clearKeyColorOverride} size="sm" variant="outline" data-testid="clear-color-override-button">Clear</Button>
+									</div>
+								{:else}
+									<Button onclick={() => (showKeyColorPicker = !showKeyColorPicker)} size="sm" data-testid="set-color-button">Set Color</Button>
+								{/if}
+								{#if showKeyColorPicker}
+									<div class="mt-3 p-4 border border-border rounded-lg">
+										<ColorPicker
+											color={selectedKey.color_override}
+											onSelect={setKeyColorOverride}
+											onClear={clearKeyColorOverride}
+											label="Key Color Override"
+											showClear={!!selectedKey.color_override}
+										/>
+									</div>
+								{/if}
+							</div>
+
+							<!-- Key Category -->
+							<div>
+								<label for="key-category" class="block text-xs font-medium text-muted-foreground mb-2">Category</label>
+								<select
+									id="key-category"
+									class="w-full px-3 py-2 border border-border rounded-lg bg-background"
+									value={selectedKey.category_id || ''}
+									onchange={(e) => setKeyCategory(e.currentTarget.value || undefined)}
+								>
+									<option value="">None</option>
+									{#if layout.categories}
+										{#each layout.categories as category}
+											<option value={category.id}>{category.name}</option>
+										{/each}
+									{/if}
+								</select>
+								<p class="text-xs text-muted-foreground mt-1">
+									Assign this key to a category for automatic coloring
+								</p>
+							</div>
+						</div>
 					</Card>
 				{/if}
 			</div>
+		{:else if activeTab === 'layers'}
+			<!-- Layers Tab -->
+			<LayerManager
+				layers={layout.layers}
+				{selectedLayerIndex}
+				onLayersChange={handleLayersChange}
+				onLayerSelect={handleLayerChange}
+			/>
+		{:else if activeTab === 'categories'}
+			<!-- Categories Tab -->
+			<CategoryManager
+				categories={layout.categories || []}
+				onChange={handleCategoriesChange}
+			/>
 		{:else if activeTab === 'tap-dance'}
 			<!-- Tap Dance Tab -->
 			<Card class="p-6">
@@ -847,3 +1585,160 @@
 		{/if}
 	{/if}
 </div>
+
+<!-- Keycode Picker Modal -->
+<KeycodePicker
+	bind:open={keycodePickerOpen}
+	onClose={handleKeycodePickerClose}
+	onSelect={handleKeycodeSelect}
+	currentKeycode={editingKeyVisualIndex !== null
+		? currentLayerKeys.find((k) => k.visual_index === editingKeyVisualIndex)?.keycode
+		: undefined}
+/>
+
+<!-- Save as Template Dialog -->
+{#if showSaveTemplateDialog}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+		onclick={closeSaveTemplateDialog}
+	>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div onclick={(e: MouseEvent) => e.stopPropagation()}>
+			<Card class="p-6 max-w-md w-full">
+				<h2 class="text-2xl font-bold mb-4">Save as Template</h2>
+				<p class="text-sm text-muted-foreground mb-4">
+					Save this layout as a reusable template for future projects.
+				</p>
+
+				<div class="space-y-4 mb-4">
+					<div>
+						<label for="template-name" class="block text-sm font-medium mb-2">
+							Template Name
+						</label>
+						<Input
+							id="template-name"
+							type="text"
+							placeholder="My Awesome Template"
+							bind:value={templateName}
+							class="w-full"
+						/>
+					</div>
+
+					<div>
+						<label for="template-tags" class="block text-sm font-medium mb-2">
+							Tags (comma-separated)
+						</label>
+						<Input
+							id="template-tags"
+							type="text"
+							placeholder="corne, 42-key, minimal"
+							bind:value={templateTags}
+							class="w-full"
+						/>
+						<p class="text-xs text-muted-foreground mt-1">
+							Tags help organize and find templates later
+						</p>
+					</div>
+				</div>
+
+				{#if saveTemplateError}
+					<div class="mb-4 p-3 bg-destructive/10 text-destructive text-sm rounded">
+						{saveTemplateError}
+					</div>
+				{/if}
+
+				<div class="flex gap-2">
+					<Button
+						onclick={saveAsTemplate}
+						disabled={saveTemplateLoading || !templateName.trim()}
+						class="flex-1"
+					>
+						{saveTemplateLoading ? 'Saving...' : 'Save Template'}
+					</Button>
+					<Button
+						onclick={closeSaveTemplateDialog}
+						disabled={saveTemplateLoading}
+						class="flex-1"
+						variant="ghost"
+					>
+						Cancel
+					</Button>
+				</div>
+			</Card>
+		</div>
+	</div>
+{/if}
+
+<!-- Variant Switch Dialog -->
+{#if showVariantSwitchDialog}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+		onclick={() => (showVariantSwitchDialog = false)}
+	>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div onclick={(e: MouseEvent) => e.stopPropagation()}>
+			<Card class="p-6 max-w-lg w-full">
+				<h2 class="text-2xl font-bold mb-4">Switch Layout Variant</h2>
+				<p class="text-sm text-muted-foreground mb-4">
+					Change the physical layout variant for this keyboard. This will adjust the key count.
+				</p>
+
+				{#if variantsLoading}
+					<p class="text-muted-foreground">Loading variants...</p>
+				{:else if variantsError}
+					<div class="p-3 bg-destructive/10 text-destructive text-sm rounded mb-4">
+						{variantsError}
+					</div>
+				{:else}
+					<div class="space-y-2 mb-4 max-h-64 overflow-y-auto">
+						{#each availableVariants as variant}
+							{@const isCurrent = variant.name === layout.metadata.layout_variant}
+							<button
+								class="w-full p-3 text-left border rounded hover:bg-muted flex justify-between items-center
+								{isCurrent ? 'bg-primary/10 border-primary' : ''}"
+								onclick={() => !isCurrent && switchToVariant(variant.name)}
+								disabled={switchingVariant || isCurrent}
+							>
+								<span class="font-mono text-sm">{variant.name}</span>
+								<span class="text-xs text-muted-foreground">
+									{variant.key_count} keys
+									{#if isCurrent}
+										<span class="ml-2 text-primary">(current)</span>
+									{/if}
+								</span>
+							</button>
+						{/each}
+					</div>
+				{/if}
+
+				{#if switchVariantError}
+					<div class="mb-4 p-3 bg-destructive/10 text-destructive text-sm rounded">
+						{switchVariantError}
+					</div>
+				{/if}
+
+				{#if switchVariantWarning}
+					<div class="mb-4 p-3 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-200 text-sm rounded">
+						{switchVariantWarning}
+					</div>
+				{/if}
+
+				<div class="flex justify-end">
+					<Button
+						onclick={() => (showVariantSwitchDialog = false)}
+						disabled={switchingVariant}
+						variant="outline"
+					>
+						{switchingVariant ? 'Switching...' : 'Close'}
+					</Button>
+				</div>
+			</Card>
+		</div>
+	</div>
+{/if}

@@ -13,6 +13,7 @@
 		max?: number | string;
 		oninput?: (e: Event & { currentTarget: HTMLInputElement }) => void;
 		onchange?: (e: Event & { currentTarget: HTMLInputElement }) => void;
+		'data-testid'?: string;
 	}
 
 	let {
@@ -26,7 +27,8 @@
 		min,
 		max,
 		oninput,
-		onchange
+		onchange,
+		'data-testid': testId
 	}: InputProps = $props();
 </script>
 
@@ -45,4 +47,5 @@
 	)}
 	{oninput}
 	{onchange}
+	data-testid={testId}
 />

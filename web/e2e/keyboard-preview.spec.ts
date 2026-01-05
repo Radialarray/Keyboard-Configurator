@@ -120,7 +120,7 @@ test.describe('Keyboard Preview', () => {
 		await expect(page.getByText('Selected:')).toBeVisible();
 
 		// Verify key details card appears
-		await expect(page.getByRole('heading', { name: 'Key Details' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Key Details & Customization' })).toBeVisible();
 		await expect(page.getByText('Visual Index')).toBeVisible();
 	});
 
@@ -131,15 +131,17 @@ test.describe('Keyboard Preview', () => {
 		await expect(page.getByRole('heading', { name: 'Keyboard Preview' })).toBeVisible();
 		await expect(page.locator('[data-testid="key-0"]')).toBeVisible();
 
-		// Click on first key
+		// Click on first key to select it
 		await page.locator('[data-testid="key-0"]').click();
-		await expect(page.getByRole('heading', { name: 'Key Details' })).toBeVisible();
+		
+		// Verify key details card is visible for first key
+		await expect(page.getByRole('heading', { name: 'Key Details & Customization' })).toBeVisible();
 
-		// Click on second key
+		// Click on second key to change selection
 		await page.locator('[data-testid="key-1"]').click();
 
-		// Verify key details card is still visible
-		await expect(page.getByRole('heading', { name: 'Key Details' })).toBeVisible();
+		// Verify key details card is still visible (for second key)
+		await expect(page.getByRole('heading', { name: 'Key Details & Customization' })).toBeVisible();
 	});
 
 	test('switching layers updates displayed layer', async ({ page }) => {
@@ -160,7 +162,7 @@ test.describe('Keyboard Preview', () => {
 		await expect(lowerButton).toBeVisible();
 	});
 
-	test('switching layers clears key selection', async ({ page }) => {
+	test('switching layers preserves key selection', async ({ page }) => {
 		await page.goto('/layouts/test-layout');
 
 		// Wait for keyboard preview to load
@@ -169,13 +171,15 @@ test.describe('Keyboard Preview', () => {
 
 		// Select a key
 		await page.locator('[data-testid="key-0"]').click();
-		await expect(page.getByRole('heading', { name: 'Key Details' })).toBeVisible();
-
-		// Switch layers
+		
+		// Verify key details card is visible
+		await expect(page.getByRole('heading', { name: 'Key Details & Customization' })).toBeVisible();
+		
+		// Switch to a different layer
 		await page.getByRole('button', { name: 'Lower' }).click();
-
-		// Key details should no longer be visible (selection cleared)
-		await expect(page.getByRole('heading', { name: 'Key Details' })).not.toBeVisible();
+		
+		// Key details should still be visible (selection persists across layer changes - correct behavior)
+		await expect(page.getByRole('heading', { name: 'Key Details & Customization' })).toBeVisible();
 	});
 
 	test('shows error message when geometry fails to load', async ({ page }) => {

@@ -23,6 +23,16 @@ use lazyqmk::web::{create_router, AppState};
 mod fixtures;
 use fixtures::{test_layout_basic, write_layout_file};
 
+/// Creates a test layout marked as a template.
+fn test_template_basic(rows: usize, cols: usize, name: &str) -> lazyqmk::models::Layout {
+    let mut layout = test_layout_basic(rows, cols);
+    layout.metadata.is_template = true;
+    layout.metadata.name = name.to_string();
+    layout.metadata.description = format!("Template: {}", name);
+    layout.metadata.tags = vec!["template".to_string(), "test".to_string()];
+    layout
+}
+
 /// Creates a test AppState with a temporary workspace.
 fn create_test_state() -> (AppState, TempDir) {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
@@ -143,6 +153,28 @@ async fn put_json(app: &axum::Router, uri: &str, body: Value) -> StatusCode {
         .unwrap();
 
     response.status()
+}
+
+/// Helper to make a POST request with JSON body and get the response.
+async fn post_json(app: &axum::Router, uri: &str, body: Value) -> (StatusCode, Value) {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(uri)
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
+
+    (status, json)
 }
 
 // ============================================================================
@@ -421,4 +453,967 @@ async fn test_get_geometry_path_traversal_rejected() {
         .as_str()
         .unwrap()
         .contains("path traversal not allowed"));
+}
+
+// ============================================================================
+// Template Endpoint Tests
+// ============================================================================
+
+/// Creates a test state with a custom template directory for isolated tests.
+/// Returns the state, temp workspace dir, and a path to use for templates.
+fn create_test_state_with_template_dir() -> (AppState, TempDir, std::path::PathBuf) {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+
+    // Use the platform config directory for templates (what the endpoints use)
+    let template_dir = lazyqmk::config::Config::config_dir()
+        .expect("Failed to get config dir")
+        .join("templates");
+
+    // Ensure template directory exists
+    fs::create_dir_all(&template_dir).expect("Failed to create template dir");
+
+    let config = Config {
+        paths: PathConfig { qmk_firmware: None },
+        build: BuildConfig {
+            output_dir: temp_dir.path().to_path_buf(),
+        },
+        ui: UiConfig::default(),
+    };
+
+    let state =
+        AppState::new(config, temp_dir.path().to_path_buf()).expect("Failed to create app state");
+
+    (state, temp_dir, template_dir)
+}
+
+/// Helper to clean up a specific template file after test.
+fn cleanup_template(template_dir: &std::path::Path, filename: &str) {
+    let path = template_dir.join(filename);
+    if path.exists() {
+        let _ = fs::remove_file(path);
+    }
+}
+
+#[tokio::test]
+async fn test_list_templates_empty_or_existing() {
+    // Note: We can't guarantee empty since the config dir persists between tests.
+    // Instead, verify the endpoint returns a valid response with templates array.
+    let (state, _temp_dir, _template_dir) = create_test_state_with_template_dir();
+    let app = create_router(state);
+
+    let (status, json) = get_json(&app, "/api/templates").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(json["templates"].is_array());
+}
+
+#[tokio::test]
+async fn test_list_templates_finds_saved_template() {
+    let (state, temp_dir, template_dir) = create_test_state_with_template_dir();
+
+    // Create a template in the template directory with unique name
+    let unique_name = format!("test_list_template_{}", std::process::id());
+    let template = test_template_basic(2, 3, &unique_name);
+    let template_filename = format!("{}.md", unique_name.to_lowercase().replace(' ', "_"));
+    let template_path = template_dir.join(&template_filename);
+    write_layout_file(&template, &template_path).expect("Failed to write template");
+
+    // Also create a non-template layout in workspace (should not appear in templates)
+    let layout = test_layout_basic(2, 3);
+    let layout_path = temp_dir.path().join("regular_layout.md");
+    write_layout_file(&layout, &layout_path).expect("Failed to write layout");
+
+    let app = create_router(state);
+
+    let (status, json) = get_json(&app, "/api/templates").await;
+
+    // Cleanup before assertions (in case of failure)
+    cleanup_template(&template_dir, &template_filename);
+
+    assert_eq!(status, StatusCode::OK);
+    let templates = json["templates"].as_array().unwrap();
+
+    // Should find our template
+    let found = templates
+        .iter()
+        .any(|t| t["name"].as_str() == Some(&unique_name));
+    assert!(found, "Template '{}' not found in list", unique_name);
+
+    // Verify template has expected fields
+    let our_template = templates
+        .iter()
+        .find(|t| t["name"].as_str() == Some(&unique_name))
+        .unwrap();
+    assert!(our_template["filename"].is_string());
+    assert!(our_template["description"].is_string());
+    assert!(our_template["layer_count"].is_number());
+    assert!(our_template["tags"].is_array());
+}
+
+#[tokio::test]
+async fn test_get_template_success() {
+    let (state, _temp_dir, template_dir) = create_test_state_with_template_dir();
+
+    // Create a template
+    let unique_name = format!("test_get_template_{}", std::process::id());
+    let template = test_template_basic(2, 3, &unique_name);
+    let template_filename = format!("{}.md", unique_name.to_lowercase().replace(' ', "_"));
+    let template_path = template_dir.join(&template_filename);
+    write_layout_file(&template, &template_path).expect("Failed to write template");
+
+    let app = create_router(state);
+
+    let (status, json) = get_json(&app, &format!("/api/templates/{}", template_filename)).await;
+
+    // Cleanup
+    cleanup_template(&template_dir, &template_filename);
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["metadata"]["name"], unique_name);
+    assert_eq!(json["metadata"]["is_template"], true);
+    assert_eq!(json["layers"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn test_get_template_not_found() {
+    let (state, _temp_dir, _template_dir) = create_test_state_with_template_dir();
+    let app = create_router(state);
+
+    let (status, json) = get_json(&app, "/api/templates/nonexistent_template.md").await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(json["error"].as_str().unwrap().contains("not found"));
+}
+
+#[tokio::test]
+async fn test_get_template_path_traversal_rejected() {
+    let (state, _temp_dir, _template_dir) = create_test_state_with_template_dir();
+    let app = create_router(state);
+
+    // URL-encoded path traversal
+    let (status, json) = get_json(&app, "/api/templates/..%2F..%2Fetc%2Fpasswd").await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"]
+        .as_str()
+        .unwrap()
+        .contains("path traversal not allowed"));
+}
+
+#[tokio::test]
+async fn test_get_template_rejects_non_template() {
+    let (state, _temp_dir, template_dir) = create_test_state_with_template_dir();
+
+    // Create a non-template layout in template directory
+    let unique_name = format!("test_non_template_{}", std::process::id());
+    let mut layout = test_layout_basic(2, 3);
+    layout.metadata.is_template = false; // Explicitly not a template
+    let filename = format!("{}.md", unique_name.to_lowercase().replace(' ', "_"));
+    let path = template_dir.join(&filename);
+    write_layout_file(&layout, &path).expect("Failed to write layout");
+
+    let app = create_router(state);
+
+    let (status, json) = get_json(&app, &format!("/api/templates/{}", filename)).await;
+
+    // Cleanup
+    cleanup_template(&template_dir, &filename);
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"].as_str().unwrap().contains("not a template"));
+}
+
+#[tokio::test]
+async fn test_save_as_template_success() {
+    let (state, temp_dir, template_dir) = create_test_state_with_template_dir();
+
+    // Create a source layout in workspace
+    let layout = test_layout_basic(2, 3);
+    let source_filename = "source_for_template.md";
+    let source_path = temp_dir.path().join(source_filename);
+    write_layout_file(&layout, &source_path).expect("Failed to write source layout");
+
+    let app = create_router(state);
+
+    let unique_name = format!("My Test Template {}", std::process::id());
+    let request = json!({
+        "name": unique_name,
+        "tags": ["custom", "test"]
+    });
+
+    let (status, json) = post_json(
+        &app,
+        &format!("/api/layouts/{}/save-as-template", source_filename),
+        request,
+    )
+    .await;
+
+    // Generate expected filename (same logic as sanitize_template_filename)
+    let expected_filename: String = unique_name
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let expected_filename = format!("{}.md", expected_filename);
+
+    // Cleanup
+    cleanup_template(&template_dir, &expected_filename);
+
+    assert_eq!(status, StatusCode::OK, "Response: {:?}", json);
+    assert_eq!(json["name"], unique_name);
+    assert!(json["filename"].as_str().unwrap().ends_with(".md"));
+    assert_eq!(json["layer_count"], 2);
+    assert!(json["tags"].as_array().unwrap().contains(&json!("custom")));
+}
+
+#[tokio::test]
+async fn test_save_as_template_source_not_found() {
+    let (state, _temp_dir, _template_dir) = create_test_state_with_template_dir();
+    let app = create_router(state);
+
+    let request = json!({
+        "name": "Template From Missing",
+        "tags": []
+    });
+
+    let (status, json) = post_json(
+        &app,
+        "/api/layouts/nonexistent_layout.md/save-as-template",
+        request,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(json["error"].as_str().unwrap().contains("not found"));
+}
+
+// ============================================================================
+// Keyboard & Setup Wizard Endpoint Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_list_keyboards_no_qmk_path() {
+    // Create state without QMK path configured
+    let (state, _temp_dir) = create_test_state();
+    let app = create_router(state);
+
+    let (status, json) = get_json(&app, "/api/keyboards").await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"]
+        .as_str()
+        .unwrap()
+        .contains("QMK firmware path not configured"));
+}
+
+#[tokio::test]
+async fn test_list_keyboards_with_qmk() {
+    let (state, _temp_dir) = create_test_state_with_qmk();
+    let app = create_router(state);
+
+    let (status, json) = get_json(&app, "/api/keyboards").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(json["keyboards"].is_array());
+    let keyboards = json["keyboards"].as_array().unwrap();
+    // Should find test_keyboard from our mock QMK setup
+    assert!(!keyboards.is_empty());
+    assert!(keyboards.iter().any(|k| k["path"] == "test_keyboard"));
+}
+
+#[tokio::test]
+async fn test_list_keyboard_layouts() {
+    let (state, _temp_dir) = create_test_state_with_qmk();
+    let app = create_router(state);
+
+    let (status, json) = get_json(&app, "/api/keyboards/test_keyboard/layouts").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["keyboard"], "test_keyboard");
+    assert!(json["variants"].is_array());
+    let variants = json["variants"].as_array().unwrap();
+    // Should find LAYOUT_test from our mock info.json
+    assert!(!variants.is_empty());
+    assert!(variants.iter().any(|v| v["name"] == "LAYOUT_test"));
+    // Check key count
+    let layout_test = variants
+        .iter()
+        .find(|v| v["name"] == "LAYOUT_test")
+        .unwrap();
+    assert_eq!(layout_test["key_count"], 6);
+}
+
+#[tokio::test]
+async fn test_list_keyboard_layouts_not_found() {
+    let (state, _temp_dir) = create_test_state_with_qmk();
+    let app = create_router(state);
+
+    let (status, json) = get_json(&app, "/api/keyboards/nonexistent_keyboard/layouts").await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(json["error"].as_str().is_some());
+}
+
+#[tokio::test]
+async fn test_list_keyboard_layouts_path_traversal() {
+    let (state, _temp_dir) = create_test_state_with_qmk();
+    let app = create_router(state);
+
+    // Path traversal should be rejected with 400 before keyboard lookup
+    let (status, json) = get_json(&app, "/api/keyboards/..%2F..%2Fetc/layouts").await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"]
+        .as_str()
+        .unwrap()
+        .contains("Invalid keyboard path"));
+}
+
+#[tokio::test]
+async fn test_create_layout() {
+    let (state, temp_dir) = create_test_state_with_qmk();
+    let app = create_router(state);
+
+    let request = json!({
+        "filename": "new_layout",
+        "name": "My New Layout",
+        "keyboard": "test_keyboard",
+        "layout_variant": "LAYOUT_test",
+        "description": "A test layout",
+        "author": "Test Author"
+    });
+
+    let (status, json) = post_json(&app, "/api/layouts", request).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["metadata"]["name"], "My New Layout");
+    assert_eq!(json["metadata"]["keyboard"], "test_keyboard");
+    assert_eq!(json["metadata"]["layout_variant"], "LAYOUT_test");
+    assert_eq!(json["metadata"]["description"], "A test layout");
+    assert_eq!(json["metadata"]["author"], "Test Author");
+
+    // Verify file was created
+    let layout_path = temp_dir.path().join("new_layout.md");
+    assert!(layout_path.exists());
+}
+
+#[tokio::test]
+async fn test_create_layout_already_exists() {
+    let (state, temp_dir) = create_test_state_with_qmk();
+
+    // Create an existing file
+    let existing_path = temp_dir.path().join("existing_layout.md");
+    std::fs::write(&existing_path, "# Existing").expect("Failed to write file");
+
+    let app = create_router(state);
+
+    let request = json!({
+        "filename": "existing_layout",
+        "name": "New Layout",
+        "keyboard": "test_keyboard",
+        "layout_variant": "LAYOUT_test"
+    });
+
+    let (status, json) = post_json(&app, "/api/layouts", request).await;
+
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(json["error"].as_str().unwrap().contains("already exists"));
+}
+
+#[tokio::test]
+async fn test_create_layout_invalid_keyboard() {
+    let (state, _temp_dir) = create_test_state_with_qmk();
+    let app = create_router(state);
+
+    let request = json!({
+        "filename": "new_layout",
+        "name": "My New Layout",
+        "keyboard": "nonexistent_keyboard",
+        "layout_variant": "LAYOUT_test"
+    });
+
+    let (status, _json) = post_json(&app, "/api/layouts", request).await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_create_layout_invalid_variant() {
+    let (state, _temp_dir) = create_test_state_with_qmk();
+    let app = create_router(state);
+
+    let request = json!({
+        "filename": "new_layout",
+        "name": "My New Layout",
+        "keyboard": "test_keyboard",
+        "layout_variant": "NONEXISTENT_LAYOUT"
+    });
+
+    let (status, json) = post_json(&app, "/api/layouts", request).await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(json["error"].as_str().unwrap().contains("Layout variant"));
+}
+
+#[tokio::test]
+async fn test_switch_layout_variant() {
+    let (state, temp_dir) = create_test_state_with_qmk();
+
+    // Create a layout file with a keyboard set
+    let mut layout = test_layout_basic(2, 3);
+    layout.metadata.keyboard = Some("test_keyboard".to_string());
+    layout.metadata.layout_variant = Some("LAYOUT_test".to_string());
+    let layout_path = temp_dir.path().join("switch_test.md");
+    write_layout_file(&layout, &layout_path).expect("Failed to write layout");
+
+    let app = create_router(state);
+
+    let request = json!({
+        "layout_variant": "LAYOUT_test"
+    });
+
+    let (status, json) = post_json(&app, "/api/layouts/switch_test/switch-variant", request).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(json["layout"].is_object());
+    assert!(json["keys_added"].is_number());
+    assert!(json["keys_removed"].is_number());
+}
+
+#[tokio::test]
+async fn test_switch_layout_variant_not_found() {
+    let (state, _temp_dir) = create_test_state_with_qmk();
+    let app = create_router(state);
+
+    let request = json!({
+        "layout_variant": "LAYOUT_test"
+    });
+
+    let (status, json) = post_json(&app, "/api/layouts/nonexistent/switch-variant", request).await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(json["error"].as_str().unwrap().contains("not found"));
+}
+
+#[tokio::test]
+async fn test_switch_layout_variant_no_keyboard() {
+    let (state, temp_dir) = create_test_state_with_qmk();
+
+    // Create a layout file without keyboard set
+    let mut layout = test_layout_basic(2, 3);
+    layout.metadata.keyboard = None; // Clear the keyboard
+    layout.metadata.layout_variant = None; // Clear the variant
+    let layout_path = temp_dir.path().join("no_keyboard.md");
+    write_layout_file(&layout, &layout_path).expect("Failed to write layout");
+
+    let app = create_router(state);
+
+    let request = json!({
+        "layout_variant": "LAYOUT_test"
+    });
+
+    let (status, json) = post_json(&app, "/api/layouts/no_keyboard/switch-variant", request).await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"]
+        .as_str()
+        .unwrap()
+        .contains("no keyboard defined"));
+}
+
+#[tokio::test]
+async fn test_save_as_template_conflict() {
+    let (state, temp_dir, template_dir) = create_test_state_with_template_dir();
+
+    // Create a source layout
+    let layout = test_layout_basic(2, 3);
+    let source_filename = "source_for_conflict.md";
+    let source_path = temp_dir.path().join(source_filename);
+    write_layout_file(&layout, &source_path).expect("Failed to write source layout");
+
+    // Pre-create a template with the same name
+    let unique_name = format!("conflict_template_{}", std::process::id());
+    let existing_template = test_template_basic(2, 3, &unique_name);
+    let expected_filename: String = unique_name
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let expected_filename = format!("{}.md", expected_filename);
+    let template_path = template_dir.join(&expected_filename);
+    write_layout_file(&existing_template, &template_path)
+        .expect("Failed to write existing template");
+
+    let app = create_router(state);
+
+    let request = json!({
+        "name": unique_name,
+        "tags": []
+    });
+
+    let (status, json) = post_json(
+        &app,
+        &format!("/api/layouts/{}/save-as-template", source_filename),
+        request,
+    )
+    .await;
+
+    // Cleanup
+    cleanup_template(&template_dir, &expected_filename);
+
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(json["error"].as_str().unwrap().contains("already exists"));
+}
+
+#[tokio::test]
+async fn test_save_as_template_path_traversal_rejected() {
+    let (state, _temp_dir, _template_dir) = create_test_state_with_template_dir();
+    let app = create_router(state);
+
+    let request = json!({
+        "name": "Evil Template",
+        "tags": []
+    });
+
+    // URL-encoded path traversal
+    let (status, json) = post_json(
+        &app,
+        "/api/layouts/..%2F..%2Fetc%2Fpasswd/save-as-template",
+        request,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"]
+        .as_str()
+        .unwrap()
+        .contains("path traversal not allowed"));
+}
+
+#[tokio::test]
+async fn test_apply_template_success() {
+    let (state, temp_dir, template_dir) = create_test_state_with_template_dir();
+
+    // Create a template
+    let unique_name = format!("apply_template_{}", std::process::id());
+    let template = test_template_basic(2, 3, &unique_name);
+    let template_filename = format!("{}.md", unique_name.to_lowercase().replace(' ', "_"));
+    let template_path = template_dir.join(&template_filename);
+    write_layout_file(&template, &template_path).expect("Failed to write template");
+
+    let app = create_router(state);
+
+    let target_filename = format!("new_from_template_{}.md", std::process::id());
+    let request = json!({
+        "target_filename": target_filename
+    });
+
+    let (status, json) = post_json(
+        &app,
+        &format!("/api/templates/{}/apply", template_filename),
+        request,
+    )
+    .await;
+
+    // Cleanup
+    cleanup_template(&template_dir, &template_filename);
+    let target_path = temp_dir.path().join(&target_filename);
+    if target_path.exists() {
+        let _ = fs::remove_file(&target_path);
+    }
+
+    assert_eq!(status, StatusCode::OK, "Response: {:?}", json);
+    // Applied layout should NOT be a template
+    assert_eq!(json["metadata"]["is_template"], false);
+    assert_eq!(json["layers"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn test_apply_template_not_found() {
+    let (state, _temp_dir, _template_dir) = create_test_state_with_template_dir();
+    let app = create_router(state);
+
+    let request = json!({
+        "target_filename": "new_layout.md"
+    });
+
+    let (status, json) = post_json(
+        &app,
+        "/api/templates/nonexistent_template.md/apply",
+        request,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(json["error"].as_str().unwrap().contains("not found"));
+}
+
+#[tokio::test]
+async fn test_apply_template_target_exists_conflict() {
+    let (state, temp_dir, template_dir) = create_test_state_with_template_dir();
+
+    // Create a template
+    let unique_name = format!("apply_conflict_template_{}", std::process::id());
+    let template = test_template_basic(2, 3, &unique_name);
+    let template_filename = format!("{}.md", unique_name.to_lowercase().replace(' ', "_"));
+    let template_path = template_dir.join(&template_filename);
+    write_layout_file(&template, &template_path).expect("Failed to write template");
+
+    // Pre-create a layout at the target path
+    let target_filename = "existing_layout.md";
+    let existing_layout = test_layout_basic(2, 3);
+    let target_path = temp_dir.path().join(target_filename);
+    write_layout_file(&existing_layout, &target_path).expect("Failed to write existing layout");
+
+    let app = create_router(state);
+
+    let request = json!({
+        "target_filename": target_filename
+    });
+
+    let (status, json) = post_json(
+        &app,
+        &format!("/api/templates/{}/apply", template_filename),
+        request,
+    )
+    .await;
+
+    // Cleanup
+    cleanup_template(&template_dir, &template_filename);
+
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(json["error"].as_str().unwrap().contains("already exists"));
+}
+
+#[tokio::test]
+async fn test_apply_template_path_traversal_rejected() {
+    let (state, _temp_dir, _template_dir) = create_test_state_with_template_dir();
+    let app = create_router(state);
+
+    let request = json!({
+        "target_filename": "new_layout.md"
+    });
+
+    // URL-encoded path traversal in template filename
+    let (status, json) =
+        post_json(&app, "/api/templates/..%2F..%2Fetc%2Fpasswd/apply", request).await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"]
+        .as_str()
+        .unwrap()
+        .contains("path traversal not allowed"));
+}
+
+#[tokio::test]
+async fn test_apply_template_target_path_traversal_rejected() {
+    let (state, _temp_dir, template_dir) = create_test_state_with_template_dir();
+
+    // Create a valid template
+    let unique_name = format!("target_traversal_template_{}", std::process::id());
+    let template = test_template_basic(2, 3, &unique_name);
+    let template_filename = format!("{}.md", unique_name.to_lowercase().replace(' ', "_"));
+    let template_path = template_dir.join(&template_filename);
+    write_layout_file(&template, &template_path).expect("Failed to write template");
+
+    let app = create_router(state);
+
+    // Path traversal in target filename
+    let request = json!({
+        "target_filename": "../evil_layout.md"
+    });
+
+    let (status, json) = post_json(
+        &app,
+        &format!("/api/templates/{}/apply", template_filename),
+        request,
+    )
+    .await;
+
+    // Cleanup
+    cleanup_template(&template_dir, &template_filename);
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"]
+        .as_str()
+        .unwrap()
+        .contains("path traversal not allowed"));
+}
+
+#[tokio::test]
+async fn test_save_as_template_validates_name_empty() {
+    let (state, temp_dir, _template_dir) = create_test_state_with_template_dir();
+
+    // Create a source layout
+    let layout = test_layout_basic(2, 3);
+    let source_filename = "source_for_empty_name.md";
+    let source_path = temp_dir.path().join(source_filename);
+    write_layout_file(&layout, &source_path).expect("Failed to write source layout");
+
+    let app = create_router(state);
+
+    let request = json!({
+        "name": "",
+        "tags": []
+    });
+
+    let (status, json) = post_json(
+        &app,
+        &format!("/api/layouts/{}/save-as-template", source_filename),
+        request,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"].as_str().unwrap().contains("cannot be empty"));
+}
+
+#[tokio::test]
+async fn test_save_as_template_validates_name_too_long() {
+    let (state, temp_dir, _template_dir) = create_test_state_with_template_dir();
+
+    // Create a source layout
+    let layout = test_layout_basic(2, 3);
+    let source_filename = "source_for_long_name.md";
+    let source_path = temp_dir.path().join(source_filename);
+    write_layout_file(&layout, &source_path).expect("Failed to write source layout");
+
+    let app = create_router(state);
+
+    // Name with 101 bytes (exceeds 100-byte limit)
+    let long_name = "a".repeat(101);
+    let request = json!({
+        "name": long_name,
+        "tags": []
+    });
+
+    let (status, json) = post_json(
+        &app,
+        &format!("/api/layouts/{}/save-as-template", source_filename),
+        request,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"]
+        .as_str()
+        .unwrap()
+        .contains("exceeds maximum length"));
+    assert!(json["error"].as_str().unwrap().contains("101"));
+}
+
+#[tokio::test]
+async fn test_save_as_template_validates_tag_non_ascii() {
+    let (state, temp_dir, _template_dir) = create_test_state_with_template_dir();
+
+    // Create a source layout
+    let layout = test_layout_basic(2, 3);
+    let source_filename = "source_for_non_ascii_tag.md";
+    let source_path = temp_dir.path().join(source_filename);
+    write_layout_file(&layout, &source_path).expect("Failed to write source layout");
+
+    let app = create_router(state);
+
+    let request = json!({
+        "name": "Valid Template Name",
+        "tags": ["valid", "café", "test"]
+    });
+
+    let (status, json) = post_json(
+        &app,
+        &format!("/api/layouts/{}/save-as-template", source_filename),
+        request,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"].as_str().unwrap().contains("café"));
+    assert!(json["error"].as_str().unwrap().contains("lowercase ASCII"));
+}
+
+#[tokio::test]
+async fn test_save_as_template_validates_tag_uppercase() {
+    let (state, temp_dir, _template_dir) = create_test_state_with_template_dir();
+
+    // Create a source layout
+    let layout = test_layout_basic(2, 3);
+    let source_filename = "source_for_uppercase_tag.md";
+    let source_path = temp_dir.path().join(source_filename);
+    write_layout_file(&layout, &source_path).expect("Failed to write source layout");
+
+    let app = create_router(state);
+
+    let request = json!({
+        "name": "Valid Template Name",
+        "tags": ["valid", "UPPERCASE", "test"]
+    });
+
+    let (status, json) = post_json(
+        &app,
+        &format!("/api/layouts/{}/save-as-template", source_filename),
+        request,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"].as_str().unwrap().contains("UPPERCASE"));
+}
+
+#[tokio::test]
+async fn test_save_as_template_validates_tag_empty() {
+    let (state, temp_dir, _template_dir) = create_test_state_with_template_dir();
+
+    // Create a source layout
+    let layout = test_layout_basic(2, 3);
+    let source_filename = "source_for_empty_tag.md";
+    let source_path = temp_dir.path().join(source_filename);
+    write_layout_file(&layout, &source_path).expect("Failed to write source layout");
+
+    let app = create_router(state);
+
+    let request = json!({
+        "name": "Valid Template Name",
+        "tags": ["valid", "", "test"]
+    });
+
+    let (status, json) = post_json(
+        &app,
+        &format!("/api/layouts/{}/save-as-template", source_filename),
+        request,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"].as_str().unwrap().contains("cannot be empty"));
+}
+
+// ============================================================================
+// Build Job Endpoint Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_list_build_jobs_empty() {
+    let (state, _temp_dir) = create_test_state();
+    let app = create_router(state);
+
+    let (status, json) = get_json(&app, "/api/build/jobs").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(json.is_array());
+    assert_eq!(json.as_array().unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn test_start_build_missing_layout() {
+    let (state, _temp_dir) = create_test_state();
+    let app = create_router(state);
+
+    let request = json!({
+        "layout_filename": "nonexistent.md"
+    });
+
+    let (status, json) = post_json(&app, "/api/build/start", request).await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(json["error"].as_str().unwrap().contains("not found"));
+}
+
+#[tokio::test]
+async fn test_start_build_no_keyboard_in_layout() {
+    let (state, temp_dir) = create_test_state();
+
+    // Create a layout without keyboard metadata
+    let mut layout = test_layout_basic(2, 3);
+    layout.metadata.keyboard = None; // Remove keyboard field
+    let filename = "no_keyboard_layout.md";
+    let path = temp_dir.path().join(filename);
+    write_layout_file(&layout, &path).expect("Failed to write layout");
+
+    let app = create_router(state);
+
+    let request = json!({
+        "layout_filename": filename
+    });
+
+    let (status, json) = post_json(&app, "/api/build/start", request).await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"]
+        .as_str()
+        .unwrap()
+        .contains("no keyboard defined"));
+}
+
+#[tokio::test]
+async fn test_get_build_job_not_found() {
+    let (state, _temp_dir) = create_test_state();
+    let app = create_router(state);
+
+    let (status, json) = get_json(&app, "/api/build/jobs/nonexistent-job-id").await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(json["error"].as_str().unwrap().contains("not found"));
+}
+
+#[tokio::test]
+async fn test_get_build_logs_not_found() {
+    let (state, _temp_dir) = create_test_state();
+    let app = create_router(state);
+
+    let (status, json) = get_json(&app, "/api/build/jobs/nonexistent-job-id/logs").await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(json["error"].as_str().unwrap().contains("not found"));
+}
+
+#[tokio::test]
+async fn test_cancel_build_job_not_found() {
+    let (state, _temp_dir) = create_test_state();
+    let app = create_router(state);
+
+    let (status, json) =
+        post_json(&app, "/api/build/jobs/nonexistent-job-id/cancel", json!({})).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(!json["success"].as_bool().unwrap());
+    assert!(json["message"].as_str().unwrap().contains("not found"));
+}
+
+#[tokio::test]
+async fn test_start_build_no_qmk_path() {
+    let (state, temp_dir) = create_test_state();
+
+    // Create a layout with keyboard metadata
+    let mut layout = test_layout_basic(2, 3);
+    layout.metadata.keyboard = Some("test_keyboard".to_string());
+    layout.metadata.keymap_name = Some("default".to_string());
+
+    let filename = "with_keyboard_layout.md";
+    let path = temp_dir.path().join(filename);
+    write_layout_file(&layout, &path).expect("Failed to write layout");
+
+    let app = create_router(state);
+
+    let request = json!({
+        "layout_filename": filename
+    });
+
+    let (status, json) = post_json(&app, "/api/build/start", request).await;
+
+    // Should fail because QMK path is not configured
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert!(json["error"]
+        .as_str()
+        .unwrap()
+        .contains("QMK firmware path not configured"));
 }

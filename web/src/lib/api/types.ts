@@ -261,3 +261,113 @@ export interface EffectInfo {
 	id: string;
 	name: string;
 }
+
+// Template types
+export interface TemplateInfo {
+	filename: string;
+	name: string;
+	description: string;
+	author: string;
+	tags: string[];
+	created: string;
+	layer_count: number;
+}
+
+export interface TemplateListResponse {
+	templates: TemplateInfo[];
+}
+
+export interface SaveTemplateRequest {
+	name: string;
+	tags?: string[];
+}
+
+export interface ApplyTemplateRequest {
+	target_filename: string;
+}
+
+// Keyboard & Setup Wizard types
+export interface KeyboardInfo {
+	path: string;
+	layout_count: number;
+}
+
+export interface KeyboardListResponse {
+	keyboards: KeyboardInfo[];
+}
+
+export interface LayoutVariantInfo {
+	name: string;
+	key_count: number;
+}
+
+export interface LayoutVariantsResponse {
+	keyboard: string;
+	variants: LayoutVariantInfo[];
+}
+
+export interface CreateLayoutRequest {
+	filename: string;
+	name: string;
+	keyboard: string;
+	layout_variant: string;
+	description?: string;
+	author?: string;
+}
+
+export interface SwitchVariantRequest {
+	layout_variant: string;
+}
+
+export interface SwitchVariantResponse {
+	layout: Layout;
+	keys_added: number;
+	keys_removed: number;
+	warning?: string;
+}
+
+// Build Job types
+export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface BuildJob {
+	id: string;
+	status: JobStatus;
+	layout_filename: string;
+	keyboard: string;
+	keymap: string;
+	created_at: string;
+	started_at?: string;
+	completed_at?: string;
+	error?: string;
+	firmware_path?: string;
+	progress: number;
+}
+
+export interface StartBuildRequest {
+	layout_filename: string;
+}
+
+export interface StartBuildResponse {
+	job: BuildJob;
+}
+
+export interface JobStatusResponse {
+	job: BuildJob;
+}
+
+export interface LogEntry {
+	timestamp: string;
+	level: string;
+	message: string;
+}
+
+export interface JobLogsResponse {
+	job_id: string;
+	logs: LogEntry[];
+	has_more: boolean;
+}
+
+export interface CancelJobResponse {
+	success: boolean;
+	message: string;
+}

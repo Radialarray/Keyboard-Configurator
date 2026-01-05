@@ -7,8 +7,10 @@
 		disabled?: boolean;
 		class?: string;
 		type?: 'button' | 'submit' | 'reset';
+		title?: string;
 		onclick?: () => void;
 		children?: import('svelte').Snippet;
+		'data-testid'?: string;
 	}
 
 	let {
@@ -17,8 +19,10 @@
 		disabled = false,
 		class: className = '',
 		type = 'button',
+		title,
 		onclick,
-		children
+		children,
+		'data-testid': testId
 	}: ButtonProps = $props();
 
 	const variants = {
@@ -41,6 +45,7 @@
 <button
 	{type}
 	{disabled}
+	{title}
 	class={cn(
 		'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
 		variants[variant],
@@ -48,6 +53,7 @@
 		className
 	)}
 	{onclick}
+	data-testid={testId}
 >
 	{#if children}
 		{@render children()}

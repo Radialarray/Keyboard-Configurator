@@ -10,11 +10,22 @@
 //! - `GET /api/layouts` - List layout markdown files
 //! - `GET /api/layouts/{filename}` - Load and parse a layout file
 //! - `PUT /api/layouts/{filename}` - Save a layout file
+//! - `POST /api/layouts/{filename}/save-as-template` - Save layout as template
+//! - `GET /api/templates` - List available templates
+//! - `GET /api/templates/{filename}` - Get a specific template
+//! - `POST /api/templates/{filename}/apply` - Apply template to create new layout
 //! - `GET /api/keycodes` - Query keycode database (optional ?search=)
 //! - `GET /api/keycodes/categories` - List keycode categories
 //! - `GET /api/config` - Get current configuration
 //! - `PUT /api/config` - Update configuration
 //! - `GET /api/keyboards/{keyboard}/geometry/{layout}` - Get keyboard geometry
+//! - `POST /api/build/start` - Start a firmware build job
+//! - `GET /api/build/jobs` - List all build jobs
+//! - `GET /api/build/jobs/{job_id}` - Get build job status
+//! - `GET /api/build/jobs/{job_id}/logs` - Get build job logs
+//! - `POST /api/build/jobs/{job_id}/cancel` - Cancel a build job
+
+pub mod build_jobs;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -38,6 +49,11 @@ use crate::models::{IdleEffectSettings, Layout, RgbMatrixEffect, TapDanceAction,
 use crate::parser;
 use crate::services::LayoutService;
 
+use build_jobs::BuildJobManager;
+
+#[cfg(test)]
+use build_jobs::MockFirmwareBuilder;
+
 // ============================================================================
 // Application State
 // ============================================================================
@@ -51,16 +67,44 @@ pub struct AppState {
     keycode_db: Arc<KeycodeDb>,
     /// Working directory for layout files (defaults to current dir)
     workspace_root: PathBuf,
+    /// Build job manager for background firmware builds
+    build_manager: Arc<BuildJobManager>,
 }
 
 impl AppState {
     /// Creates a new application state.
     pub fn new(config: Config, workspace_root: PathBuf) -> anyhow::Result<Self> {
         let keycode_db = KeycodeDb::load()?;
+
+        // Set up build job manager
+        let logs_dir = workspace_root.join(".lazyqmk").join("build_logs");
+        let qmk_path = config.paths.qmk_firmware.clone();
+        let build_manager = BuildJobManager::new(logs_dir, qmk_path);
+
         Ok(Self {
             config: Arc::new(config),
             keycode_db: Arc::new(keycode_db),
             workspace_root,
+            build_manager,
+        })
+    }
+
+    /// Creates a new application state with a mock builder (for testing).
+    #[cfg(test)]
+    pub fn with_mock_builder(config: Config, workspace_root: PathBuf) -> anyhow::Result<Self> {
+        let keycode_db = KeycodeDb::load()?;
+
+        // Set up build job manager with mock builder
+        let logs_dir = workspace_root.join(".lazyqmk").join("build_logs");
+        let qmk_path = config.paths.qmk_firmware.clone();
+        let mock_builder = Arc::new(MockFirmwareBuilder::default());
+        let build_manager = BuildJobManager::with_builder(logs_dir, qmk_path, mock_builder);
+
+        Ok(Self {
+            config: Arc::new(config),
+            keycode_db: Arc::new(keycode_db),
+            workspace_root,
+            build_manager,
         })
     }
 
@@ -1214,6 +1258,136 @@ async fn generate_firmware(
     }))
 }
 
+// ============================================================================
+// Build Job Endpoints
+// ============================================================================
+
+/// Query parameters for fetching build logs.
+#[derive(Debug, Deserialize)]
+pub struct BuildLogsQuery {
+    /// Offset to start reading logs from.
+    #[serde(default)]
+    pub offset: usize,
+    /// Maximum number of log lines to return.
+    #[serde(default = "default_log_limit")]
+    pub limit: usize,
+}
+
+fn default_log_limit() -> usize {
+    100
+}
+
+/// POST /api/build/start - Start a firmware build job.
+async fn start_build(
+    State(state): State<AppState>,
+    Json(request): Json<build_jobs::StartBuildRequest>,
+) -> Result<Json<build_jobs::StartBuildResponse>, (StatusCode, Json<ApiError>)> {
+    // Validate layout filename
+    let filename = validate_filename(&request.layout_filename)
+        .map_err(|e| (StatusCode::BAD_REQUEST, Json(e)))?;
+
+    // Ensure .md extension
+    let filename = if std::path::Path::new(filename)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+    {
+        filename.to_string()
+    } else {
+        format!("{filename}.md")
+    };
+
+    let path = state.workspace_root.join(&filename);
+
+    // Check if file exists
+    if !path.exists() {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ApiError::new(format!("Layout file not found: {filename}"))),
+        ));
+    }
+
+    // Load the layout to get keyboard/keymap info
+    let layout = LayoutService::load(&path).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::with_details(
+                "Failed to load layout",
+                e.to_string(),
+            )),
+        )
+    })?;
+
+    // Get keyboard and keymap from layout metadata
+    let keyboard = layout.metadata.keyboard.clone().ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new(
+                "Layout has no keyboard defined - cannot build firmware",
+            )),
+        )
+    })?;
+
+    let keymap = layout
+        .metadata
+        .keymap_name
+        .unwrap_or_else(|| "default".to_string());
+
+    // Start the build job
+    let job = state
+        .build_manager
+        .start_build(filename, keyboard, keymap)
+        .map_err(|e| (StatusCode::SERVICE_UNAVAILABLE, Json(ApiError::new(e))))?;
+
+    Ok(Json(build_jobs::StartBuildResponse { job }))
+}
+
+/// GET /api/build/jobs - List all build jobs.
+async fn list_build_jobs(State(state): State<AppState>) -> Json<Vec<build_jobs::BuildJob>> {
+    Json(state.build_manager.list_jobs())
+}
+
+/// GET /api/build/jobs/{job_id} - Get build job status.
+async fn get_build_job(
+    State(state): State<AppState>,
+    Path(job_id): Path<String>,
+) -> Result<Json<build_jobs::JobStatusResponse>, (StatusCode, Json<ApiError>)> {
+    let job = state.build_manager.get_job(&job_id).ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ApiError::new(format!("Build job not found: {job_id}"))),
+        )
+    })?;
+
+    Ok(Json(build_jobs::JobStatusResponse { job }))
+}
+
+/// GET /api/build/jobs/{job_id}/logs - Get build job logs.
+async fn get_build_logs(
+    State(state): State<AppState>,
+    Path(job_id): Path<String>,
+    Query(query): Query<BuildLogsQuery>,
+) -> Result<Json<build_jobs::JobLogsResponse>, (StatusCode, Json<ApiError>)> {
+    let logs = state
+        .build_manager
+        .get_logs(&job_id, query.offset, query.limit)
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ApiError::new(format!("Build job not found: {job_id}"))),
+            )
+        })?;
+
+    Ok(Json(logs))
+}
+
+/// POST /api/build/jobs/{job_id}/cancel - Cancel a build job.
+async fn cancel_build_job(
+    State(state): State<AppState>,
+    Path(job_id): Path<String>,
+) -> Json<build_jobs::CancelJobResponse> {
+    Json(state.build_manager.cancel_job(&job_id))
+}
+
 /// GET /api/effects - List available RGB matrix effects.
 async fn list_effects() -> Json<EffectsListResponse> {
     let effects = RgbMatrixEffect::all()
@@ -1225,6 +1399,966 @@ async fn list_effects() -> Json<EffectsListResponse> {
         .collect();
 
     Json(EffectsListResponse { effects })
+}
+
+// ============================================================================
+// Template Endpoints
+// ============================================================================
+
+/// Template info for API response.
+#[derive(Debug, Serialize)]
+pub struct TemplateInfo {
+    /// Template filename.
+    pub filename: String,
+    /// Template name.
+    pub name: String,
+    /// Template description.
+    pub description: String,
+    /// Template author.
+    pub author: String,
+    /// Template tags.
+    pub tags: Vec<String>,
+    /// Creation timestamp (RFC 3339).
+    pub created: String,
+    /// Number of layers in template.
+    pub layer_count: usize,
+}
+
+/// Template list response.
+#[derive(Debug, Serialize)]
+pub struct TemplateListResponse {
+    /// List of templates.
+    pub templates: Vec<TemplateInfo>,
+}
+
+/// Template save request.
+#[derive(Debug, Deserialize)]
+pub struct SaveTemplateRequest {
+    /// Template name.
+    pub name: String,
+    /// Template tags.
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+/// Apply template request.
+#[derive(Debug, Deserialize)]
+pub struct ApplyTemplateRequest {
+    /// Target filename for new layout.
+    pub target_filename: String,
+}
+
+/// Get the platform-specific template directory.
+fn get_template_dir() -> Result<PathBuf, (StatusCode, Json<ApiError>)> {
+    Config::config_dir()
+        .map(|dir| dir.join("templates"))
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError::with_details(
+                    "Failed to get template directory",
+                    e.to_string(),
+                )),
+            )
+        })
+}
+
+/// Sanitize a string to be a valid filename.
+fn sanitize_template_filename(name: &str) -> String {
+    name.chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c.to_ascii_lowercase()
+            } else if c.is_whitespace() {
+                '_'
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+/// GET /api/templates - List all available templates.
+async fn list_templates() -> Result<Json<TemplateListResponse>, (StatusCode, Json<ApiError>)> {
+    let template_dir = get_template_dir()?;
+
+    // Create template directory if it doesn't exist
+    if !template_dir.exists() {
+        std::fs::create_dir_all(&template_dir).map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError::with_details(
+                    "Failed to create template directory",
+                    e.to_string(),
+                )),
+            )
+        })?;
+    }
+
+    let entries = std::fs::read_dir(&template_dir).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::with_details(
+                "Failed to read template directory",
+                e.to_string(),
+            )),
+        )
+    })?;
+
+    let mut templates = Vec::new();
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_some_and(|ext| ext == "md") {
+            if let Ok(layout) = LayoutService::load(&path) {
+                if layout.metadata.is_template {
+                    let filename = path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("unknown.md")
+                        .to_string();
+
+                    templates.push(TemplateInfo {
+                        filename,
+                        name: layout.metadata.name.clone(),
+                        description: layout.metadata.description.clone(),
+                        author: layout.metadata.author.clone(),
+                        tags: layout.metadata.tags.clone(),
+                        created: layout.metadata.created.to_rfc3339(),
+                        layer_count: layout.layers.len(),
+                    });
+                }
+            }
+        }
+    }
+
+    // Sort by name
+    templates.sort_by(|a, b| a.name.cmp(&b.name));
+
+    Ok(Json(TemplateListResponse { templates }))
+}
+
+/// GET /api/templates/{filename} - Get a specific template.
+async fn get_template(
+    Path(filename): Path<String>,
+) -> Result<Json<Layout>, (StatusCode, Json<ApiError>)> {
+    let filename = validate_filename(&filename).map_err(|e| (StatusCode::BAD_REQUEST, Json(e)))?;
+    let template_dir = get_template_dir()?;
+
+    let filename = if std::path::Path::new(filename)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+    {
+        filename.to_string()
+    } else {
+        format!("{filename}.md")
+    };
+
+    let path = template_dir.join(&filename);
+
+    if !path.exists() {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ApiError::new(format!("Template not found: {filename}"))),
+        ));
+    }
+
+    let layout = LayoutService::load(&path).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::with_details(
+                "Failed to load template",
+                e.to_string(),
+            )),
+        )
+    })?;
+
+    if !layout.metadata.is_template {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new("File is not a template")),
+        ));
+    }
+
+    Ok(Json(layout))
+}
+
+/// POST /api/layouts/{filename}/save-as-template - Save layout as template.
+async fn save_as_template(
+    State(state): State<AppState>,
+    Path(filename): Path<String>,
+    Json(request): Json<SaveTemplateRequest>,
+) -> Result<Json<TemplateInfo>, (StatusCode, Json<ApiError>)> {
+    let filename = validate_filename(&filename).map_err(|e| (StatusCode::BAD_REQUEST, Json(e)))?;
+    let template_dir = get_template_dir()?;
+
+    // Create template directory if it doesn't exist
+    if !template_dir.exists() {
+        std::fs::create_dir_all(&template_dir).map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError::with_details(
+                    "Failed to create template directory",
+                    e.to_string(),
+                )),
+            )
+        })?;
+    }
+
+    // Ensure .md extension
+    let filename = if std::path::Path::new(filename)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+    {
+        filename.to_string()
+    } else {
+        format!("{filename}.md")
+    };
+
+    // Load the source layout from workspace
+    let source_path = state.workspace_root.join(&filename);
+
+    if !source_path.exists() {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ApiError::new(format!(
+                "Source layout not found: {filename}"
+            ))),
+        ));
+    }
+
+    let mut layout = LayoutService::load(&source_path).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::with_details(
+                "Failed to load source layout",
+                e.to_string(),
+            )),
+        )
+    })?;
+
+    // Update metadata with validation
+    // Validate and set name
+    if request.name.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new("Template name cannot be empty")),
+        ));
+    }
+    if request.name.len() > 100 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new(format!(
+                "Template name exceeds maximum length of 100 bytes (got {})",
+                request.name.len()
+            ))),
+        ));
+    }
+    layout.metadata.name.clone_from(&request.name);
+
+    // Validate and set tags
+    for tag in &request.tags {
+        if tag.is_empty() {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new("Tag cannot be empty")),
+            ));
+        }
+        if !tag
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new(format!(
+                    "Invalid tag '{}': must be lowercase ASCII letters, digits, and hyphens only",
+                    tag
+                ))),
+            ));
+        }
+    }
+    layout.metadata.tags = request.tags;
+    layout.metadata.is_template = true;
+    layout.metadata.modified = chrono::Utc::now();
+
+    // Generate safe filename
+    let template_filename = sanitize_template_filename(&request.name);
+    let template_path = template_dir.join(format!("{template_filename}.md"));
+
+    // Check if template already exists
+    if template_path.exists() {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(ApiError::new(format!(
+                "Template '{}' already exists",
+                request.name
+            ))),
+        ));
+    }
+
+    // Save the template
+    LayoutService::save(&layout, &template_path).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::with_details(
+                "Failed to save template",
+                e.to_string(),
+            )),
+        )
+    })?;
+
+    Ok(Json(TemplateInfo {
+        filename: format!("{template_filename}.md"),
+        name: layout.metadata.name.clone(),
+        description: layout.metadata.description.clone(),
+        author: layout.metadata.author.clone(),
+        tags: layout.metadata.tags.clone(),
+        created: layout.metadata.created.to_rfc3339(),
+        layer_count: layout.layers.len(),
+    }))
+}
+
+/// POST /api/templates/{filename}/apply - Apply template to create new layout.
+async fn apply_template(
+    State(state): State<AppState>,
+    Path(filename): Path<String>,
+    Json(request): Json<ApplyTemplateRequest>,
+) -> Result<Json<Layout>, (StatusCode, Json<ApiError>)> {
+    let filename = validate_filename(&filename).map_err(|e| (StatusCode::BAD_REQUEST, Json(e)))?;
+    let target_filename = validate_filename(&request.target_filename)
+        .map_err(|e| (StatusCode::BAD_REQUEST, Json(e)))?;
+    let template_dir = get_template_dir()?;
+
+    let filename = if std::path::Path::new(filename)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+    {
+        filename.to_string()
+    } else {
+        format!("{filename}.md")
+    };
+
+    let template_path = template_dir.join(&filename);
+
+    if !template_path.exists() {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ApiError::new(format!("Template not found: {filename}"))),
+        ));
+    }
+
+    // Load the template
+    let mut layout = LayoutService::load(&template_path).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::with_details(
+                "Failed to load template",
+                e.to_string(),
+            )),
+        )
+    })?;
+
+    if !layout.metadata.is_template {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new("File is not a template")),
+        ));
+    }
+
+    // Update metadata for new layout
+    layout.metadata.is_template = false;
+    layout.metadata.created = chrono::Utc::now();
+    layout.metadata.modified = chrono::Utc::now();
+
+    // Prepare target path
+    let target_filename = if std::path::Path::new(target_filename)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+    {
+        target_filename.to_string()
+    } else {
+        format!("{target_filename}.md")
+    };
+
+    let target_path = state.workspace_root.join(&target_filename);
+
+    // Check if target already exists
+    if target_path.exists() {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(ApiError::new(format!(
+                "Layout file already exists: {target_filename}"
+            ))),
+        ));
+    }
+
+    // Save the new layout
+    LayoutService::save(&layout, &target_path).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::with_details(
+                "Failed to save layout",
+                e.to_string(),
+            )),
+        )
+    })?;
+
+    Ok(Json(layout))
+}
+
+// ============================================================================
+// Keyboard & Layout Variant Endpoints (Setup Wizard Support)
+// ============================================================================
+
+/// Keyboard summary for listing.
+#[derive(Debug, Serialize)]
+pub struct KeyboardInfo {
+    /// Keyboard path (e.g., "crkbd", "splitkb/halcyon/corne").
+    pub path: String,
+    /// Number of available layout variants.
+    pub layout_count: usize,
+}
+
+/// Keyboard list response.
+#[derive(Debug, Serialize)]
+pub struct KeyboardListResponse {
+    /// List of keyboards.
+    pub keyboards: Vec<KeyboardInfo>,
+}
+
+/// Layout variant info.
+#[derive(Debug, Serialize)]
+pub struct LayoutVariantInfo {
+    /// Layout name (e.g., "LAYOUT_split_3x6_3").
+    pub name: String,
+    /// Number of keys in this layout.
+    pub key_count: usize,
+}
+
+/// Layout variants response.
+#[derive(Debug, Serialize)]
+pub struct LayoutVariantsResponse {
+    /// Keyboard path.
+    pub keyboard: String,
+    /// Available layout variants.
+    pub variants: Vec<LayoutVariantInfo>,
+}
+
+/// Create layout request.
+#[derive(Debug, Deserialize)]
+pub struct CreateLayoutRequest {
+    /// Filename for the new layout (without path).
+    pub filename: String,
+    /// Layout name (display name).
+    pub name: String,
+    /// Keyboard path.
+    pub keyboard: String,
+    /// Layout variant name.
+    pub layout_variant: String,
+    /// Optional description.
+    #[serde(default)]
+    pub description: String,
+    /// Optional author.
+    #[serde(default)]
+    pub author: String,
+}
+
+/// Switch variant request.
+#[derive(Debug, Deserialize)]
+pub struct SwitchVariantRequest {
+    /// New layout variant name.
+    pub layout_variant: String,
+}
+
+/// Switch variant response.
+#[derive(Debug, Serialize)]
+pub struct SwitchVariantResponse {
+    /// Updated layout.
+    pub layout: Layout,
+    /// Number of keys added (if new variant has more keys).
+    pub keys_added: usize,
+    /// Number of keys removed (if new variant has fewer keys).
+    pub keys_removed: usize,
+    /// Warning message if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warning: Option<String>,
+}
+
+/// GET /api/keyboards - List available keyboards by scanning QMK keyboards directory.
+///
+/// This endpoint scans the QMK firmware keyboards directory without using the QMK CLI,
+/// which avoids external dependencies. It identifies valid keyboards by looking for
+/// info.json or keyboard.json files.
+async fn list_keyboards(
+    State(state): State<AppState>,
+) -> Result<Json<KeyboardListResponse>, (StatusCode, Json<ApiError>)> {
+    // Get QMK path from config
+    let qmk_path = state.config.paths.qmk_firmware.as_ref().ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new("QMK firmware path not configured")),
+        )
+    })?;
+
+    let keyboards_dir = qmk_path.join("keyboards");
+    if !keyboards_dir.exists() {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ApiError::new("QMK keyboards directory not found")),
+        ));
+    }
+
+    // Scan for keyboards with layout definitions
+    let mut keyboards = Vec::new();
+    scan_keyboard_directory(&keyboards_dir, &keyboards_dir, &mut keyboards);
+
+    // Sort by path
+    keyboards.sort_by(|a, b| a.path.cmp(&b.path));
+
+    Ok(Json(KeyboardListResponse { keyboards }))
+}
+
+/// Recursively scans keyboard directory for valid keyboards.
+fn scan_keyboard_directory(
+    base_dir: &std::path::Path,
+    current_dir: &std::path::Path,
+    keyboards: &mut Vec<KeyboardInfo>,
+) {
+    let Ok(entries) = std::fs::read_dir(current_dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        // Skip hidden directories
+        let dir_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if dir_name.starts_with('.') || dir_name == "keymaps" {
+            continue;
+        }
+
+        // Check if this directory has keyboard config files
+        let info_json = path.join("info.json");
+        let keyboard_json = path.join("keyboard.json");
+
+        if info_json.exists() || keyboard_json.exists() {
+            // Get relative path from keyboards directory
+            if let Ok(rel_path) = path.strip_prefix(base_dir) {
+                let keyboard_path = rel_path.to_string_lossy().replace('\\', "/");
+
+                // Try to get layout count
+                let layout_count = get_keyboard_layout_count(&path);
+
+                if layout_count > 0 {
+                    keyboards.push(KeyboardInfo {
+                        path: keyboard_path,
+                        layout_count,
+                    });
+                }
+            }
+        }
+
+        // Recurse into subdirectories (but not too deep)
+        let depth = current_dir
+            .strip_prefix(base_dir)
+            .map(|p| p.components().count())
+            .unwrap_or(0);
+        if depth < 4 {
+            scan_keyboard_directory(base_dir, &path, keyboards);
+        }
+    }
+}
+
+/// Gets the number of layouts defined for a keyboard.
+fn get_keyboard_layout_count(keyboard_dir: &std::path::Path) -> usize {
+    // Try info.json first
+    let info_json = keyboard_dir.join("info.json");
+    if info_json.exists() {
+        if let Ok(content) = std::fs::read_to_string(&info_json) {
+            if let Ok(info) = json5::from_str::<parser::keyboard_json::QmkInfoJson>(&content) {
+                if !info.layouts.is_empty() {
+                    return info.layouts.len();
+                }
+            }
+        }
+    }
+
+    // Try keyboard.json
+    let keyboard_json = keyboard_dir.join("keyboard.json");
+    if keyboard_json.exists() {
+        if let Ok(content) = std::fs::read_to_string(&keyboard_json) {
+            if let Ok(variant) =
+                json5::from_str::<parser::keyboard_json::VariantKeyboardJson>(&content)
+            {
+                if !variant.layouts.is_empty() {
+                    return variant.layouts.len();
+                }
+            }
+        }
+    }
+
+    0
+}
+
+/// GET /api/keyboards/{keyboard}/layouts - Get layout variants for a keyboard.
+async fn list_keyboard_layouts(
+    State(state): State<AppState>,
+    Path(keyboard): Path<String>,
+) -> Result<Json<LayoutVariantsResponse>, (StatusCode, Json<ApiError>)> {
+    // Validate keyboard path
+    validate_keyboard_path(&keyboard).map_err(|e| (StatusCode::BAD_REQUEST, Json(e)))?;
+
+    // Get QMK path from config
+    let qmk_path = state.config.paths.qmk_firmware.as_ref().ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new("QMK firmware path not configured")),
+        )
+    })?;
+
+    // Parse keyboard info.json
+    let keyboard_info = parser::keyboard_json::parse_keyboard_info_json(qmk_path, &keyboard)
+        .map_err(|e| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ApiError::with_details(
+                    format!("Failed to parse keyboard info for '{keyboard}'"),
+                    e.to_string(),
+                )),
+            )
+        })?;
+
+    // Extract layout variants
+    let variants: Vec<LayoutVariantInfo> =
+        parser::keyboard_json::extract_layout_variants(&keyboard_info)
+            .into_iter()
+            .map(|v| LayoutVariantInfo {
+                name: v.name,
+                key_count: v.key_count,
+            })
+            .collect();
+
+    Ok(Json(LayoutVariantsResponse { keyboard, variants }))
+}
+
+/// POST /api/layouts - Create a new layout.
+async fn create_layout(
+    State(state): State<AppState>,
+    Json(request): Json<CreateLayoutRequest>,
+) -> Result<Json<Layout>, (StatusCode, Json<ApiError>)> {
+    // Validate filename
+    let filename =
+        validate_filename(&request.filename).map_err(|e| (StatusCode::BAD_REQUEST, Json(e)))?;
+
+    // Ensure .md extension
+    let filename = if std::path::Path::new(filename)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+    {
+        filename.to_string()
+    } else {
+        format!("{filename}.md")
+    };
+
+    // Validate keyboard path
+    validate_keyboard_path(&request.keyboard).map_err(|e| (StatusCode::BAD_REQUEST, Json(e)))?;
+
+    // Check if file already exists
+    let target_path = state.workspace_root.join(&filename);
+    if target_path.exists() {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(ApiError::new(format!(
+                "Layout file already exists: {filename}"
+            ))),
+        ));
+    }
+
+    // Get QMK path from config
+    let qmk_path = state.config.paths.qmk_firmware.as_ref().ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new("QMK firmware path not configured")),
+        )
+    })?;
+
+    // Parse keyboard info to get geometry
+    let keyboard_info =
+        parser::keyboard_json::parse_keyboard_info_json(qmk_path, &request.keyboard).map_err(
+            |e| {
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiError::with_details(
+                        format!("Failed to parse keyboard info for '{}'", request.keyboard),
+                        e.to_string(),
+                    )),
+                )
+            },
+        )?;
+
+    // Validate layout variant exists
+    let layout_def = keyboard_info
+        .layouts
+        .get(&request.layout_variant)
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ApiError::new(format!(
+                    "Layout variant '{}' not found in keyboard '{}'",
+                    request.layout_variant, request.keyboard
+                ))),
+            )
+        })?;
+
+    // Create layout with proper geometry
+    let key_count = layout_def.layout.len();
+    let now = chrono::Utc::now();
+
+    use crate::models::{
+        IdleEffectSettings, KeyDefinition, Layer, LayoutMetadata, Position, RgbBrightness,
+        RgbColor, RgbSaturation, TapHoldSettings, UncoloredKeyBehavior,
+    };
+
+    // Build key definitions from geometry
+    let mut base_keys = Vec::with_capacity(key_count);
+    for key_pos in layout_def.layout.iter() {
+        let matrix = key_pos.matrix.unwrap_or([0, 0]);
+        base_keys.push(KeyDefinition {
+            position: Position {
+                row: matrix[0],
+                col: matrix[1],
+            },
+            keycode: "KC_NO".to_string(),
+            label: None,
+            color_override: None,
+            category_id: None,
+            combo_participant: false,
+            description: None,
+        });
+    }
+
+    // Create base layer
+    let base_layer = Layer {
+        number: 0,
+        name: "Base".to_string(),
+        id: uuid::Uuid::new_v4().to_string(),
+        default_color: RgbColor::new(255, 255, 255),
+        category_id: None,
+        keys: base_keys,
+        layer_colors_enabled: true,
+    };
+
+    let metadata = LayoutMetadata {
+        name: request.name,
+        description: request.description,
+        author: request.author,
+        created: now,
+        modified: now,
+        tags: vec![],
+        is_template: false,
+        version: "1.0".to_string(),
+        layout_variant: Some(request.layout_variant),
+        keyboard: Some(request.keyboard),
+        keymap_name: Some("default".to_string()),
+        output_format: Some("uf2".to_string()),
+    };
+
+    let layout = Layout {
+        metadata,
+        layers: vec![base_layer],
+        categories: vec![],
+        rgb_enabled: true,
+        rgb_brightness: RgbBrightness::default(),
+        rgb_saturation: RgbSaturation::default(),
+        rgb_timeout_ms: 0,
+        uncolored_key_behavior: UncoloredKeyBehavior::default(),
+        idle_effect_settings: IdleEffectSettings::default(),
+        tap_hold_settings: TapHoldSettings::default(),
+        tap_dances: vec![],
+    };
+
+    // Save the layout
+    LayoutService::save(&layout, &target_path).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::with_details(
+                "Failed to save layout",
+                e.to_string(),
+            )),
+        )
+    })?;
+
+    Ok(Json(layout))
+}
+
+/// POST /api/layouts/{filename}/switch-variant - Switch layout to a different variant.
+///
+/// This endpoint performs an authoritative transformation:
+/// - Updates metadata.layout_variant
+/// - Rebuilds geometry based on new variant
+/// - Adjusts all layers to new key count (preserves existing keys where possible)
+async fn switch_layout_variant(
+    State(state): State<AppState>,
+    Path(filename): Path<String>,
+    Json(request): Json<SwitchVariantRequest>,
+) -> Result<Json<SwitchVariantResponse>, (StatusCode, Json<ApiError>)> {
+    // Validate filename
+    let filename = validate_filename(&filename).map_err(|e| (StatusCode::BAD_REQUEST, Json(e)))?;
+
+    // Ensure .md extension
+    let filename = if std::path::Path::new(filename)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+    {
+        filename.to_string()
+    } else {
+        format!("{filename}.md")
+    };
+
+    let path = state.workspace_root.join(&filename);
+
+    // Load existing layout
+    if !path.exists() {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ApiError::new(format!("Layout file not found: {filename}"))),
+        ));
+    }
+
+    let mut layout = LayoutService::load(&path).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::with_details(
+                "Failed to load layout",
+                e.to_string(),
+            )),
+        )
+    })?;
+
+    // Get keyboard from layout metadata
+    let keyboard = layout.metadata.keyboard.clone().ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new(
+                "Layout has no keyboard defined - cannot switch variant",
+            )),
+        )
+    })?;
+
+    // Get QMK path from config
+    let qmk_path = state.config.paths.qmk_firmware.as_ref().ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new("QMK firmware path not configured")),
+        )
+    })?;
+
+    // Parse keyboard info
+    let keyboard_info = parser::keyboard_json::parse_keyboard_info_json(qmk_path, &keyboard)
+        .map_err(|e| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ApiError::with_details(
+                    format!("Failed to parse keyboard info for '{keyboard}'"),
+                    e.to_string(),
+                )),
+            )
+        })?;
+
+    // Validate new layout variant exists
+    let new_layout_def = keyboard_info
+        .layouts
+        .get(&request.layout_variant)
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ApiError::new(format!(
+                    "Layout variant '{}' not found in keyboard '{keyboard}'",
+                    request.layout_variant
+                ))),
+            )
+        })?;
+
+    let new_key_count = new_layout_def.layout.len();
+    let old_key_count = layout.layers.first().map_or(0, |l| l.keys.len());
+
+    // Calculate keys added/removed
+    let keys_added = new_key_count.saturating_sub(old_key_count);
+    let keys_removed = old_key_count.saturating_sub(new_key_count);
+
+    // Build warning message if keys are being lost
+    let warning = if keys_removed > 0 {
+        Some(format!(
+            "Layout variant has fewer keys ({new_key_count} vs {old_key_count}). \
+             {keys_removed} keys were removed from each layer."
+        ))
+    } else {
+        None
+    };
+
+    // Update metadata
+    layout.metadata.layout_variant = Some(request.layout_variant.clone());
+    layout.metadata.modified = chrono::Utc::now();
+
+    // Adjust each layer to new key count
+    use crate::models::{KeyDefinition, Position};
+
+    for layer in &mut layout.layers {
+        if new_key_count > layer.keys.len() {
+            // Add new keys with default keycodes
+            for idx in layer.keys.len()..new_key_count {
+                let key_pos = &new_layout_def.layout[idx];
+                let matrix = key_pos.matrix.unwrap_or([0, 0]);
+                layer.keys.push(KeyDefinition {
+                    position: Position {
+                        row: matrix[0],
+                        col: matrix[1],
+                    },
+                    keycode: "KC_NO".to_string(),
+                    label: None,
+                    color_override: None,
+                    category_id: None,
+                    combo_participant: false,
+                    description: None,
+                });
+            }
+        } else if new_key_count < layer.keys.len() {
+            // Truncate keys (preserves first N keys)
+            layer.keys.truncate(new_key_count);
+        }
+
+        // Update matrix positions based on new layout geometry
+        for (idx, key) in layer.keys.iter_mut().enumerate() {
+            if idx < new_layout_def.layout.len() {
+                let key_pos = &new_layout_def.layout[idx];
+                if let Some(matrix) = key_pos.matrix {
+                    key.position.row = matrix[0];
+                    key.position.col = matrix[1];
+                }
+            }
+        }
+    }
+
+    // Save the updated layout
+    LayoutService::save(&layout, &path).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::with_details(
+                "Failed to save layout",
+                e.to_string(),
+            )),
+        )
+    })?;
+
+    Ok(Json(SwitchVariantResponse {
+        layout,
+        keys_added,
+        keys_removed,
+        warning,
+    }))
 }
 
 // ============================================================================
@@ -1256,6 +2390,17 @@ pub fn create_router(state: AppState) -> Router {
             "/api/layouts/{filename}/generate",
             axum::routing::post(generate_firmware),
         )
+        .route(
+            "/api/layouts/{filename}/save-as-template",
+            axum::routing::post(save_as_template),
+        )
+        // Template endpoints
+        .route("/api/templates", get(list_templates))
+        .route("/api/templates/{filename}", get(get_template))
+        .route(
+            "/api/templates/{filename}/apply",
+            axum::routing::post(apply_template),
+        )
         // Keycode endpoints
         .route("/api/keycodes", get(list_keycodes))
         .route("/api/keycodes/categories", get(list_categories))
@@ -1267,6 +2412,26 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/keyboards/{keyboard}/geometry/{layout}",
             get(get_geometry),
+        )
+        // Keyboard & Setup Wizard endpoints
+        .route("/api/keyboards", get(list_keyboards))
+        .route(
+            "/api/keyboards/{keyboard}/layouts",
+            get(list_keyboard_layouts),
+        )
+        .route("/api/layouts", axum::routing::post(create_layout))
+        .route(
+            "/api/layouts/{filename}/switch-variant",
+            axum::routing::post(switch_layout_variant),
+        )
+        // Build job endpoints
+        .route("/api/build/start", axum::routing::post(start_build))
+        .route("/api/build/jobs", get(list_build_jobs))
+        .route("/api/build/jobs/{job_id}", get(get_build_job))
+        .route("/api/build/jobs/{job_id}/logs", get(get_build_logs))
+        .route(
+            "/api/build/jobs/{job_id}/cancel",
+            axum::routing::post(cancel_build_job),
         )
         .layer(cors)
         .layer(TraceLayer::new_for_http())

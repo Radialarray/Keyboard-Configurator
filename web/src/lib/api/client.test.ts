@@ -164,4 +164,168 @@ describe('ApiClient', () => {
 			);
 		});
 	});
+
+	describe('startBuild', () => {
+		it('starts a build job', async () => {
+			const mockResponse = {
+				job: {
+					id: 'job-123',
+					status: 'pending',
+					layout_filename: 'test.md',
+					keyboard: 'crkbd',
+					keymap: 'default',
+					created_at: '2024-01-01T00:00:00Z',
+					progress: 0
+				}
+			};
+			(global.fetch as any).mockResolvedValueOnce({
+				ok: true,
+				json: async () => mockResponse
+			});
+
+			const result = await client.startBuild('test.md');
+			expect(result).toEqual(mockResponse);
+			expect(global.fetch).toHaveBeenCalledWith(
+				'http://localhost:3000/api/build/start',
+				expect.objectContaining({
+					method: 'POST',
+					body: JSON.stringify({ layout_filename: 'test.md' })
+				})
+			);
+		});
+	});
+
+	describe('listBuildJobs', () => {
+		it('fetches all build jobs', async () => {
+			const mockJobs = [
+				{
+					id: 'job-1',
+					status: 'completed',
+					layout_filename: 'test.md',
+					keyboard: 'crkbd',
+					keymap: 'default',
+					created_at: '2024-01-01T00:00:00Z',
+					progress: 100
+				}
+			];
+			(global.fetch as any).mockResolvedValueOnce({
+				ok: true,
+				json: async () => mockJobs
+			});
+
+			const result = await client.listBuildJobs();
+			expect(result).toEqual(mockJobs);
+			expect(global.fetch).toHaveBeenCalledWith(
+				'http://localhost:3000/api/build/jobs',
+				expect.any(Object)
+			);
+		});
+	});
+
+	describe('getBuildJob', () => {
+		it('fetches a specific build job', async () => {
+			const mockResponse = {
+				job: {
+					id: 'job-123',
+					status: 'running',
+					layout_filename: 'test.md',
+					keyboard: 'crkbd',
+					keymap: 'default',
+					created_at: '2024-01-01T00:00:00Z',
+					progress: 50
+				}
+			};
+			(global.fetch as any).mockResolvedValueOnce({
+				ok: true,
+				json: async () => mockResponse
+			});
+
+			const result = await client.getBuildJob('job-123');
+			expect(result).toEqual(mockResponse);
+			expect(global.fetch).toHaveBeenCalledWith(
+				'http://localhost:3000/api/build/jobs/job-123',
+				expect.any(Object)
+			);
+		});
+
+		it('encodes job ID in URL', async () => {
+			(global.fetch as any).mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ job: {} })
+			});
+
+			await client.getBuildJob('job with spaces');
+			expect(global.fetch).toHaveBeenCalledWith(
+				'http://localhost:3000/api/build/jobs/job%20with%20spaces',
+				expect.any(Object)
+			);
+		});
+	});
+
+	describe('getBuildLogs', () => {
+		it('fetches build logs with default pagination', async () => {
+			const mockResponse = {
+				job_id: 'job-123',
+				logs: [
+					{ timestamp: '2024-01-01T00:00:00Z', level: 'INFO', message: 'Build started' }
+				],
+				has_more: false
+			};
+			(global.fetch as any).mockResolvedValueOnce({
+				ok: true,
+				json: async () => mockResponse
+			});
+
+			const result = await client.getBuildLogs('job-123');
+			expect(result).toEqual(mockResponse);
+			expect(global.fetch).toHaveBeenCalledWith(
+				'http://localhost:3000/api/build/jobs/job-123/logs?offset=0&limit=100',
+				expect.any(Object)
+			);
+		});
+
+		it('fetches build logs with custom pagination', async () => {
+			const mockResponse = { job_id: 'job-123', logs: [], has_more: true };
+			(global.fetch as any).mockResolvedValueOnce({
+				ok: true,
+				json: async () => mockResponse
+			});
+
+			await client.getBuildLogs('job-123', 50, 25);
+			expect(global.fetch).toHaveBeenCalledWith(
+				'http://localhost:3000/api/build/jobs/job-123/logs?offset=50&limit=25',
+				expect.any(Object)
+			);
+		});
+	});
+
+	describe('cancelBuild', () => {
+		it('cancels a build job', async () => {
+			const mockResponse = { success: true, message: 'Build cancelled' };
+			(global.fetch as any).mockResolvedValueOnce({
+				ok: true,
+				json: async () => mockResponse
+			});
+
+			const result = await client.cancelBuild('job-123');
+			expect(result).toEqual(mockResponse);
+			expect(global.fetch).toHaveBeenCalledWith(
+				'http://localhost:3000/api/build/jobs/job-123/cancel',
+				expect.objectContaining({
+					method: 'POST'
+				})
+			);
+		});
+
+		it('handles cancellation failure', async () => {
+			const mockResponse = { success: false, message: 'Cannot cancel completed job' };
+			(global.fetch as any).mockResolvedValueOnce({
+				ok: true,
+				json: async () => mockResponse
+			});
+
+			const result = await client.cancelBuild('job-123');
+			expect(result.success).toBe(false);
+		});
+	});
 });
