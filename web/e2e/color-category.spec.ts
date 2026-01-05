@@ -110,8 +110,13 @@ test.describe('Color and Category Management', () => {
 	});
 
 	test('should apply key color override and reflect in preview', async ({ page }) => {
-		// Click on first key to select it
+		// Click on first key to select it - opens picker
 		await page.click('[data-testid="key-0"]');
+
+		// Close the picker
+		await expect(page.getByTestId('keycode-picker-overlay')).toBeVisible();
+		await page.getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByTestId('keycode-picker-overlay')).not.toBeVisible();
 
 		// Verify key is selected
 		await expect(page.locator('[data-testid="key-0"] .key-bg')).toHaveClass(/selected/);
@@ -147,6 +152,9 @@ test.describe('Color and Category Management', () => {
 		await page.reload();
 		await page.waitForLoadState('networkidle');
 
+		// Enable selection mode to check key without opening picker
+		await page.click('[data-testid="selection-mode-button"]');
+
 		// Click key again to check if color override persisted
 		await page.click('[data-testid="key-0"]');
 
@@ -178,8 +186,13 @@ test.describe('Color and Category Management', () => {
 		// Navigate back to Preview tab
 		await page.click('text=Preview');
 
-		// Select first key
+		// Select first key - opens picker
 		await page.click('[data-testid="key-0"]');
+
+		// Close the picker
+		await expect(page.getByTestId('keycode-picker-overlay')).toBeVisible();
+		await page.getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByTestId('keycode-picker-overlay')).not.toBeVisible();
 
 		// Assign key to navigation category
 		await page.selectOption('#key-category', 'navigation');
@@ -195,8 +208,13 @@ test.describe('Color and Category Management', () => {
 		await page.click('text=Categories');
 		await expect(page.locator('text=Navigation Keys')).toBeVisible();
 
-		// Go back to preview and verify key still has category assigned
+		// Go back to preview
 		await page.click('text=Preview');
+
+		// Enable selection mode to check key without opening picker
+		await page.click('[data-testid="selection-mode-button"]');
+
+		// Click key to verify category
 		await page.click('[data-testid="key-0"]');
 
 		// Verify category is selected in dropdown
@@ -213,9 +231,14 @@ test.describe('Color and Category Management', () => {
 		await page.click('button[title="#FFFF00"]'); // Yellow
 		await page.click('text=Create');
 
-		// Go to preview and select key
+		// Go to preview and select key - opens picker
 		await page.click('text=Preview');
 		await page.click('[data-testid="key-0"]');
+
+		// Close the picker
+		await expect(page.getByTestId('keycode-picker-overlay')).toBeVisible();
+		await page.getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByTestId('keycode-picker-overlay')).not.toBeVisible();
 
 		// Wait for key details to be visible
 		await expect(page.locator('text=Key Details & Customization')).toBeVisible();

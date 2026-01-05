@@ -28,6 +28,11 @@
 	} from '$api/types';
 	import { ClipboardManager } from '$lib/utils/clipboard';
 	import { validateName, parseAndValidateTags, type ValidationError } from '$lib/utils/metadata';
+	import {
+		shouldCycleLayer,
+		shouldHandleEscape,
+		shouldOpenPicker
+	} from '$lib/utils/keyboardNavigation';
 
 	let { data }: { data: PageData } = $props();
 	// Initialize layout as mutable state without referencing props
@@ -243,6 +248,56 @@
 			// Single selection mode (default behavior)
 			selectedKeyIndex = visualIndex;
 			selectedKeyIndices = new Set();
+			// Immediately open keycode picker for TUI-like UX
+			openKeycodePicker();
+		}
+	}
+	
+	/**
+	 * Handle keyboard navigation from KeyboardPreview
+	 */
+	function handleKeyboardNavigation(newKeyIndex: number | null, newSelectedIndices: Set<number>) {
+		selectedKeyIndex = newKeyIndex;
+		selectedKeyIndices = newSelectedIndices;
+	}
+	
+	/**
+	 * Handle global keyboard shortcuts (layer cycling, escape, enter)
+	 */
+	function handleGlobalKeydown(event: KeyboardEvent) {
+		// Layer cycling with [ and ]
+		const cycleDirection = shouldCycleLayer(event);
+		if (cycleDirection !== null && layout) {
+			event.preventDefault();
+			const currentIndex = selectedLayerIndex;
+			const layerCount = layout.layers.length;
+			
+			if (cycleDirection === 'prev') {
+				handleLayerChange((currentIndex - 1 + layerCount) % layerCount);
+			} else {
+				handleLayerChange((currentIndex + 1) % layerCount);
+			}
+			return;
+		}
+		
+		// Escape key: close picker or clear selection
+		if (shouldHandleEscape(event)) {
+			event.preventDefault();
+			if (keycodePickerOpen) {
+				handleKeycodePickerClose();
+			} else if (selectedKeyIndices.size > 0 || selectionMode) {
+				clearSelection();
+			}
+			return;
+		}
+		
+		// Enter key: open keycode picker if a key is selected
+		if (shouldOpenPicker(event)) {
+			event.preventDefault();
+			if (selectedKeyIndex !== null && !keycodePickerOpen) {
+				openKeycodePicker();
+			}
+			return;
 		}
 	}
 
@@ -739,6 +794,8 @@
 	const canSave = $derived(!metadataErrors.some(e => e.field === 'name' || e.field === 'tags'));
 </script>
 
+<svelte:window onkeydown={handleGlobalKeydown} />
+
 <div class="container mx-auto p-6">
 	<!-- Header -->
 	<div class="mb-6 flex items-center justify-between">
@@ -1064,6 +1121,7 @@
 							layer={layout.layers[selectedLayerIndex]}
 							categories={layout.categories || []}
 							onKeyClick={handleKeyClick}
+							onNavigate={handleKeyboardNavigation}
 							class="max-w-4xl mx-auto"
 						/>
 					{:else}

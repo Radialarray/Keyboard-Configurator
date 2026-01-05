@@ -8,6 +8,7 @@
 		type KeySvgData
 	} from '$lib/utils/geometry';
 	import { resolveKeyColor } from '$lib/utils/colorResolution';
+	import { handleKeyboardNavigation } from '$lib/utils/keyboardNavigation';
 
 	interface Props {
 		/** Raw geometry data from the backend API */
@@ -24,6 +25,8 @@
 		categories?: Category[];
 		/** Callback when a key is clicked */
 		onKeyClick?: (visualIndex: number, matrixRow: number, matrixCol: number, shiftKey: boolean) => void;
+		/** Callback when keyboard navigation occurs */
+		onNavigate?: (newKeyIndex: number | null, newSelectedIndices: Set<number>) => void;
 		/** Custom class for the container */
 		class?: string;
 	}
@@ -36,8 +39,11 @@
 		layer,
 		categories = [],
 		onKeyClick,
+		onNavigate,
 		class: className = ''
 	}: Props = $props();
+	
+	let containerElement: HTMLDivElement;
 
 	// Transform geometry data for SVG rendering
 	const transformed = $derived(transformGeometry(geometry));
@@ -97,6 +103,24 @@
 	function handleKeyClick(key: KeySvgData, event: MouseEvent) {
 		onKeyClick?.(key.visualIndex, key.matrixRow, key.matrixCol, event.shiftKey);
 	}
+	
+	/**
+	 * Handle keyboard events for navigation
+	 */
+	function handleKeyDown(event: KeyboardEvent) {
+		const result = handleKeyboardNavigation(
+			event,
+			selectedKeyIndex,
+			transformed.keys,
+			selectedKeyIndices
+		);
+		
+		if (result.handled) {
+			event.preventDefault();
+			event.stopPropagation();
+			onNavigate?.(result.newKeyIndex, result.newSelectedIndices);
+		}
+	}
 
 	/**
 	 * Computes the font size based on label length.
@@ -115,10 +139,14 @@
 	}
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
+	bind:this={containerElement}
 	class="keyboard-preview {className}"
 	role="application"
 	aria-label="Keyboard layout preview"
+	tabindex="0"
+	onkeydown={handleKeyDown}
 >
 	{#if transformed.keys.length > 0}
 		<svg
@@ -217,6 +245,13 @@
 <style>
 	.keyboard-preview {
 		user-select: none;
+		outline: none;
+	}
+	
+	.keyboard-preview:focus-visible {
+		outline: 2px solid hsl(var(--ring));
+		outline-offset: 2px;
+		border-radius: 8px;
 	}
 
 	.key-group {

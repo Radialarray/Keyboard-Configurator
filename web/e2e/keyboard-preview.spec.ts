@@ -113,8 +113,15 @@ test.describe('Keyboard Preview', () => {
 		const firstKey = page.locator('[data-testid="key-0"]');
 		await expect(firstKey).toBeVisible();
 
-		// Click on the first key
+		// Click on the first key - this will open the picker
 		await firstKey.click();
+
+		// Verify picker is open
+		await expect(page.getByTestId('keycode-picker-overlay')).toBeVisible();
+
+		// Close the picker
+		await page.getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByTestId('keycode-picker-overlay')).not.toBeVisible();
 
 		// Verify selection is shown - check for the keycode display
 		await expect(page.getByText('Selected:')).toBeVisible();
@@ -131,14 +138,24 @@ test.describe('Keyboard Preview', () => {
 		await expect(page.getByRole('heading', { name: 'Keyboard Preview' })).toBeVisible();
 		await expect(page.locator('[data-testid="key-0"]')).toBeVisible();
 
-		// Click on first key to select it
+		// Click on first key to select it - opens picker
 		await page.locator('[data-testid="key-0"]').click();
+		
+		// Close the picker
+		await expect(page.getByTestId('keycode-picker-overlay')).toBeVisible();
+		await page.getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByTestId('keycode-picker-overlay')).not.toBeVisible();
 		
 		// Verify key details card is visible for first key
 		await expect(page.getByRole('heading', { name: 'Key Details & Customization' })).toBeVisible();
 
-		// Click on second key to change selection
+		// Click on second key to change selection - opens picker again
 		await page.locator('[data-testid="key-1"]').click();
+
+		// Close the picker
+		await expect(page.getByTestId('keycode-picker-overlay')).toBeVisible();
+		await page.getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByTestId('keycode-picker-overlay')).not.toBeVisible();
 
 		// Verify key details card is still visible (for second key)
 		await expect(page.getByRole('heading', { name: 'Key Details & Customization' })).toBeVisible();
@@ -169,14 +186,19 @@ test.describe('Keyboard Preview', () => {
 		await expect(page.getByRole('heading', { name: 'Keyboard Preview' })).toBeVisible();
 		await expect(page.locator('[data-testid="key-0"]')).toBeVisible();
 
-		// Select a key
+		// Select a key - this will open the keycode picker
 		await page.locator('[data-testid="key-0"]').click();
+		
+		// Close the keycode picker
+		await expect(page.getByTestId('keycode-picker-overlay')).toBeVisible();
+		await page.getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByTestId('keycode-picker-overlay')).not.toBeVisible();
 		
 		// Verify key details card is visible
 		await expect(page.getByRole('heading', { name: 'Key Details & Customization' })).toBeVisible();
 		
 		// Switch to a different layer
-		await page.getByRole('button', { name: 'Lower' }).click();
+		await page.getByRole('button', { name: 'Lower' }).first().click();
 		
 		// Key details should still be visible (selection persists across layer changes - correct behavior)
 		await expect(page.getByRole('heading', { name: 'Key Details & Customization' })).toBeVisible();

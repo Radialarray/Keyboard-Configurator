@@ -123,10 +123,15 @@ test.describe('Clipboard and Multi-Selection', () => {
 	test('should support shift-click for multi-selection without selection mode', async ({
 		page
 	}) => {
-		// Single click first key
+		// Single click first key - should open picker
 		await page.click('[data-testid="key-0"]');
 
-		// Shift-click second key
+		// Close the picker
+		await expect(page.getByTestId('keycode-picker-overlay')).toBeVisible();
+		await page.getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByTestId('keycode-picker-overlay')).not.toBeVisible();
+
+		// Shift-click second key - should NOT open picker
 		await page.click('[data-testid="key-1"]', { modifiers: ['Shift'] });
 
 		// Should show 2 keys selected
@@ -164,6 +169,9 @@ test.describe('Clipboard and Multi-Selection', () => {
 		await page.reload();
 		await page.waitForLoadState('networkidle');
 
+		// Enable selection mode to check keys without opening picker
+		await page.click('[data-testid="selection-mode-button"]');
+
 		// Check that key 3 now has KC_Q and key 4 has KC_W
 		// We'll verify by selecting them and checking displayed keycode
 		await page.click('[data-testid="key-3"]');
@@ -191,6 +199,9 @@ test.describe('Clipboard and Multi-Selection', () => {
 		// Reload and verify keys are now KC_TRNS (shown as ▽)
 		await page.reload();
 		await page.waitForLoadState('networkidle');
+
+		// Enable selection mode to check keys without opening picker
+		await page.click('[data-testid="selection-mode-button"]');
 
 		// Select first key
 		await page.click('[data-testid="key-0"]');
@@ -246,8 +257,13 @@ test.describe('Clipboard and Multi-Selection', () => {
 	});
 
 	test('should preserve color overrides in clipboard operations', async ({ page }) => {
-		// Select first key
+		// Select first key - this will open picker
 		await page.click('[data-testid="key-0"]');
+
+		// Close picker
+		await expect(page.getByTestId('keycode-picker-overlay')).toBeVisible();
+		await page.getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByTestId('keycode-picker-overlay')).not.toBeVisible();
 
 		// Set color override
 		await page.click('[data-testid="set-color-button"]');
