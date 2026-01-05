@@ -9,6 +9,16 @@ This document covers setup for the LazyQMK web editor, including:
 
 ### Option 1: Local Development (Recommended for Development)
 
+**Single command** (starts both backend and frontend):
+```bash
+cd web
+pnpm install              # or npm install
+pnpm dev:web              # or npm run dev:web
+```
+
+Visit http://localhost:5173
+
+**Or manually in separate terminals**:
 ```bash
 # Terminal 1: Start the backend
 cargo run --features web --bin lazyqmk-web
@@ -18,8 +28,6 @@ cd web
 npm install
 npm run dev
 ```
-
-Visit http://localhost:5173
 
 ### Option 2: Docker (Recommended for Deployment)
 

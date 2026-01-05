@@ -1,0 +1,104 @@
+# Development Script
+
+The `dev.mjs` script provides a **cross-platform** way to start both the Rust backend and Vite frontend with a single command.
+
+## Usage
+
+```bash
+# From web/ directory
+pnpm dev:web
+# or
+npm run dev:web
+
+# Or run directly
+node dev.mjs
+```
+
+## What It Does
+
+1. **Starts Rust backend** on `http://localhost:3001`
+   - Runs: `cargo run --features web --bin lazyqmk-web -- --port 3001`
+   - Working directory: `../` (project root)
+
+2. **Starts Vite dev server** on `http://localhost:5173`
+   - Runs: `pnpm dev` (or `npm run dev`)
+   - Proxies `/api` and `/health` requests to backend (configured in `vite.config.ts`)
+
+3. **Handles cleanup** on exit (Ctrl+C)
+   - Gracefully terminates both processes
+   - Works on Windows (taskkill) and Unix (SIGTERM)
+
+## Platform Support
+
+- ✅ **macOS** - Tested on Apple Silicon and Intel
+- ✅ **Linux** - Works on all distributions with Node.js + Rust
+- ✅ **Windows** - Uses `taskkill` for proper process cleanup
+
+## Requirements
+
+- **Node.js** 18+ (for running the script and Vite)
+- **Rust** 1.91.1+ (for backend compilation)
+- **pnpm** or **npm** (for installing dependencies)
+
+## Troubleshooting
+
+### Backend fails to start
+
+**Error:** `Failed to start: cargo: command not found`
+
+**Solution:** Install Rust and add `cargo` to PATH:
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+```
+
+### Frontend fails to start
+
+**Error:** `Failed to start: spawn npm ENOENT`
+
+**Solution:** Install Node.js dependencies first:
+```bash
+cd web
+pnpm install  # or npm install
+```
+
+### Port already in use
+
+**Error:** `Address already in use (os error 48)`
+
+**Solution:** Kill existing processes on ports 3001 or 5173:
+```bash
+# macOS/Linux
+lsof -ti:3001 | xargs kill
+lsof -ti:5173 | xargs kill
+
+# Windows
+netstat -ano | findstr :3001
+taskkill /PID <PID> /F
+```
+
+## Alternative: Manual Startup
+
+If you prefer to run processes separately:
+
+```bash
+# Terminal 1: Backend
+cd ..
+cargo run --features web --bin lazyqmk-web
+
+# Terminal 2: Frontend
+cd web
+pnpm dev
+```
+
+## Implementation Details
+
+The script uses Node.js `child_process.spawn` to launch both services:
+
+- **Backend:** Spawns `cargo run` in parent directory (`../`)
+- **Frontend:** Spawns `pnpm dev` (or `npm run dev`) in current directory
+- **Process management:** Tracks all child processes and cleans up on exit
+- **Platform detection:** Uses `os.platform()` to handle Windows vs. Unix differences
+- **Color output:** ANSI escape codes for clear, colored terminal output
+
+No external dependencies required - uses only Node.js built-in modules (`child_process`, `os`).

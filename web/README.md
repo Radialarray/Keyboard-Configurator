@@ -37,7 +37,17 @@ web/
 ## Prerequisites
 
 - Node.js 18+ (or Bun)
-- LazyQMK backend running on port 3000 (or configured URL)
+- LazyQMK backend running on port 3001 (default) or configured URL
+
+## Default Workspace
+
+The backend uses a platform-specific default workspace directory for storing layout files:
+
+- **Linux**: `~/.config/LazyQMK/layouts/`
+- **macOS**: `~/Library/Application Support/LazyQMK/layouts/`
+- **Windows**: `%APPDATA%\LazyQMK\layouts\`
+
+This directory is created automatically on first run if it doesn't exist. You can override it with the `--workspace` flag when starting the backend.
 
 ## Getting Started
 
@@ -50,24 +60,39 @@ npm install
 bun install
 ```
 
-### 2. Start Backend
+### 2. Start Development Environment
 
-In a separate terminal, start the LazyQMK backend:
-
+**Quick start (single command):**
 ```bash
-cd ..
-cargo run --features web --bin lazyqmk-web
+pnpm dev:web
+# or
+npm run dev:web
 ```
 
-The backend will run on `http://localhost:3000` by default.
+This starts both the Rust backend (port 3001) and Vite dev server (port 5173) simultaneously.
 
-### 3. Start Development Server
-
+**Or manually in separate terminals:**
 ```bash
+# Terminal 1: Start backend
+cd ..
+cargo run --features web --bin lazyqmk-web
+
+# Terminal 2: Start frontend
 npm run dev
 ```
 
+**Backend customization:**
+```bash
+# Use a custom workspace directory
+cargo run --features web --bin lazyqmk-web -- --workspace ~/my-layouts
+
+# Use a custom port
+cargo run --features web --bin lazyqmk-web -- --port 8080
+```
+
 The frontend will be available at `http://localhost:5173`
+
+**Note:** The frontend proxies API requests to `http://localhost:3001` by default (configured in `vite.config.ts`). If you change the backend port, update the proxy configuration.
 
 ## Development
 
@@ -75,7 +100,8 @@ The frontend will be available at `http://localhost:5173`
 
 ```bash
 # Development
-npm run dev              # Start dev server with hot reload
+npm run dev:web          # Start both backend + frontend (single command)
+npm run dev              # Start frontend only (requires backend running)
 npm run build            # Build for production
 npm run preview          # Preview production build
 
@@ -93,7 +119,7 @@ npm run check:watch      # Type-check in watch mode
 
 ### Backend Configuration
 
-The frontend expects the backend at `http://localhost:3000` by default. To use a different URL:
+The frontend expects the backend at `http://localhost:3001` by default (proxied through Vite during development). To use a different backend:
 
 1. **Development**: Edit `vite.config.ts` proxy configuration
 2. **Production**: Set backend URL when initializing ApiClient
