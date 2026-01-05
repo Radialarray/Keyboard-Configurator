@@ -1193,22 +1193,32 @@
 					{/if}
 				</Card>
 
-				<!-- Key Details Card -->
-				{#if activeKey || (selectedKeyIndices.size > 1 && hoveredKeyIndex === null)}
-					<Card class="p-6" data-testid="key-details-card">
-						<h2 class="text-lg font-semibold mb-4" data-testid="key-details-heading">
-							{hoveredKeyIndex !== null ? 'Key Preview' : 'Key Details & Customization'}
-						</h2>
-						
-						{#if selectedKeyIndices.size > 1 && hoveredKeyIndex === null}
-							<!-- Multi-selection summary -->
-							<div class="mb-4 p-4 bg-muted/30 rounded-lg" data-testid="multi-selection-summary">
-								<p class="font-medium text-sm">Multiple Keys Selected ({selectedKeyIndices.size} keys)</p>
-								<p class="text-xs text-muted-foreground mt-1">
-									Use Copy, Cut, or Paste operations to modify the selection
-								</p>
-							</div>
-						{:else if activeKey}
+			<!-- Key Details Card -->
+			{#if activeKey || hoveredKeyIndex !== null || (selectedKeyIndices.size > 1 && hoveredKeyIndex === null)}
+				<Card class="p-6" data-testid="key-details-card">
+					<h2 class="text-lg font-semibold mb-4" data-testid="key-details-heading">
+						{hoveredKeyIndex !== null ? 'Key Preview' : 'Key Details & Customization'}
+					</h2>
+					
+					{#if selectedKeyIndices.size > 1 && hoveredKeyIndex === null}
+						<!-- Multi-selection summary -->
+						<div class="mb-4 p-4 bg-muted/30 rounded-lg" data-testid="multi-selection-summary">
+							<p class="font-medium text-sm">Multiple Keys Selected ({selectedKeyIndices.size} keys)</p>
+							<p class="text-xs text-muted-foreground mt-1">
+								Use Copy, Cut, or Paste operations to modify the selection
+							</p>
+						</div>
+				{:else if hoveredKeyIndex !== null && hoveredKey === null}
+					<!-- Hover with missing key data fallback -->
+						<div class="p-4 bg-muted/30 rounded-lg" data-testid="key-hover-fallback">
+							<p class="text-sm text-muted-foreground">
+								Hovering key index: <span class="font-mono">{hoveredKeyIndex}</span>
+							</p>
+							<p class="text-xs text-muted-foreground mt-1">
+								Key data not available for this position.
+							</p>
+						</div>
+					{:else if activeKey}
 							<!-- Single key details -->
 							<dl class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
 								<div>

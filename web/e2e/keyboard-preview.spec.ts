@@ -420,5 +420,99 @@ test.describe('Keyboard Preview', () => {
 		const labelGroupCount = await labelGroups.count();
 		expect(labelGroupCount).toBeGreaterThanOrEqual(6);
 	});
+
+	test('hover panel shows even when key data is missing from layer', async ({ page }) => {
+		// Create a mock with mismatched keys (geometry has keys but layer is missing one)
+		const mockLayoutMissing = {
+			metadata: {
+				name: 'Test Layout',
+				description: 'A test keyboard layout',
+				author: 'Test User',
+				keyboard: 'crkbd',
+				layout: 'LAYOUT_split_3x6_3',
+				created: '2024-01-01T00:00:00Z',
+				modified: '2024-01-01T00:00:00Z'
+			},
+			layers: [
+				{
+					name: 'Base',
+					color: '#4a9eff',
+					keys: [
+						// Note: visual_index 0 is missing to simulate a data gap
+						{ keycode: 'KC_W', matrix_position: [0, 1], visual_index: 1, led_index: 1 },
+						{ keycode: 'KC_E', matrix_position: [0, 2], visual_index: 2, led_index: 2 },
+						{ keycode: 'KC_S', matrix_position: [1, 0], visual_index: 3, led_index: 3 },
+						{ keycode: 'KC_D', matrix_position: [1, 1], visual_index: 4, led_index: 4 },
+						{ keycode: 'KC_F', matrix_position: [1, 2], visual_index: 5, led_index: 5 }
+					]
+				}
+			]
+		};
+
+		const mockRenderMetadataMissing = {
+			filename: 'test-layout-missing',
+			layers: [
+				{
+					number: 0,
+					name: 'Base',
+					keys: [
+						// Note: visual_index 0 is missing
+						{ visual_index: 1, display: { primary: 'W' }, details: [{ kind: 'simple', code: 'KC_W', description: 'Letter W' }] },
+						{ visual_index: 2, display: { primary: 'E' }, details: [{ kind: 'simple', code: 'KC_E', description: 'Letter E' }] },
+						{ visual_index: 3, display: { primary: 'S' }, details: [{ kind: 'simple', code: 'KC_S', description: 'Letter S' }] },
+						{ visual_index: 4, display: { primary: 'D' }, details: [{ kind: 'simple', code: 'KC_D', description: 'Letter D' }] },
+						{ visual_index: 5, display: { primary: 'F' }, details: [{ kind: 'simple', code: 'KC_F', description: 'Letter F' }] }
+					]
+				}
+			]
+		};
+
+		// Override routes for this test
+		await page.route('**/api/layouts/test-layout-missing*', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify(mockLayoutMissing)
+			});
+		});
+
+		await page.route('**/api/layouts/test-layout-missing/render-metadata', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify(mockRenderMetadataMissing)
+			});
+		});
+
+		await page.goto('/layouts/test-layout-missing');
+
+		// Wait for keyboard preview to load
+		await expect(page.getByRole('heading', { name: 'Keyboard Preview' })).toBeVisible();
+		await expect(page.locator('[data-testid="key-0"]')).toBeVisible();
+
+		// First select a key that exists to have the panel visible
+		await page.locator('[data-testid="key-1"]').click();
+		await expect(page.getByTestId('keycode-picker-overlay')).toBeVisible();
+		await page.getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByTestId('keycode-picker-overlay')).not.toBeVisible();
+		
+		// Move mouse away initially
+		await page.mouse.move(0, 0);
+		
+		// Verify key details card is visible
+		await expect(page.getByTestId('key-details-card')).toBeVisible();
+
+		// Now hover over key 0 which has no data in layer
+		await page.locator('[data-testid="key-0"]').hover();
+
+		// The hover panel should still be visible (even with fallback)
+		await expect(page.getByTestId('key-details-card')).toBeVisible();
+		await expect(page.getByTestId('key-details-heading')).toHaveText('Key Preview');
+		
+		// Should show the fallback message for missing key data
+		await expect(page.getByTestId('key-hover-fallback')).toBeVisible();
+		await expect(page.getByText('Hovering key index:')).toBeVisible();
+		await expect(page.getByText('Key data not available')).toBeVisible();
+	});
 });
 

@@ -348,6 +348,67 @@ impl KeycodeDb {
             }
         }
 
+        // Handle DF (set default layer)
+        if let Some(inner) = keycode.strip_prefix("DF(") {
+            if let Some(layer_ref) = inner.strip_suffix(')') {
+                let layer = resolve_layer_reference(layer_ref, layer_id_to_number);
+                return KeyDisplayMetadata {
+                    display: KeyDisplay {
+                        primary: format!("DF{layer}"),
+                        secondary: None,
+                        tertiary: None,
+                    },
+                    details: vec![KeyDetailAction {
+                        kind: ActionKind::Layer,
+                        code: format!("Layer {layer}"),
+                        description: format!("Default: Set layer {layer} as default"),
+                    }],
+                };
+            }
+        }
+
+        // Handle TT (layer tap-toggle)
+        if let Some(inner) = keycode.strip_prefix("TT(") {
+            if let Some(layer_ref) = inner.strip_suffix(')') {
+                let layer = resolve_layer_reference(layer_ref, layer_id_to_number);
+                return KeyDisplayMetadata {
+                    display: KeyDisplay {
+                        primary: format!("TT{layer}"),
+                        secondary: None,
+                        tertiary: None,
+                    },
+                    details: vec![KeyDetailAction {
+                        kind: ActionKind::Layer,
+                        code: format!("Layer {layer}"),
+                        description: format!(
+                            "Tap-Toggle: Tap to toggle layer {layer}, hold to momentarily activate"
+                        ),
+                    }],
+                };
+            }
+        }
+
+        // Handle PDF (per-layer default layer)
+        if let Some(inner) = keycode.strip_prefix("PDF(") {
+            if let Some(layer_ref) = inner.strip_suffix(')') {
+                let layer = resolve_layer_reference(layer_ref, layer_id_to_number);
+                return KeyDisplayMetadata {
+                    display: KeyDisplay {
+                        primary: format!("PDF{layer}"),
+                        secondary: None,
+                        tertiary: None,
+                    },
+                    details: vec![KeyDetailAction {
+                        kind: ActionKind::Layer,
+                        code: format!("Layer {layer}"),
+                        description: format!(
+                            "Per-layer Default: Set layer {layer} as per-layer default"
+                        ),
+                    }],
+                };
+            }
+        }
+
         // Handle TD (tap dance)
         if let Some(inner) = keycode.strip_prefix("TD(") {
             if let Some(name) = inner.strip_suffix(')') {
@@ -831,5 +892,71 @@ mod tests {
             meta.details[0].description,
             "Momentary: Activate layer 2 while held"
         );
+    }
+
+    #[test]
+    fn test_default_layer() {
+        let db = get_test_db();
+        let meta = db.get_display_metadata("DF(1)", None, None);
+        assert_eq!(meta.display.primary, "DF1");
+        assert!(meta.display.secondary.is_none());
+        assert_eq!(meta.details[0].kind, ActionKind::Layer);
+        assert_eq!(
+            meta.details[0].description,
+            "Default: Set layer 1 as default"
+        );
+    }
+
+    #[test]
+    fn test_default_layer_with_uuid() {
+        let db = get_test_db();
+        let mut layer_map = std::collections::HashMap::new();
+        layer_map.insert("layer-uuid-123".to_string(), 0);
+
+        let meta = db.get_display_metadata("DF(@layer-uuid-123)", None, Some(&layer_map));
+        assert_eq!(meta.display.primary, "DF0");
+        assert_eq!(meta.details[0].code, "Layer 0");
+    }
+
+    #[test]
+    fn test_tap_toggle_layer() {
+        let db = get_test_db();
+        let meta = db.get_display_metadata("TT(3)", None, None);
+        assert_eq!(meta.display.primary, "TT3");
+        assert!(meta.display.secondary.is_none());
+        assert_eq!(meta.details[0].kind, ActionKind::Layer);
+        assert!(meta.details[0].description.contains("Tap-Toggle"));
+    }
+
+    #[test]
+    fn test_tap_toggle_layer_with_uuid() {
+        let db = get_test_db();
+        let mut layer_map = std::collections::HashMap::new();
+        layer_map.insert("tt-layer-uuid".to_string(), 2);
+
+        let meta = db.get_display_metadata("TT(@tt-layer-uuid)", None, Some(&layer_map));
+        assert_eq!(meta.display.primary, "TT2");
+        assert_eq!(meta.details[0].code, "Layer 2");
+    }
+
+    #[test]
+    fn test_pdf_layer() {
+        let db = get_test_db();
+        let meta = db.get_display_metadata("PDF(1)", None, None);
+        assert_eq!(meta.display.primary, "PDF1");
+        assert!(meta.display.secondary.is_none());
+        assert_eq!(meta.details[0].kind, ActionKind::Layer);
+        assert!(meta.details[0].description.contains("Per-layer Default"));
+    }
+
+    #[test]
+    fn test_pdf_layer_with_uuid() {
+        let db = get_test_db();
+        let mut layer_map = std::collections::HashMap::new();
+        layer_map.insert("pdf-layer-uuid".to_string(), 4);
+
+        let meta = db.get_display_metadata("PDF(@pdf-layer-uuid)", None, Some(&layer_map));
+        assert_eq!(meta.display.primary, "PDF4");
+        assert_eq!(meta.details[0].code, "Layer 4");
     }
 }
