@@ -41,7 +41,8 @@ test.describe('Color and Category Management', () => {
 				width: 60,
 				height: 60,
 				rotation: 0,
-				led_index: 0
+				led_index: 0,
+				visual_index: 0
 			},
 			{
 				matrix_row: 0,
@@ -51,7 +52,8 @@ test.describe('Color and Category Management', () => {
 				width: 60,
 				height: 60,
 				rotation: 0,
-				led_index: 1
+				led_index: 1,
+				visual_index: 1
 			},
 			{
 				matrix_row: 0,
@@ -61,7 +63,8 @@ test.describe('Color and Category Management', () => {
 				width: 60,
 				height: 60,
 				rotation: 0,
-				led_index: 2
+				led_index: 2,
+				visual_index: 2
 			}
 		],
 		matrix_rows: 1,

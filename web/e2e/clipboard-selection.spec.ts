@@ -35,11 +35,11 @@ test.describe('Clipboard and Multi-Selection', () => {
 		keyboard: 'crkbd',
 		layout: 'LAYOUT_split_3x6_3',
 		keys: [
-			{ matrix_row: 0, matrix_col: 0, x: 0, y: 0, width: 60, height: 60, rotation: 0, led_index: 0 },
-			{ matrix_row: 0, matrix_col: 1, x: 70, y: 0, width: 60, height: 60, rotation: 0, led_index: 1 },
-			{ matrix_row: 0, matrix_col: 2, x: 140, y: 0, width: 60, height: 60, rotation: 0, led_index: 2 },
-			{ matrix_row: 0, matrix_col: 3, x: 210, y: 0, width: 60, height: 60, rotation: 0, led_index: 3 },
-			{ matrix_row: 0, matrix_col: 4, x: 280, y: 0, width: 60, height: 60, rotation: 0, led_index: 4 }
+			{ matrix_row: 0, matrix_col: 0, x: 0, y: 0, width: 60, height: 60, rotation: 0, led_index: 0, visual_index: 0 },
+			{ matrix_row: 0, matrix_col: 1, x: 70, y: 0, width: 60, height: 60, rotation: 0, led_index: 1, visual_index: 1 },
+			{ matrix_row: 0, matrix_col: 2, x: 140, y: 0, width: 60, height: 60, rotation: 0, led_index: 2, visual_index: 2 },
+			{ matrix_row: 0, matrix_col: 3, x: 210, y: 0, width: 60, height: 60, rotation: 0, led_index: 3, visual_index: 3 },
+			{ matrix_row: 0, matrix_col: 4, x: 280, y: 0, width: 60, height: 60, rotation: 0, led_index: 4, visual_index: 4 }
 		],
 		matrix_rows: 1,
 		matrix_cols: 5,
