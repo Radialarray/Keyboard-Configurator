@@ -83,15 +83,16 @@ impl KeycodeDb {
     ///
     /// ```no_run
     /// use lazyqmk::keycode_db::KeycodeDb;
+    /// use std::collections::HashMap;
     ///
     /// let db = KeycodeDb::load().unwrap();
     ///
     /// // Simple key
-    /// let meta = db.get_display_metadata("KC_A", None);
+    /// let meta = db.get_display_metadata("KC_A", None, None);
     /// assert_eq!(meta.display.primary, "A");
     ///
     /// // Layer tap
-    /// let meta = db.get_display_metadata("LT(1, KC_ESC)", None);
+    /// let meta = db.get_display_metadata("LT(1, KC_ESC)", None, None);
     /// assert_eq!(meta.display.primary, "ESC");
     /// assert_eq!(meta.display.secondary, Some("L1".to_string()));
     /// ```
@@ -100,6 +101,7 @@ impl KeycodeDb {
         &self,
         keycode: &str,
         tap_dance_info: Option<&TapDanceDisplayInfo>,
+        layer_id_to_number: Option<&std::collections::HashMap<String, u8>>,
     ) -> KeyDisplayMetadata {
         // Handle special cases
         if keycode.is_empty() || keycode == "KC_NO" || keycode == "XXXXXXX" {
@@ -137,7 +139,7 @@ impl KeycodeDb {
             if let Some(args) = inner.strip_suffix(')') {
                 let parts: Vec<&str> = args.split(',').map(str::trim).collect();
                 if parts.len() == 2 {
-                    let layer = parts[0].trim_start_matches('@');
+                    let layer = resolve_layer_reference(parts[0], layer_id_to_number);
                     let tap_code = parts[1];
                     let tap_label = strip_kc_prefix(tap_code);
 
@@ -240,7 +242,7 @@ impl KeycodeDb {
             if let Some(args) = inner.strip_suffix(')') {
                 let parts: Vec<&str> = args.split(',').map(str::trim).collect();
                 if parts.len() == 2 {
-                    let layer = parts[0].trim_start_matches('@');
+                    let layer = resolve_layer_reference(parts[0], layer_id_to_number);
                     let modifier = parts[1];
                     let mod_display = format_modifier(modifier);
 
@@ -272,8 +274,8 @@ impl KeycodeDb {
 
         // Handle MO (momentary layer)
         if let Some(inner) = keycode.strip_prefix("MO(") {
-            if let Some(layer) = inner.strip_suffix(')') {
-                let layer = layer.trim_start_matches('@');
+            if let Some(layer_ref) = inner.strip_suffix(')') {
+                let layer = resolve_layer_reference(layer_ref, layer_id_to_number);
                 return KeyDisplayMetadata {
                     display: KeyDisplay {
                         primary: format!("▼L{layer}"),
@@ -291,8 +293,8 @@ impl KeycodeDb {
 
         // Handle TG (toggle layer)
         if let Some(inner) = keycode.strip_prefix("TG(") {
-            if let Some(layer) = inner.strip_suffix(')') {
-                let layer = layer.trim_start_matches('@');
+            if let Some(layer_ref) = inner.strip_suffix(')') {
+                let layer = resolve_layer_reference(layer_ref, layer_id_to_number);
                 return KeyDisplayMetadata {
                     display: KeyDisplay {
                         primary: format!("TG{layer}"),
@@ -310,8 +312,8 @@ impl KeycodeDb {
 
         // Handle TO (switch to layer)
         if let Some(inner) = keycode.strip_prefix("TO(") {
-            if let Some(layer) = inner.strip_suffix(')') {
-                let layer = layer.trim_start_matches('@');
+            if let Some(layer_ref) = inner.strip_suffix(')') {
+                let layer = resolve_layer_reference(layer_ref, layer_id_to_number);
                 return KeyDisplayMetadata {
                     display: KeyDisplay {
                         primary: format!("TO{layer}"),
@@ -329,8 +331,8 @@ impl KeycodeDb {
 
         // Handle OSL (one-shot layer)
         if let Some(inner) = keycode.strip_prefix("OSL(") {
-            if let Some(layer) = inner.strip_suffix(')') {
-                let layer = layer.trim_start_matches('@');
+            if let Some(layer_ref) = inner.strip_suffix(')') {
+                let layer = resolve_layer_reference(layer_ref, layer_id_to_number);
                 return KeyDisplayMetadata {
                     display: KeyDisplay {
                         primary: format!("OS{layer}"),
@@ -505,6 +507,30 @@ pub struct TapDanceDisplayInfo {
     pub hold: Option<String>,
 }
 
+/// Resolves a layer reference (which may be a UUID with @ prefix or a numeric string) to a numeric layer number.
+///
+/// # Examples
+/// - "@uuid-123" → looks up in layer_id_to_number map, returns "0" if found for layer 0
+/// - "1" → returns "1" (already numeric)
+/// - "invalid" → returns "invalid" (fallback)
+fn resolve_layer_reference(
+    layer_ref: &str,
+    layer_id_to_number: Option<&std::collections::HashMap<String, u8>>,
+) -> String {
+    // If it starts with @, it's a UUID reference
+    if let Some(uuid) = layer_ref.strip_prefix('@') {
+        if let Some(map) = layer_id_to_number {
+            if let Some(&number) = map.get(uuid) {
+                return number.to_string();
+            }
+        }
+        // If we can't resolve, strip the @ and show the UUID (shouldn't happen in prod)
+        return uuid.to_string();
+    }
+    // Otherwise, it's already numeric or another format
+    layer_ref.to_string()
+}
+
 /// Strips the "KC_" prefix from a keycode.
 fn strip_kc_prefix(keycode: &str) -> String {
     keycode.strip_prefix("KC_").unwrap_or(keycode).to_string()
@@ -665,7 +691,7 @@ mod tests {
     #[test]
     fn test_simple_keycode() {
         let db = get_test_db();
-        let meta = db.get_display_metadata("KC_A", None);
+        let meta = db.get_display_metadata("KC_A", None, None);
         assert_eq!(meta.display.primary, "A");
         assert!(meta.display.secondary.is_none());
         assert!(meta.display.tertiary.is_none());
@@ -676,7 +702,7 @@ mod tests {
     #[test]
     fn test_transparent_key() {
         let db = get_test_db();
-        let meta = db.get_display_metadata("KC_TRNS", None);
+        let meta = db.get_display_metadata("KC_TRNS", None, None);
         assert_eq!(meta.display.primary, "▽");
         assert!(meta.display.secondary.is_none());
     }
@@ -684,14 +710,14 @@ mod tests {
     #[test]
     fn test_no_key() {
         let db = get_test_db();
-        let meta = db.get_display_metadata("KC_NO", None);
+        let meta = db.get_display_metadata("KC_NO", None, None);
         assert_eq!(meta.display.primary, "");
     }
 
     #[test]
     fn test_layer_tap() {
         let db = get_test_db();
-        let meta = db.get_display_metadata("LT(1, KC_ESC)", None);
+        let meta = db.get_display_metadata("LT(1, KC_ESC)", None, None);
         assert_eq!(meta.display.primary, "ESC");
         assert_eq!(meta.display.secondary, Some("L1".to_string()));
         assert!(meta.display.tertiary.is_none());
@@ -703,7 +729,7 @@ mod tests {
     #[test]
     fn test_mod_tap_named() {
         let db = get_test_db();
-        let meta = db.get_display_metadata("LCTL_T(KC_A)", None);
+        let meta = db.get_display_metadata("LCTL_T(KC_A)", None, None);
         assert_eq!(meta.display.primary, "A");
         assert_eq!(meta.display.secondary, Some("CTL".to_string()));
         assert_eq!(meta.details.len(), 2);
@@ -714,7 +740,7 @@ mod tests {
     #[test]
     fn test_mod_tap_custom() {
         let db = get_test_db();
-        let meta = db.get_display_metadata("MT(MOD_LCTL, KC_SPC)", None);
+        let meta = db.get_display_metadata("MT(MOD_LCTL, KC_SPC)", None, None);
         assert_eq!(meta.display.primary, "SPC");
         assert_eq!(meta.display.secondary, Some("C".to_string()));
     }
@@ -722,7 +748,7 @@ mod tests {
     #[test]
     fn test_momentary_layer() {
         let db = get_test_db();
-        let meta = db.get_display_metadata("MO(1)", None);
+        let meta = db.get_display_metadata("MO(1)", None, None);
         assert_eq!(meta.display.primary, "▼L1");
         assert!(meta.display.secondary.is_none());
         assert_eq!(meta.details[0].kind, ActionKind::Layer);
@@ -731,7 +757,7 @@ mod tests {
     #[test]
     fn test_toggle_layer() {
         let db = get_test_db();
-        let meta = db.get_display_metadata("TG(2)", None);
+        let meta = db.get_display_metadata("TG(2)", None, None);
         assert_eq!(meta.display.primary, "TG2");
     }
 
@@ -743,7 +769,7 @@ mod tests {
             double_tap: Some("KC_B".to_string()),
             hold: Some("KC_C".to_string()),
         };
-        let meta = db.get_display_metadata("TD(my_dance)", Some(&td_info));
+        let meta = db.get_display_metadata("TD(my_dance)", Some(&td_info), None);
         assert_eq!(meta.display.primary, "A");
         assert_eq!(meta.display.secondary, Some("B".to_string()));
         assert_eq!(meta.display.tertiary, Some("C".to_string()));
@@ -753,14 +779,14 @@ mod tests {
     #[test]
     fn test_tap_dance_without_info() {
         let db = get_test_db();
-        let meta = db.get_display_metadata("TD(my_dance)", None);
+        let meta = db.get_display_metadata("TD(my_dance)", None, None);
         assert_eq!(meta.display.primary, "TD:my_dance");
     }
 
     #[test]
     fn test_layer_mod() {
         let db = get_test_db();
-        let meta = db.get_display_metadata("LM(1, MOD_LCTL)", None);
+        let meta = db.get_display_metadata("LM(1, MOD_LCTL)", None, None);
         assert_eq!(meta.display.primary, "L1");
         assert_eq!(meta.display.secondary, Some("C".to_string()));
     }
@@ -768,14 +794,42 @@ mod tests {
     #[test]
     fn test_one_shot_modifier() {
         let db = get_test_db();
-        let meta = db.get_display_metadata("OSM(MOD_LSFT)", None);
+        let meta = db.get_display_metadata("OSM(MOD_LSFT)", None, None);
         assert_eq!(meta.display.primary, "OSS");
     }
 
     #[test]
     fn test_modifier_wrapper() {
         let db = get_test_db();
-        let meta = db.get_display_metadata("LCTL(KC_C)", None);
+        let meta = db.get_display_metadata("LCTL(KC_C)", None, None);
         assert_eq!(meta.display.primary, "C+C");
+    }
+
+    #[test]
+    fn test_layer_tap_with_uuid() {
+        let db = get_test_db();
+        // Build a layer ID to number map
+        let mut layer_map = std::collections::HashMap::new();
+        layer_map.insert("abc123-uuid".to_string(), 1);
+
+        let meta = db.get_display_metadata("LT(@abc123-uuid, KC_ESC)", None, Some(&layer_map));
+        assert_eq!(meta.display.primary, "ESC");
+        assert_eq!(meta.display.secondary, Some("L1".to_string()));
+        assert_eq!(meta.details[1].code, "Layer 1");
+    }
+
+    #[test]
+    fn test_momentary_layer_with_uuid() {
+        let db = get_test_db();
+        // Build a layer ID to number map
+        let mut layer_map = std::collections::HashMap::new();
+        layer_map.insert("def456-uuid".to_string(), 2);
+
+        let meta = db.get_display_metadata("MO(@def456-uuid)", None, Some(&layer_map));
+        assert_eq!(meta.display.primary, "▼L2");
+        assert_eq!(
+            meta.details[0].description,
+            "Momentary: Activate layer 2 while held"
+        );
     }
 }

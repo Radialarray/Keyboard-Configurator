@@ -252,20 +252,31 @@
 					data-matrix-row={key.matrixRow}
 					data-matrix-col={key.matrixCol}
 				>
-					<!-- RGB Glow filter (applied when color exists) -->
-					{#if resolvedColor && !isSelected}
-						<defs>
-							<filter id="glow-{key.visualIndex}" x="-50%" y="-50%" width="200%" height="200%">
-								<feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
-								<feFlood flood-color={resolvedColor} flood-opacity="0.3" result="color" />
+					<!-- Define clip path for label overflow prevention -->
+					<defs>
+						<clipPath id="clip-{key.visualIndex}">
+							<rect
+								x={key.x + 3}
+								y={key.y + 2}
+								width={key.width - 6}
+								height={key.height - 5}
+								rx={KEY_BORDER_RADIUS - 2}
+								ry={KEY_BORDER_RADIUS - 2}
+							/>
+						</clipPath>
+						<!-- RGB Glow filter (always apply when color exists, including selected keys) -->
+						{#if resolvedColor}
+							<filter id="glow-{key.visualIndex}" x="-100%" y="-100%" width="300%" height="300%">
+								<feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="blur" />
+								<feFlood flood-color={resolvedColor} flood-opacity="0.6" result="color" />
 								<feComposite in="color" in2="blur" operator="in" result="glow" />
 								<feMerge>
 									<feMergeNode in="glow" />
 									<feMergeNode in="SourceGraphic" />
 								</feMerge>
 							</filter>
-						</defs>
-					{/if}
+						{/if}
+					</defs>
 
 					<!-- Key background -->
 					<rect
@@ -277,7 +288,7 @@
 						ry={KEY_BORDER_RADIUS}
 						class="key-bg {isSelected ? 'selected' : ''}"
 						style={resolvedColor && !isSelected ? `fill: ${resolvedColor}` : ''}
-						filter={resolvedColor && !isSelected ? `url(#glow-${key.visualIndex})` : 'url(#key-shadow)'}
+						filter={resolvedColor ? `url(#glow-${key.visualIndex})` : 'url(#key-shadow)'}
 					/>
 
 					<!-- Key top surface (slightly inset for 3D effect) -->
@@ -289,101 +300,107 @@
 						rx={KEY_BORDER_RADIUS - 1}
 						ry={KEY_BORDER_RADIUS - 1}
 						class="key-top {isSelected ? 'selected' : ''}"
-						style={resolvedColor && !isSelected ? `fill: ${resolvedColor}; opacity: 0.8` : ''}
+						style={resolvedColor && !isSelected ? `fill: ${resolvedColor}; opacity: 0.9` : ''}
 					/>
 
 					<!-- Key label - use render metadata if available, otherwise fallback to formatted keycode -->
-					{#if metadata}
-						{@const primaryLabel = metadata.display.primary}
-						{@const secondaryLabel = metadata.display.secondary}
-						{@const tertiaryLabel = metadata.display.tertiary}
-						{@const labelCount = [primaryLabel, secondaryLabel, tertiaryLabel].filter(Boolean).length}
-						{@const labelFontSize = labelCount > 1 ? 9 : 12}
-						
-						{#if labelCount === 1}
-							<text
-								x={key.x + key.width / 2}
-								y={key.y + key.height / 2 + labelFontSize / 3}
-								text-anchor="middle"
-								class="key-label"
-								font-size={labelFontSize}
-							>
-								{primaryLabel}
-							</text>
-						{:else if labelCount === 2}
-							<text
-								x={key.x + key.width / 2}
-								y={key.y + key.height / 2 - labelFontSize / 2}
-								text-anchor="middle"
-								class="key-label"
-								font-size={labelFontSize}
-							>
-								{primaryLabel}
-							</text>
-							<text
-								x={key.x + key.width / 2}
-								y={key.y + key.height / 2 + labelFontSize + 2}
-								text-anchor="middle"
-								class="key-label secondary"
-								font-size={labelFontSize}
-							>
-								{secondaryLabel}
-							</text>
-						{:else if labelCount === 3}
-							<text
-								x={key.x + key.width / 2}
-								y={key.y + key.height / 2 - labelFontSize}
-								text-anchor="middle"
-								class="key-label"
-								font-size={labelFontSize}
-							>
-								{primaryLabel}
-							</text>
-							<text
-								x={key.x + key.width / 2}
-								y={key.y + key.height / 2}
-								text-anchor="middle"
-								class="key-label secondary"
-								font-size={labelFontSize}
-							>
-								{secondaryLabel}
-							</text>
-							<text
-								x={key.x + key.width / 2}
-								y={key.y + key.height / 2 + labelFontSize + 2}
-								text-anchor="middle"
-								class="key-label tertiary"
-								font-size={labelFontSize}
-							>
-								{tertiaryLabel}
-							</text>
-						{/if}
-					{:else if label}
-						{@const lines = label.split('\n')}
-						{#if lines.length === 1}
-							<text
-								x={key.x + key.width / 2}
-								y={key.y + key.height / 2 + fontSize / 3}
-								text-anchor="middle"
-								class="key-label"
-								font-size={fontSize}
-							>
-								{label}
-							</text>
-						{:else}
-							{#each lines as line, i}
+					<!-- Wrap labels in a group with clip-path to prevent overflow -->
+					<g clip-path="url(#clip-{key.visualIndex})">
+						{#if metadata}
+							{@const primaryLabel = metadata.display.primary}
+							{@const secondaryLabel = metadata.display.secondary}
+							{@const tertiaryLabel = metadata.display.tertiary}
+							{@const labelCount = [primaryLabel, secondaryLabel, tertiaryLabel].filter(Boolean).length}
+							{@const labelFontSize = labelCount > 1 ? 9 : 12}
+							
+							{#if labelCount === 1}
+								<!-- Single label: centered -->
 								<text
 									x={key.x + key.width / 2}
-									y={key.y + key.height / 2 + (i - (lines.length - 1) / 2) * (fontSize + 2)}
+									y={key.y + key.height / 2 + labelFontSize / 3}
+									text-anchor="middle"
+									class="key-label"
+									font-size={labelFontSize}
+								>
+									{primaryLabel}
+								</text>
+							{:else if labelCount === 2}
+								<!-- Two labels: secondary on top, primary centered below -->
+								<text
+									x={key.x + key.width / 2}
+									y={key.y + 10}
+									text-anchor="middle"
+									class="key-label secondary"
+									font-size={labelFontSize}
+								>
+									{secondaryLabel}
+								</text>
+								<text
+									x={key.x + key.width / 2}
+									y={key.y + key.height / 2 + labelFontSize / 3 + 3}
+									text-anchor="middle"
+									class="key-label"
+									font-size={labelFontSize}
+								>
+									{primaryLabel}
+								</text>
+							{:else if labelCount === 3}
+								<!-- Three labels: secondary and tertiary on top row, primary centered -->
+								<text
+									x={key.x + key.width / 2}
+									y={key.y + 9}
+									text-anchor="middle"
+									class="key-label secondary"
+									font-size={8}
+								>
+									{secondaryLabel}
+								</text>
+								<text
+									x={key.x + key.width / 2}
+									y={key.y + 18}
+									text-anchor="middle"
+									class="key-label tertiary"
+									font-size={7}
+								>
+									{tertiaryLabel}
+								</text>
+								<text
+									x={key.x + key.width / 2}
+									y={key.y + key.height / 2 + labelFontSize / 3 + 6}
+									text-anchor="middle"
+									class="key-label"
+									font-size={labelFontSize}
+								>
+									{primaryLabel}
+								</text>
+							{/if}
+						{:else if label}
+							{@const lines = label.split('\n')}
+							{#if lines.length === 1}
+								<text
+									x={key.x + key.width / 2}
+									y={key.y + key.height / 2 + fontSize / 3}
 									text-anchor="middle"
 									class="key-label"
 									font-size={fontSize}
 								>
-									{line}
+									{label}
 								</text>
-							{/each}
+							{:else}
+								{#each lines as line, i}
+									<text
+										x={key.x + key.width / 2}
+										y={key.y + key.height / 2 + (i - (lines.length - 1) / 2) * (fontSize + 2)}
+										text-anchor="middle"
+										class="key-label"
+										font-size={fontSize}
+									>
+										{line}
+									</text>
+								{/each}
+							{/if}
 						{/if}
-					{/if}
+					</g>
 				</g>
 			{/each}
 		</svg>
@@ -452,11 +469,6 @@
 		opacity: 0.5;
 		font-weight: 400;
 		font-size: 8px;
-	}
-
-	.key-bg.selected + .key-top + .key-label,
-	.key-bg.selected ~ .key-label {
-		fill: hsl(var(--primary-foreground));
 	}
 
 	/* Hover effect */

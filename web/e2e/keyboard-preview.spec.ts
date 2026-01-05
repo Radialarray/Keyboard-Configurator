@@ -20,7 +20,7 @@ test.describe('Keyboard Preview', () => {
 					{ keycode: 'KC_Q', matrix_position: [0, 0], visual_index: 0, led_index: 0 },
 					{ keycode: 'KC_W', matrix_position: [0, 1], visual_index: 1, led_index: 1 },
 					{ keycode: 'KC_E', matrix_position: [0, 2], visual_index: 2, led_index: 2 },
-					{ keycode: 'KC_A', matrix_position: [1, 0], visual_index: 3, led_index: 3 },
+					{ keycode: 'LT(1, KC_ESC)', matrix_position: [1, 0], visual_index: 3, led_index: 3 },
 					{ keycode: 'KC_S', matrix_position: [1, 1], visual_index: 4, led_index: 4 },
 					{ keycode: 'KC_D', matrix_position: [1, 2], visual_index: 5, led_index: 5 }
 				]
@@ -72,7 +72,7 @@ test.describe('Keyboard Preview', () => {
 					{ visual_index: 0, display: { primary: 'Q' }, details: [{ kind: 'simple', code: 'KC_Q', description: 'Letter Q' }] },
 					{ visual_index: 1, display: { primary: 'W' }, details: [{ kind: 'simple', code: 'KC_W', description: 'Letter W' }] },
 					{ visual_index: 2, display: { primary: 'E' }, details: [{ kind: 'simple', code: 'KC_E', description: 'Letter E' }] },
-					{ visual_index: 3, display: { primary: 'A' }, details: [{ kind: 'simple', code: 'KC_A', description: 'Letter A' }] },
+					{ visual_index: 3, display: { primary: 'ESC', secondary: 'L1' }, details: [{ kind: 'tap', code: 'KC_ESC', description: 'Tap: Escape' }, { kind: 'hold', code: 'Layer 1', description: 'Hold: Activate layer 1' }] },
 					{ visual_index: 4, display: { primary: 'S' }, details: [{ kind: 'simple', code: 'KC_S', description: 'Letter S' }] },
 					{ visual_index: 5, display: { primary: 'D' }, details: [{ kind: 'simple', code: 'KC_D', description: 'Letter D' }] }
 				]
@@ -343,4 +343,82 @@ test.describe('Keyboard Preview', () => {
 		await expect(page.getByText('Multiple Keys Selected (2 keys)')).toBeVisible();
 		await expect(page.getByText('Use Copy, Cut, or Paste operations')).toBeVisible();
 	});
+
+	test('displays multi-action key with secondary label', async ({ page }) => {
+		await page.goto('/layouts/test-layout');
+
+		// Wait for keyboard preview to load
+		await expect(page.getByRole('heading', { name: 'Keyboard Preview' })).toBeVisible();
+		await expect(page.locator('[data-testid="key-3"]')).toBeVisible();
+
+		// Key 3 should be LT(1, KC_ESC) with primary "ESC" and secondary "L1"
+		// SVG text elements should include both labels
+		const keyGroup = page.locator('[data-testid="key-3"]');
+		const textElements = keyGroup.locator('text');
+		
+		// Should have 2 text elements (primary and secondary)
+		await expect(textElements).toHaveCount(2);
+		
+		// Check labels are present
+		await expect(keyGroup.locator('text', { hasText: 'ESC' })).toBeVisible();
+		await expect(keyGroup.locator('text', { hasText: 'L1' })).toBeVisible();
+	});
+
+	test('hover panel shows full key action descriptions', async ({ page }) => {
+		await page.goto('/layouts/test-layout');
+
+		// Wait for keyboard preview to load
+		await expect(page.getByRole('heading', { name: 'Keyboard Preview' })).toBeVisible();
+		await expect(page.locator('[data-testid="key-3"]')).toBeVisible();
+
+		// First select a simple key to ensure the card stays visible
+		await page.locator('[data-testid="key-0"]').click();
+		await expect(page.getByTestId('keycode-picker-overlay')).toBeVisible();
+		await page.getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByTestId('keycode-picker-overlay')).not.toBeVisible();
+		
+		// Move mouse away to clear initial hover
+		await page.mouse.move(0, 0);
+
+		// Now hover over the multi-action key (LT(1, KC_ESC))
+		await page.locator('[data-testid="key-3"]').hover();
+
+		// Key details panel should change to "Key Preview" mode
+		await expect(page.getByTestId('key-details-heading')).toHaveText('Key Preview');
+
+		// Should show key action details with both tap and hold
+		const keyActionsSection = page.locator('.border-t.border-border.pt-4.mb-4');
+		await expect(keyActionsSection.getByRole('heading', { name: 'Key Actions' })).toBeVisible();
+		
+		// Check for action badges and descriptions (more specific selectors)
+		const actionBadges = keyActionsSection.locator('span.uppercase');
+		await expect(actionBadges.filter({ hasText: 'TAP' })).toBeVisible();
+		await expect(actionBadges.filter({ hasText: 'HOLD' })).toBeVisible();
+		
+		// Check descriptions are present
+		await expect(keyActionsSection.getByText('Tap: Escape')).toBeVisible();
+		await expect(keyActionsSection.getByText('Hold: Activate layer 1')).toBeVisible();
+	});
+
+	test('labels are clipped and do not overflow key bounds', async ({ page }) => {
+		await page.goto('/layouts/test-layout');
+
+		// Wait for keyboard preview to load
+		await expect(page.getByRole('heading', { name: 'Keyboard Preview' })).toBeVisible();
+		await expect(page.locator('[data-testid="key-0"]')).toBeVisible();
+
+		// Check that SVG has clip-path definitions
+		const svg = page.locator('.keyboard-preview svg');
+		const clipPaths = svg.locator('clipPath');
+		
+		// Should have clip paths for keys (at least 6 for our mock data)
+		const count = await clipPaths.count();
+		expect(count).toBeGreaterThanOrEqual(6);
+
+		// Verify label groups use clip-path
+		const labelGroups = svg.locator('g[clip-path]');
+		const labelGroupCount = await labelGroups.count();
+		expect(labelGroupCount).toBeGreaterThanOrEqual(6);
+	});
 });
+

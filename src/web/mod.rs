@@ -1282,6 +1282,13 @@ async fn get_render_metadata(
         .map(|td| (td.name.clone(), td))
         .collect();
 
+    // Build layer ID to number mapping for resolving @uuid references
+    let layer_id_to_number: std::collections::HashMap<String, u8> = layout
+        .layers
+        .iter()
+        .map(|layer| (layer.id.clone(), layer.number))
+        .collect();
+
     // Build render metadata for each layer
     let layers: Vec<LayerRenderMetadata> = layout
         .layers
@@ -1303,10 +1310,12 @@ async fn get_render_metadata(
                             hold: td.hold.clone(),
                         });
 
-                    // Get display metadata from keycode_db
-                    let meta = state
-                        .keycode_db
-                        .get_display_metadata(&key.keycode, td_info.as_ref());
+                    // Get display metadata from keycode_db, passing layer ID map
+                    let meta = state.keycode_db.get_display_metadata(
+                        &key.keycode,
+                        td_info.as_ref(),
+                        Some(&layer_id_to_number),
+                    );
 
                     KeyRenderMetadata {
                         visual_index: idx as u8,
