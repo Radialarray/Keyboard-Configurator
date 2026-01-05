@@ -78,7 +78,10 @@ fn test_keycodes_json_structure() {
         for keycode in keycodes.iter().take(5) {
             assert!(keycode["code"].is_string(), "Keycode should have code");
             assert!(keycode["label"].is_string(), "Keycode should have label");
-            assert!(keycode["category"].is_string(), "Keycode should have category");
+            assert!(
+                keycode["category"].is_string(),
+                "Keycode should have category"
+            );
             // description is optional
         }
     }

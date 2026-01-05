@@ -130,10 +130,7 @@ fn test_reproduction_td_selection_flow() {
     println!("After open_keycode_picker:");
     println!(
         "  active_component: {:?}",
-        state
-            .active_component
-            .as_ref()
-            .map(std::mem::discriminant)
+        state.active_component.as_ref().map(std::mem::discriminant)
     );
     println!("  active_popup: {:?}", state.active_popup);
 
@@ -197,10 +194,7 @@ fn test_reproduction_td_selection_flow() {
     println!("\nAfter simulating TD() selection:");
     println!(
         "  active_component: {:?}",
-        state
-            .active_component
-            .as_ref()
-            .map(std::mem::discriminant)
+        state.active_component.as_ref().map(std::mem::discriminant)
     );
     println!("  active_popup: {:?}", state.active_popup);
     println!(

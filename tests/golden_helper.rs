@@ -31,13 +31,12 @@ pub fn assert_golden(actual: &str, golden_path: &str) {
         eprintln!("Updated golden file: {}", golden_path.display());
     } else {
         // Compare mode: read golden file and compare
-        let expected = fs::read_to_string(golden_path)
-            .unwrap_or_else(|_| {
-                panic!(
-                    "Golden file not found: {}. Run with UPDATE_GOLDEN=1 to create it.",
-                    golden_path.display()
-                )
-            });
+        let expected = fs::read_to_string(golden_path).unwrap_or_else(|_| {
+            panic!(
+                "Golden file not found: {}. Run with UPDATE_GOLDEN=1 to create it.",
+                golden_path.display()
+            )
+        });
 
         let actual_normalized = normalize_output(actual);
         let expected_normalized = normalize_output(&expected);
@@ -76,7 +75,6 @@ pub fn normalize_output(content: &str) -> String {
             let line = replace_uuids(line);
 
             // Replace absolute paths (heuristic: paths starting with / or C:\)
-            
 
             replace_absolute_paths(&line)
         })
@@ -88,9 +86,10 @@ pub fn normalize_output(content: &str) -> String {
 fn replace_uuids(line: &str) -> String {
     // Match standard UUID format: 8-4-4-4-12 hex digits
     let uuid_pattern = regex::Regex::new(
-        r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
-    ).unwrap();
-    
+        r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b",
+    )
+    .unwrap();
+
     uuid_pattern.replace_all(line, "<UUID>").to_string()
 }
 
@@ -112,7 +111,7 @@ fn replace_absolute_paths(line: &str) -> String {
 /// - Normalizes whitespace in keymap arrays
 pub fn normalize_firmware_output(content: &str) -> String {
     let normalized = normalize_output(content);
-    
+
     normalized
         .lines()
         .filter(|line| {

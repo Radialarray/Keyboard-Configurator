@@ -21,7 +21,12 @@ fn test_tap_dance_list_empty() {
     let (layout_path, _temp_dir) = create_temp_layout_file(&layout);
 
     let output = Command::new(lazyqmk_bin())
-        .args(["tap-dance", "list", "--layout", layout_path.to_str().unwrap()])
+        .args([
+            "tap-dance",
+            "list",
+            "--layout",
+            layout_path.to_str().unwrap(),
+        ])
         .output()
         .expect("Failed to execute command");
 
@@ -43,22 +48,30 @@ fn test_tap_dance_list_with_dances() {
     let (layout_path, _temp_dir) = create_temp_layout_file(&layout);
 
     let output = Command::new(lazyqmk_bin())
-        .args(["tap-dance", "list", "--layout", layout_path.to_str().unwrap()])
+        .args([
+            "tap-dance",
+            "list",
+            "--layout",
+            layout_path.to_str().unwrap(),
+        ])
         .output()
         .expect("Failed to execute command");
 
     assert_eq!(output.status.code(), Some(0));
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     // Should show both tap dances
     assert!(stdout.contains("esc_caps"), "Should list esc_caps");
     assert!(stdout.contains("shift_ctrl"), "Should list shift_ctrl");
-    
+
     // Should show action details
     assert!(stdout.contains("single=KC_ESC"), "Should show single tap");
     assert!(stdout.contains("double=KC_CAPS"), "Should show double tap");
-    assert!(stdout.contains("hold=KC_LCTL"), "Should show hold for 3-way");
+    assert!(
+        stdout.contains("hold=KC_LCTL"),
+        "Should show hold for 3-way"
+    );
 }
 
 #[test]
@@ -85,7 +98,7 @@ fn test_tap_dance_list_json() {
 
     // Validate structure
     assert_eq!(result["count"], 2, "Should have 2 tap dances");
-    
+
     let tap_dances = result["tap_dances"].as_array().expect("Should be array");
     assert_eq!(tap_dances.len(), 2);
 
@@ -139,15 +152,30 @@ fn test_tap_dance_add_two_way() {
     );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Successfully added"), "Should confirm success");
+    assert!(
+        stdout.contains("Successfully added"),
+        "Should confirm success"
+    );
     assert!(stdout.contains("tab_esc"), "Should mention tap dance name");
 
     // Verify it was added to the file
     let content = fs::read_to_string(&layout_path).expect("Should read file");
-    assert!(content.contains("## Tap Dances"), "Should have tap dance section");
-    assert!(content.contains("**tab_esc**"), "Should have tap dance in file");
-    assert!(content.contains("Single Tap: KC_TAB"), "Should have single tap");
-    assert!(content.contains("Double Tap: KC_ESC"), "Should have double tap");
+    assert!(
+        content.contains("## Tap Dances"),
+        "Should have tap dance section"
+    );
+    assert!(
+        content.contains("**tab_esc**"),
+        "Should have tap dance in file"
+    );
+    assert!(
+        content.contains("Single Tap: KC_TAB"),
+        "Should have single tap"
+    );
+    assert!(
+        content.contains("Double Tap: KC_ESC"),
+        "Should have double tap"
+    );
 }
 
 #[test]
@@ -244,7 +272,9 @@ fn test_tap_dance_add_invalid_name() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("alphanumeric") || stderr.contains("valid") || stderr.contains("identifier"),
+        stderr.contains("alphanumeric")
+            || stderr.contains("valid")
+            || stderr.contains("identifier"),
         "Should mention invalid name format. stderr: {}",
         stderr
     );
@@ -320,12 +350,24 @@ fn test_tap_dance_add_preserves_formatting() {
     let modified = fs::read_to_string(&layout_path).expect("Should read file");
 
     // Should preserve metadata
-    assert!(modified.contains("name: Test Layout"), "Should preserve layout name");
-    assert!(modified.contains("keyboard: test_keyboard"), "Should preserve keyboard");
-    
+    assert!(
+        modified.contains("name: Test Layout"),
+        "Should preserve layout name"
+    );
+    assert!(
+        modified.contains("keyboard: test_keyboard"),
+        "Should preserve keyboard"
+    );
+
     // Should add tap dance section
-    assert!(modified.contains("## Tap Dances"), "Should have tap dance section");
-    assert!(modified.contains("**test_td**"), "Should have new tap dance");
+    assert!(
+        modified.contains("## Tap Dances"),
+        "Should have tap dance section"
+    );
+    assert!(
+        modified.contains("**test_td**"),
+        "Should have new tap dance"
+    );
 }
 
 // ============================================================================
@@ -360,11 +402,17 @@ fn test_tap_dance_delete_unused() {
     );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Successfully deleted"), "Should confirm deletion");
+    assert!(
+        stdout.contains("Successfully deleted"),
+        "Should confirm deletion"
+    );
 
     // Verify it was removed
     let content = fs::read_to_string(&layout_path).expect("Should read file");
-    assert!(!content.contains("name: esc_caps"), "Should not have tap dance in file");
+    assert!(
+        !content.contains("name: esc_caps"),
+        "Should not have tap dance in file"
+    );
 }
 
 #[test]
@@ -456,7 +504,10 @@ fn test_tap_dance_delete_referenced_force() {
     );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Successfully deleted"), "Should confirm deletion");
+    assert!(
+        stdout.contains("Successfully deleted"),
+        "Should confirm deletion"
+    );
     assert!(
         stdout.contains("replaced") || stdout.contains("KC_TRNS"),
         "Should mention reference replacement"
@@ -464,8 +515,14 @@ fn test_tap_dance_delete_referenced_force() {
 
     // Verify definition removed and references replaced
     let content = fs::read_to_string(&layout_path).expect("Should read file");
-    assert!(!content.contains("**esc_caps**"), "Definition should be removed");
-    assert!(!content.contains("TD(esc_caps)"), "References should be replaced");
+    assert!(
+        !content.contains("**esc_caps**"),
+        "Definition should be removed"
+    );
+    assert!(
+        !content.contains("TD(esc_caps)"),
+        "References should be replaced"
+    );
 }
 
 #[test]
@@ -551,7 +608,7 @@ fn test_tap_dance_validate_orphaned_ref() {
     // Note: The system auto-creates placeholder tap dances for TD() references,
     // so "orphaned" references actually become "unused" definitions with KC_NO placeholders.
     // This test verifies that auto-created placeholders are detected properly.
-    
+
     let mut layout = test_layout_basic(2, 3);
     // Add reference - this will auto-create a placeholder definition when loaded
     layout.layers[0].keys[0].keycode = "TD(undefined_td)".to_string();
@@ -641,14 +698,14 @@ fn test_tap_dance_validate_json() {
     // Validate structure
     assert!(result["valid"].is_boolean(), "valid should be boolean");
     assert_eq!(result["valid"], true, "Should be valid");
-    
+
     assert!(result["orphaned"].is_array(), "orphaned should be array");
     assert_eq!(
         result["orphaned"].as_array().unwrap().len(),
         0,
         "Should have no orphaned refs"
     );
-    
+
     assert!(result["unused"].is_array(), "unused should be array");
     assert_eq!(
         result["unused"].as_array().unwrap().len(),

@@ -79,7 +79,10 @@ fn test_template_list_json_empty() {
     let result: serde_json::Value =
         serde_json::from_str(&stdout).expect("Should parse JSON output");
 
-    assert!(result["templates"].is_array(), "Should have templates array");
+    assert!(
+        result["templates"].is_array(),
+        "Should have templates array"
+    );
     assert_eq!(
         result["count"].as_u64().unwrap(),
         0,
@@ -108,8 +111,14 @@ fn test_template_list_json_structure() {
             assert!(template["name"].is_string(), "Template should have name");
             assert!(template["file"].is_string(), "Template should have file");
             assert!(template["tags"].is_array(), "Template should have tags");
-            assert!(template["author"].is_string(), "Template should have author");
-            assert!(template["created"].is_string(), "Template should have created");
+            assert!(
+                template["author"].is_string(),
+                "Template should have author"
+            );
+            assert!(
+                template["created"].is_string(),
+                "Template should have created"
+            );
         }
     }
 }

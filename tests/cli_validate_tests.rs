@@ -231,7 +231,11 @@ fn test_validate_with_tap_dances() {
         .output()
         .expect("Failed to execute command");
 
-    assert_eq!(output.status.code(), Some(0), "Should validate successfully");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "Should validate successfully"
+    );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let result: serde_json::Value =

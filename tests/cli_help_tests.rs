@@ -49,10 +49,7 @@ fn test_help_list_multiple_topics() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     // Count how many topics are mentioned (expecting multiple)
     let topic_count = stdout.lines().count();
-    assert!(
-        topic_count > 1,
-        "Should list multiple help topics"
-    );
+    assert!(topic_count > 1, "Should list multiple help topics");
 }
 
 // ============================================================================
@@ -146,7 +143,9 @@ fn test_help_invalid_topic_fails() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let output_text = format!("{}{}", stdout, stderr);
     assert!(
-        output_text.contains("Unknown") || output_text.contains("not found") || output_text.contains("invalid"),
+        output_text.contains("Unknown")
+            || output_text.contains("not found")
+            || output_text.contains("invalid"),
         "Error message should indicate topic not found"
     );
 }
@@ -154,8 +153,6 @@ fn test_help_invalid_topic_fails() {
 // ============================================================================
 // Output Format Tests
 // ============================================================================
-
-
 
 #[test]
 fn test_help_output_formatted_readable() {
@@ -228,8 +225,6 @@ fn test_help_no_arguments_lists_topics() {
 // ============================================================================
 // Edge Cases
 // ============================================================================
-
-
 
 #[test]
 fn test_help_command_help_available() {
