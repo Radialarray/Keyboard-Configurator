@@ -48,11 +48,40 @@
 	// Transform geometry data for SVG rendering
 	const transformed = $derived(transformGeometry(geometry));
 
+	// Build a mapping from visual position (row, col) to visual_index using geometry data
+	// Geometry visual_x/visual_y (rounded) corresponds to layout key position row/col
+	const positionToVisualIndex = $derived.by(() => {
+		const map = new Map<string, number>();
+		for (const key of geometry) {
+			// Geometry y → row, x → col (quantized to grid)
+			const row = Math.round(key.y);
+			const col = Math.round(key.x);
+			const posKey = `${row},${col}`;
+			map.set(posKey, key.visual_index);
+		}
+		return map;
+	});
+
 	// Create a lookup map from visual index to keycode label
+	// Layout keys have position.row/col which maps to geometry visual_y/visual_x
 	const keycodeMap = $derived.by(() => {
 		const map = new Map<number, string>();
 		for (const assignment of keyAssignments) {
-			map.set(assignment.visual_index, formatKeycode(assignment.keycode));
+			// Try to get visual_index from assignment (newer API) or look it up from position
+			let visualIndex = assignment.visual_index;
+			if (visualIndex === undefined || visualIndex === null) {
+				// Fall back to looking up from position using geometry mapping
+				const pos = assignment.position;
+				if (pos) {
+					const posKey = `${pos.row},${pos.col}`;
+					visualIndex = positionToVisualIndex.get(posKey) ?? -1;
+				} else {
+					visualIndex = -1;
+				}
+			}
+			if (visualIndex >= 0) {
+				map.set(visualIndex, formatKeycode(assignment.keycode));
+			}
 		}
 		return map;
 	});
@@ -62,8 +91,21 @@
 		const map = new Map<number, string | undefined>();
 		if (layer) {
 			for (const assignment of keyAssignments) {
-				const color = resolveKeyColor(assignment, layer, categories);
-				map.set(assignment.visual_index, color);
+				// Try to get visual_index from assignment (newer API) or look it up from position
+				let visualIndex = assignment.visual_index;
+				if (visualIndex === undefined || visualIndex === null) {
+					const pos = assignment.position;
+					if (pos) {
+						const posKey = `${pos.row},${pos.col}`;
+						visualIndex = positionToVisualIndex.get(posKey) ?? -1;
+					} else {
+						visualIndex = -1;
+					}
+				}
+				if (visualIndex >= 0) {
+					const color = resolveKeyColor(assignment, layer, categories);
+					map.set(visualIndex, color);
+				}
 			}
 		}
 		return map;
