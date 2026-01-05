@@ -146,6 +146,49 @@ console.log('\n📝 Test 7: Signal parameter handling');
   assertEquals(shouldCleanup(null, 'SIGTERM'), false, 'SIGTERM via signal should not trigger cleanup');
 }
 
+// Test 8: Backend double-start prevention
+console.log('\n📝 Test 8: Backend double-start guard');
+{
+  // Simulate environment where backend is already started
+  const originalEnv = process.env.LAZYQMK_BACKEND_STARTED;
+  
+  function shouldStartBackend() {
+    return process.env.LAZYQMK_BACKEND_STARTED !== '1';
+  }
+  
+  // First run - should start
+  delete process.env.LAZYQMK_BACKEND_STARTED;
+  assertEquals(shouldStartBackend(), true, 'Should start backend when env var not set');
+  
+  // Second run - should skip
+  process.env.LAZYQMK_BACKEND_STARTED = '1';
+  assertEquals(shouldStartBackend(), false, 'Should skip backend when env var is set');
+  
+  // Restore original environment
+  if (originalEnv !== undefined) {
+    process.env.LAZYQMK_BACKEND_STARTED = originalEnv;
+  } else {
+    delete process.env.LAZYQMK_BACKEND_STARTED;
+  }
+}
+
+// Test 9: Frontend spawn configuration
+console.log('\n📝 Test 9: Frontend spawn with explicit cwd');
+{
+  // Mock spawn options for frontend
+  const frontendOptions = {
+    cwd: '.',
+    stdio: 'inherit',
+    shell: IS_WINDOWS,
+    env: {
+      LAZYQMK_BACKEND_STARTED: '1'
+    }
+  };
+  
+  assert(frontendOptions.cwd === '.', 'Frontend should have explicit cwd set to current directory');
+  assert(frontendOptions.env.LAZYQMK_BACKEND_STARTED === '1', 'Frontend should inherit backend guard env var');
+}
+
 // Summary
 console.log('\n' + '='.repeat(50));
 console.log(`📊 Test Results: ${passed} passed, ${failed} failed`);

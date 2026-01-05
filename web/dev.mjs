@@ -10,6 +10,11 @@
  *   npm run dev:web      (from project root)
  *   pnpm dev:web         (from project root)
  *   node dev.mjs         (from web/ directory)
+ * 
+ * Double-start Prevention:
+ *   Sets LAZYQMK_BACKEND_STARTED=1 environment variable to prevent
+ *   nested invocations from starting the backend multiple times.
+ *   The frontend spawn explicitly sets cwd='.' to ensure correct context.
  */
 
 import { spawn } from 'child_process';
@@ -126,8 +131,14 @@ function startFrontend() {
   const packageManager = process.env.npm_execpath?.includes('pnpm') ? 'pnpm' : 'npm';
   
   const frontend = spawn(packageManager, ['run', 'dev'], {
+    cwd: '.', // Ensure we stay in web/ directory
     stdio: 'inherit',
     shell: IS_WINDOWS,
+    env: {
+      ...process.env,
+      // Prevent any nested scripts from starting the backend
+      LAZYQMK_BACKEND_STARTED: '1'
+    }
   });
   
   processes.push(frontend);
@@ -192,6 +203,12 @@ async function waitForBackend(maxAttempts = 30, intervalMs = 1000) {
 
 // Main execution
 async function main() {
+  // Guard against double-start: if backend is already started by this script, exit
+  if (process.env.LAZYQMK_BACKEND_STARTED === '1') {
+    log(colors.yellow, 'INFO', 'Backend already started by parent process, skipping...');
+    return;
+  }
+  
   console.log(`${colors.bright}${colors.cyan}╔════════════════════════════════════════════════╗${colors.reset}`);
   console.log(`${colors.bright}${colors.cyan}║     LazyQMK Web Development Environment        ║${colors.reset}`);
   console.log(`${colors.bright}${colors.cyan}╚════════════════════════════════════════════════╝${colors.reset}`);
