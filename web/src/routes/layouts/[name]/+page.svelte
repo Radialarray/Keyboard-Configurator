@@ -1193,9 +1193,9 @@
 					{/if}
 				</Card>
 
-			<!-- Key Details Card -->
-			{#if activeKey || hoveredKeyIndex !== null || (selectedKeyIndices.size > 1 && hoveredKeyIndex === null)}
-				<Card class="p-6" data-testid="key-details-card">
+			<!-- Key Details Card - Fixed height to prevent scrollbar jumping -->
+			<Card class="p-6" style="min-height: 400px;" data-testid="key-details-card">
+				{#if activeKey || hoveredKeyIndex !== null || (selectedKeyIndices.size > 1 && hoveredKeyIndex === null)}
 					<h2 class="text-lg font-semibold mb-4" data-testid="key-details-heading">
 						{hoveredKeyIndex !== null ? 'Key Preview' : 'Key Details & Customization'}
 					</h2>
@@ -1326,8 +1326,8 @@
 								</div>
 							{/if}
 						{/if}
-					</Card>
 				{/if}
+			</Card>
 			</div>
 		{:else if activeTab === 'layers'}
 			<!-- Layers Tab -->

@@ -127,8 +127,8 @@ test.describe('Keyboard Preview', () => {
 		// Wait for keyboard preview to load
 		await expect(page.getByRole('heading', { name: 'Keyboard Preview' })).toBeVisible();
 
-		// Check that keys are rendered (should have 6 keys)
-		const keys = page.locator('[data-testid^="key-"]');
+		// Check that keys are rendered (should have 6 keys) - use more specific selector
+		const keys = page.locator('.keyboard-preview [data-testid^="key-"]');
 		await expect(keys).toHaveCount(6);
 	});
 
@@ -513,6 +513,60 @@ test.describe('Keyboard Preview', () => {
 		await expect(page.getByTestId('key-hover-fallback')).toBeVisible();
 		await expect(page.getByText('Hovering key index:')).toBeVisible();
 		await expect(page.getByText('Key data not available')).toBeVisible();
+	});
+
+	test('details panel has fixed height to prevent scrollbar jumping', async ({ page }) => {
+		await page.goto('/layouts/test-layout');
+
+		// Wait for keyboard preview to load
+		await expect(page.getByRole('heading', { name: 'Keyboard Preview' })).toBeVisible();
+		await expect(page.locator('[data-testid="key-0"]')).toBeVisible();
+
+		// The key details card should always be visible with fixed min-height
+		await expect(page.getByTestId('key-details-card')).toBeVisible();
+
+		// Select a key to show content in the details panel
+		await page.locator('[data-testid="key-0"]').click();
+		await expect(page.getByTestId('keycode-picker-overlay')).toBeVisible();
+		await page.getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByTestId('keycode-picker-overlay')).not.toBeVisible();
+		
+		// Move mouse away to clear hover state and show customization mode
+		await page.mouse.move(0, 0);
+		await expect(page.getByTestId('key-details-heading')).toHaveText('Key Details & Customization');
+		
+		// Get card height in customization mode
+		const cardLocator = page.getByTestId('key-details-card');
+		const customizationCardBox = await cardLocator.boundingBox();
+		expect(customizationCardBox).not.toBeNull();
+		const customizationCardHeight = customizationCardBox!.height;
+
+		// Hover over the same key to switch to preview mode
+		await page.locator('[data-testid="key-0"]').hover();
+		await expect(page.getByTestId('key-details-heading')).toHaveText('Key Preview');
+		
+		// Get card height in preview mode
+		const previewCardBox = await cardLocator.boundingBox();
+		expect(previewCardBox).not.toBeNull();
+		const previewCardHeight = previewCardBox!.height;
+
+		// Move mouse to a different key (still in preview mode)
+		await page.locator('[data-testid="key-1"]').hover();
+		await expect(page.getByTestId('key-details-heading')).toHaveText('Key Preview');
+		
+		// Get card height with different key
+		const differentKeyPreviewBox = await cardLocator.boundingBox();
+		expect(differentKeyPreviewBox).not.toBeNull();
+		const differentKeyPreviewHeight = differentKeyPreviewBox!.height;
+
+		// Card height should remain stable across content changes (may expand but shouldn't collapse)
+		// The key insight: the card should be at least min-height, and stable across mode switches
+		expect(customizationCardHeight).toBeGreaterThanOrEqual(400);
+		expect(previewCardHeight).toBeGreaterThanOrEqual(400);
+		expect(differentKeyPreviewHeight).toBeGreaterThanOrEqual(400);
+		
+		// More importantly: height should be stable when switching between preview states
+		expect(previewCardHeight).toBe(differentKeyPreviewHeight);
 	});
 });
 

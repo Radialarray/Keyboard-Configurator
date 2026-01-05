@@ -111,7 +111,7 @@
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="bg-background border border-border rounded-lg shadow-lg w-full max-w-3xl max-h-[80vh] flex flex-col"
+			class="bg-background border border-border rounded-lg shadow-lg w-full max-w-6xl max-h-[80vh] flex flex-col"
 			onclick={(e) => e.stopPropagation()}
 			data-testid="keycode-picker-dialog"
 		>
@@ -176,7 +176,7 @@
 						No keycodes found
 					</div>
 				{:else}
-					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
 						{#each keycodes as keycode}
 							{@const isCurrent = keycode.code === currentKeycode}
 							<button
