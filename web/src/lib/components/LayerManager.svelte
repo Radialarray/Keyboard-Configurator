@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { Button, Card, Input } from '$components';
-	import type { Layer } from '$api/types';
+	import { Button, Card, Input, ColorPicker } from '$components';
+	import { rgbToHex } from '$lib/utils/colorResolution';
+	import type { Layer, RgbColor } from '$api/types';
 
 	interface Props {
 		layers: Layer[];
@@ -13,6 +14,7 @@
 
 	let editingLayerIndex = $state<number | null>(null);
 	let editingLayerName = $state('');
+	let colorPickerLayerIndex = $state<number | null>(null);
 
 	function createNewLayer() {
 		if (!layers.length) return;
@@ -158,6 +160,38 @@
 
 	let copySourceIndex = $state<number | null>(null);
 	let swapSourceIndex = $state<number | null>(null);
+
+	// Layer default color functions
+	function openColorPicker(index: number) {
+		colorPickerLayerIndex = index;
+	}
+
+	function closeColorPicker() {
+		colorPickerLayerIndex = null;
+	}
+
+	function setLayerDefaultColor(index: number, color: RgbColor) {
+		const newLayers = [...layers];
+		newLayers[index] = { ...newLayers[index], default_color: color };
+		onLayersChange(newLayers);
+		closeColorPicker();
+	}
+
+	function clearLayerDefaultColor(index: number) {
+		const newLayers = [...layers];
+		const updatedLayer = { ...newLayers[index] };
+		delete updatedLayer.default_color;
+		newLayers[index] = updatedLayer;
+		onLayersChange(newLayers);
+		closeColorPicker();
+	}
+
+	function getLayerColorHex(layer: Layer): string | undefined {
+		if (layer.default_color) {
+			return rgbToHex(layer.default_color);
+		}
+		return undefined;
+	}
 </script>
 
 <Card class="p-6">
@@ -217,6 +251,25 @@
 				</div>
 
 				<div class="flex flex-wrap gap-2">
+					<!-- Layer Default Color button -->
+					<Button
+						onclick={() => openColorPicker(i)}
+						size="sm"
+						variant="outline"
+						title="Set layer default color"
+						data-testid="layer-{i}-color-button"
+					>
+						{#if layer.default_color}
+							<span
+								class="w-4 h-4 rounded border border-border mr-1"
+								style="background-color: {getLayerColorHex(layer)}"
+							></span>
+							🎨 Color
+						{:else}
+							🎨 Set Color
+						{/if}
+					</Button>
+
 					<!-- Reorder buttons -->
 					<Button
 						onclick={() => moveLayerUp(i)}
@@ -340,6 +393,28 @@
 			<p class="text-purple-500">
 				Select target layer to swap with <strong>{layers[swapSourceIndex].name}</strong>
 			</p>
+		</div>
+	{/if}
+
+	<!-- Layer Color Picker Modal -->
+	{#if colorPickerLayerIndex !== null}
+		<div class="mt-4 p-4 border border-border rounded-lg bg-background" data-testid="layer-color-picker">
+			<div class="flex items-center justify-between mb-3">
+				<h3 class="font-medium text-sm">
+					Set Default Color for {layers[colorPickerLayerIndex].name}
+				</h3>
+				<Button onclick={closeColorPicker} size="sm" variant="ghost">✕</Button>
+			</div>
+			<p class="text-xs text-muted-foreground mb-3">
+				This color will be applied to all keys on this layer that don't have a higher-priority color (key override or category).
+			</p>
+			<ColorPicker
+				color={layers[colorPickerLayerIndex].default_color}
+				onSelect={(color) => setLayerDefaultColor(colorPickerLayerIndex!, color)}
+				onClear={() => clearLayerDefaultColor(colorPickerLayerIndex!)}
+				label="Layer Default Color"
+				showClear={!!layers[colorPickerLayerIndex].default_color}
+			/>
 		</div>
 	{/if}
 </Card>

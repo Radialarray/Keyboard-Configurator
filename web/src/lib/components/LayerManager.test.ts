@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Layer } from '$api/types';
+import type { Layer, RgbColor } from '$api/types';
 
 // Helper functions that mirror LayerManager logic
 function createNewLayer(layers: Layer[]): Layer {
@@ -63,6 +63,16 @@ function swapLayerContents(layer1: Layer, layer2: Layer): [Layer, Layer] {
 	const newLayer1 = { ...layer2, number: layer1.number };
 	const newLayer2 = { ...temp, number: layer2.number };
 	return [newLayer1, newLayer2];
+}
+
+function setLayerDefaultColor(layer: Layer, color: RgbColor): Layer {
+	return { ...layer, default_color: color };
+}
+
+function clearLayerDefaultColor(layer: Layer): Layer {
+	const updated = { ...layer };
+	delete updated.default_color;
+	return updated;
 }
 
 describe('LayerManager Logic', () => {
@@ -223,6 +233,62 @@ describe('LayerManager Logic', () => {
 			expect(swapped2.name).toBe('Base');
 			expect(swapped2.number).toBe(1);
 			expect(swapped2.keys[0].keycode).toBe('KC_X');
+		});
+	});
+
+	describe('setLayerDefaultColor', () => {
+		it('sets default color on layer', () => {
+			const layer = createMockLayer('Base', 0, 2);
+			const color = { r: 255, g: 0, b: 0 };
+			const result = setLayerDefaultColor(layer, color);
+
+			expect(result.default_color).toEqual(color);
+			expect(result.name).toBe('Base'); // Preserves other properties
+		});
+
+		it('overwrites existing default color', () => {
+			const layer = createMockLayer('Base', 0, 2);
+			layer.default_color = { r: 0, g: 255, b: 0 };
+			
+			const newColor = { r: 0, g: 0, b: 255 };
+			const result = setLayerDefaultColor(layer, newColor);
+
+			expect(result.default_color).toEqual(newColor);
+		});
+
+		it('does not modify original layer', () => {
+			const layer = createMockLayer('Base', 0, 2);
+			const color = { r: 255, g: 0, b: 0 };
+			setLayerDefaultColor(layer, color);
+
+			expect(layer.default_color).toBeUndefined();
+		});
+	});
+
+	describe('clearLayerDefaultColor', () => {
+		it('removes default color from layer', () => {
+			const layer = createMockLayer('Base', 0, 2);
+			layer.default_color = { r: 255, g: 0, b: 0 };
+			
+			const result = clearLayerDefaultColor(layer);
+
+			expect(result.default_color).toBeUndefined();
+			expect(result.name).toBe('Base'); // Preserves other properties
+		});
+
+		it('handles layer without default color gracefully', () => {
+			const layer = createMockLayer('Base', 0, 2);
+			const result = clearLayerDefaultColor(layer);
+
+			expect(result.default_color).toBeUndefined();
+		});
+
+		it('does not modify original layer', () => {
+			const layer = createMockLayer('Base', 0, 2);
+			layer.default_color = { r: 255, g: 0, b: 0 };
+			clearLayerDefaultColor(layer);
+
+			expect(layer.default_color).toEqual({ r: 255, g: 0, b: 0 });
 		});
 	});
 });
