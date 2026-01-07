@@ -160,6 +160,17 @@ export interface ConfigUpdateRequest {
 	qmk_firmware_path?: string;
 }
 
+export interface PreflightResponse {
+	/** Whether QMK firmware path is configured and valid */
+	qmk_configured: boolean;
+	/** Whether any layouts exist in the workspace */
+	has_layouts: boolean;
+	/** True if this appears to be a first-run (no layouts and no QMK config) */
+	first_run: boolean;
+	/** QMK firmware path if configured */
+	qmk_firmware_path?: string;
+}
+
 export interface ApiError {
 	error: string;
 	details?: string;

@@ -80,18 +80,39 @@ test.describe('Setup Wizard', () => {
 		}
 	});
 
-	test('should have accessible Setup Wizard link from dashboard', async ({ page }) => {
+	test('should have accessible Create New Layout link from dashboard', async ({ page }) => {
+		// Mock preflight for returning user
+		await page.route('**/api/preflight', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					qmk_configured: true,
+					has_layouts: true,
+					first_run: false,
+					qmk_firmware_path: '/path/to/qmk'
+				})
+			});
+		});
+
+		await page.route('**/health', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({ status: 'ok', version: '0.12.0' })
+			});
+		});
+
 		await page.goto('/');
 
 		// Wait for page to load
 		await expect(page.locator('h1')).toContainText('Dashboard');
 
-		// Find and click the setup wizard link
-		await page.getByRole('link', { name: /start setup wizard/i }).click();
+		// Find and click the Create New Layout button (links to /onboarding)
+		await page.getByRole('button', { name: /Create New Layout/i }).click();
 
-		// Should navigate to setup page
-		await expect(page).toHaveURL('/setup');
-		await expect(page.locator('h1')).toContainText('Setup Wizard');
+		// Should navigate to onboarding page
+		await expect(page).toHaveURL('/onboarding');
 	});
 });
 

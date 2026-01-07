@@ -6,6 +6,7 @@ import type {
 	CategoryListResponse,
 	ConfigResponse,
 	ConfigUpdateRequest,
+	PreflightResponse,
 	GeometryResponse,
 	ApiError,
 	ValidationResponse,
@@ -142,6 +143,11 @@ export class ApiClient {
 			method: 'PUT',
 			body: JSON.stringify(config)
 		});
+	}
+
+	// Preflight check for onboarding
+	async preflight(): Promise<PreflightResponse> {
+		return this.request<PreflightResponse>('/api/preflight');
 	}
 
 	// Effects Operations

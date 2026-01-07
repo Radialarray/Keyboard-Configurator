@@ -19,6 +19,7 @@
 //! - `GET /api/keycodes/categories` - List keycode categories
 //! - `GET /api/config` - Get current configuration
 //! - `PUT /api/config` - Update configuration
+//! - `GET /api/preflight` - Check application state for onboarding flow
 //! - `GET /api/keyboards/{keyboard}/geometry/{layout}` - Get keyboard geometry
 //! - `POST /api/build/start` - Start a firmware build job
 //! - `GET /api/build/jobs` - List all build jobs
@@ -235,6 +236,19 @@ pub struct ConfigResponse {
 #[derive(Debug, Deserialize)]
 pub struct ConfigUpdateRequest {
     /// New path to QMK firmware directory.
+    pub qmk_firmware_path: Option<String>,
+}
+
+/// Preflight check response for onboarding flow.
+#[derive(Debug, Serialize)]
+pub struct PreflightResponse {
+    /// Whether QMK firmware path is configured and valid.
+    pub qmk_configured: bool,
+    /// Whether any layouts exist in the workspace.
+    pub has_layouts: bool,
+    /// True if this appears to be a first-run (no layouts and no QMK config).
+    pub first_run: bool,
+    /// QMK firmware path if configured.
     pub qmk_firmware_path: Option<String>,
 }
 
@@ -900,6 +914,43 @@ async fn update_config(
     })?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// GET /api/preflight - Check application state for onboarding flow.
+async fn get_preflight(State(state): State<AppState>) -> Json<PreflightResponse> {
+    // Check if QMK firmware path is configured and valid
+    let qmk_configured = state
+        .config
+        .paths
+        .qmk_firmware
+        .as_ref()
+        .is_some_and(|p| p.exists());
+
+    let qmk_firmware_path = state
+        .config
+        .paths
+        .qmk_firmware
+        .as_ref()
+        .map(|p| p.display().to_string());
+
+    // Check if any layouts exist in the workspace
+    let has_layouts = std::fs::read_dir(&state.workspace_root)
+        .map(|entries| {
+            entries
+                .filter_map(Result::ok)
+                .any(|entry| entry.path().extension().is_some_and(|ext| ext == "md"))
+        })
+        .unwrap_or(false);
+
+    // First run if no layouts AND no QMK config
+    let first_run = !has_layouts && !qmk_configured;
+
+    Json(PreflightResponse {
+        qmk_configured,
+        has_layouts,
+        first_run,
+        qmk_firmware_path,
+    })
 }
 
 /// Keyboard geometry response.
@@ -2694,6 +2745,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/keycodes/categories", get(list_categories))
         // Config endpoints
         .route("/api/config", get(get_config).put(update_config))
+        // Preflight endpoint for onboarding
+        .route("/api/preflight", get(get_preflight))
         // Effects endpoint
         .route("/api/effects", get(list_effects))
         // Geometry endpoint
