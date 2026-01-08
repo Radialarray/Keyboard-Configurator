@@ -150,7 +150,7 @@ impl HelpOverlayState {
 
     /// Get the comprehensive help content organized by feature.
     #[allow(clippy::too_many_lines, clippy::cognitive_complexity)]
-    fn get_help_content(theme: &Theme) -> Vec<Line<'static>> {
+    pub(super) fn get_help_content(theme: &Theme) -> Vec<Line<'static>> {
         let registry = HelpRegistry::default();
         let mut lines = Vec::new();
 
@@ -640,73 +640,6 @@ impl HelpOverlayState {
 
         lines
     }
-
-    /// Render the help overlay as a centered modal (legacy - for backward compatibility during migration).
-    pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        // Calculate centered modal size (60% width, 80% height)
-        let width = (area.width * 60) / 100;
-        let height = (area.height * 80) / 100;
-        let x = (area.width.saturating_sub(width)) / 2;
-        let y = (area.height.saturating_sub(height)) / 2;
-
-        let modal_area = Rect {
-            x: x + area.x,
-            y: y + area.y,
-            width,
-            height,
-        };
-
-        // Clear the background area first
-        frame.render_widget(Clear, modal_area);
-
-        // Render opaque background
-        let background = Block::default().style(Style::default().bg(theme.background));
-        frame.render_widget(background, modal_area);
-
-        // Create layout for content area and scrollbar
-        let chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Min(1), Constraint::Length(1)])
-            .split(modal_area);
-
-        let content_area = chunks[0];
-        let scrollbar_area = chunks[1];
-
-        // Get help content
-        let content = Self::get_help_content(theme);
-
-        // Create paragraph with scrolling
-        let visible_height = content_area.height.saturating_sub(2) as usize; // Account for borders
-        let paragraph = Paragraph::new(content)
-            .block(
-                Block::default()
-                    .title(" Help - Keyboard Shortcuts ")
-                    .title_alignment(Alignment::Center)
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(theme.primary))
-                    .style(Style::default().bg(theme.background)),
-            )
-            .style(Style::default().fg(theme.text))
-            .wrap(Wrap { trim: false })
-            .scroll((self.scroll_offset as u16, 0));
-
-        frame.render_widget(paragraph, content_area);
-
-        // Render scrollbar
-        let scrollbar = Scrollbar::default()
-            .orientation(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(Some("↑"))
-            .end_symbol(Some("↓"))
-            .track_symbol(Some("│"))
-            .thumb_symbol("█")
-            .style(Style::default().fg(theme.primary));
-
-        let mut scrollbar_state =
-            ScrollbarState::new(self.total_lines.saturating_sub(visible_height))
-                .position(self.scroll_offset);
-
-        frame.render_stateful_widget(scrollbar, scrollbar_area, &mut scrollbar_state);
-    }
 }
 
 impl Default for HelpOverlayState {
@@ -777,6 +710,68 @@ impl crate::tui::component::Component for HelpOverlay {
     }
 
     fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        self.state.render(f, area, theme);
+        // Calculate centered modal size (60% width, 80% height)
+        let width = (area.width * 60) / 100;
+        let height = (area.height * 80) / 100;
+        let x = (area.width.saturating_sub(width)) / 2;
+        let y = (area.height.saturating_sub(height)) / 2;
+
+        let modal_area = Rect {
+            x: x + area.x,
+            y: y + area.y,
+            width,
+            height,
+        };
+
+        // Clear the background area first
+        f.render_widget(Clear, modal_area);
+
+        // Render opaque background
+        let background = Block::default().style(Style::default().bg(theme.background));
+        f.render_widget(background, modal_area);
+
+        // Create layout for content area and scrollbar
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(1), Constraint::Length(1)])
+            .split(modal_area);
+
+        let content_area = chunks[0];
+        let scrollbar_area = chunks[1];
+
+        // Get help content
+        let content = HelpOverlayState::get_help_content(theme);
+
+        // Create paragraph with scrolling
+        let visible_height = content_area.height.saturating_sub(2) as usize; // Account for borders
+        let paragraph = Paragraph::new(content)
+            .block(
+                Block::default()
+                    .title(" Help - Keyboard Shortcuts ")
+                    .title_alignment(Alignment::Center)
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.primary))
+                    .style(Style::default().bg(theme.background)),
+            )
+            .style(Style::default().fg(theme.text))
+            .wrap(Wrap { trim: false })
+            .scroll((self.state.scroll_offset as u16, 0));
+
+        f.render_widget(paragraph, content_area);
+
+        // Render scrollbar
+        let scrollbar = Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"))
+            .track_symbol(Some("│"))
+            .thumb_symbol("█")
+            .style(Style::default().fg(theme.primary));
+
+        let mut scrollbar_state =
+            ScrollbarState::new(self.state.total_lines.saturating_sub(visible_height))
+                .position(self.state.scroll_offset);
+
+        f.render_stateful_widget(scrollbar, scrollbar_area, &mut scrollbar_state);
     }
 }
