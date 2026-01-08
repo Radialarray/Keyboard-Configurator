@@ -1408,7 +1408,6 @@
 			<LayerManager
 				layers={layout.layers}
 				{selectedLayerIndex}
-				categories={layout.categories || []}
 				onLayersChange={handleLayersChange}
 				onLayerSelect={handleLayerChange}
 			/>
