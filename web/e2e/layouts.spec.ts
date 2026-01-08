@@ -17,9 +17,9 @@ test.describe('Layouts page', () => {
 		
 		// Check that the main heading is visible
 		await expect(page.getByRole('heading', { name: 'Layouts', level: 1 })).toBeVisible();
-		
-		// Check for back to dashboard button
-		await expect(page.getByRole('button', { name: 'Back to Dashboard' })).toBeVisible();
+
+		// Check for Create New Layout button
+		await expect(page.getByRole('button', { name: 'Create New Layout' })).toBeVisible();
 	});
 
 	test('shows loading state initially', async ({ page }) => {
@@ -42,11 +42,11 @@ test.describe('Layouts page', () => {
 		await expect(page.getByText('Loading layouts...')).not.toBeVisible();
 	});
 
-	test('navigates back to dashboard', async ({ page }) => {
+	test('navigates to onboarding via Create New Layout', async ({ page }) => {
 		await page.goto('/layouts');
 		
-		await page.getByRole('button', { name: 'Back to Dashboard' }).click();
-		await expect(page).toHaveURL('/');
+		await page.getByRole('button', { name: 'Create New Layout' }).click();
+		await expect(page).toHaveURL('/onboarding');
 	});
 });
 

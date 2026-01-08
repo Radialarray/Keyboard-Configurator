@@ -40,8 +40,8 @@
 				Manage your keyboard layouts
 			</p>
 		</div>
-		<a href="/">
-			<Button>Back to Dashboard</Button>
+		<a href="/onboarding">
+			<Button>Create New Layout</Button>
 		</a>
 	</div>
 

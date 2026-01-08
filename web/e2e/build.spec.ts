@@ -82,9 +82,6 @@ test.describe('Build page', () => {
 		// Check heading
 		await expect(page.getByRole('heading', { name: 'Build Firmware', level: 1 })).toBeVisible();
 
-		// Check for back button
-		await expect(page.getByRole('button', { name: 'Back to Dashboard' })).toBeVisible();
-
 		// Check start build section
 		await expect(page.getByRole('heading', { name: 'Start New Build' })).toBeVisible();
 	});
@@ -121,10 +118,33 @@ test.describe('Build page', () => {
 		await expect(page.getByText('No build jobs yet')).toBeVisible();
 	});
 
-	test('navigates back to dashboard', async ({ page }) => {
+	test('can navigate to home via header', async ({ page }) => {
 		await page.goto('/build');
 
-		await page.getByRole('button', { name: 'Back to Dashboard' }).click();
+		// Mock preflight and layouts for home navigation
+		await page.route('**/api/preflight', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					qmk_configured: true,
+					has_layouts: true,
+					first_run: false,
+					qmk_firmware_path: '/path/to/qmk_firmware'
+				})
+			});
+		});
+
+		await page.route('**/api/layouts', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({ layouts: [] })
+			});
+		});
+
+		// Click the LazyQMK logo/link in header
+		await page.locator('header a').filter({ hasText: 'LazyQMK' }).click();
 		await expect(page).toHaveURL('/');
 	});
 });
@@ -349,31 +369,9 @@ test.describe('Cancel build flow', () => {
 	});
 });
 
-test.describe('Dashboard build navigation', () => {
+test.describe('Build page navigation', () => {
 	test.beforeEach(async ({ page }) => {
-		// Mock health check
-		await page.route('**/health', async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: 'application/json',
-				body: JSON.stringify({ status: 'healthy', version: '0.12.0' })
-			});
-		});
-	});
-
-	test('dashboard has build firmware card', async ({ page }) => {
-		await page.goto('/');
-
-		// Check for build card
-		await expect(page.getByRole('heading', { name: 'Build Firmware', level: 2 })).toBeVisible();
-
-		// Check for build button
-		const buildButton = page.locator('[data-testid="build-button"]');
-		await expect(buildButton).toBeVisible();
-	});
-
-	test('navigates from dashboard to build page', async ({ page }) => {
-		// Also mock the build page endpoints
+		// Mock layouts
 		await page.route('**/api/layouts', async (route) => {
 			await route.fulfill({
 				status: 200,
@@ -390,10 +388,28 @@ test.describe('Dashboard build navigation', () => {
 			});
 		});
 
+		await page.route('**/api/preflight', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					qmk_configured: true,
+					has_layouts: true,
+					first_run: false,
+					qmk_firmware_path: '/path/to/qmk_firmware'
+				})
+			});
+		});
+	});
+
+	test('build page is accessible via More menu', async ({ page }) => {
 		await page.goto('/');
 
-		// Click build button
-		await page.locator('[data-testid="build-button"]').click();
+		// Click the "More" dropdown
+		await page.getByRole('button', { name: 'More' }).click();
+
+		// Click Build in dropdown
+		await page.getByRole('link', { name: 'Build Compile firmware' }).click();
 
 		// Should navigate to build page
 		await expect(page).toHaveURL('/build');

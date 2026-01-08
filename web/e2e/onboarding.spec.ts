@@ -76,28 +76,19 @@ test.describe('Onboarding flow - First run', () => {
 		await expect(page.getByText('Configure QMK Firmware')).toBeVisible();
 	});
 
-	test('has skip to dashboard link', async ({ page }) => {
+	test('has Go to Home link', async ({ page }) => {
 		await page.goto('/onboarding');
 
-		// Should have skip link
-		await expect(page.getByRole('link', { name: /Skip to Dashboard/i })).toBeVisible();
+		// Should have home link
+		await expect(page.getByRole('link', { name: /Go to Home/i })).toBeVisible();
 	});
 
-	test('skip link navigates to dashboard', async ({ page }) => {
+	test('home link navigates to home', async ({ page }) => {
 		await page.goto('/onboarding');
 
-		// Mock health for dashboard
-		await page.route('**/health', async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: 'application/json',
-				body: JSON.stringify({ status: 'ok', version: '0.12.0' })
-			});
-		});
-
-		// Mock preflight to return first_run: false so dashboard doesn't redirect back
+		// Mock preflight to return configured state so home doesn't redirect back
 		await page.route('**/api/preflight', async (route) => {
-			// After clicking skip, return configured state so dashboard loads
+			// After clicking home, return configured state so home loads
 			await route.fulfill({
 				status: 200,
 				contentType: 'application/json',
@@ -110,10 +101,19 @@ test.describe('Onboarding flow - First run', () => {
 			});
 		});
 
-		// Click skip link
-		await page.getByRole('link', { name: /Skip to Dashboard/i }).click();
+		// Mock layouts for home page
+		await page.route('**/api/layouts', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({ layouts: [] })
+			});
+		});
 
-		// Should navigate to dashboard (/) without redirecting back to onboarding
+		// Click home link
+		await page.getByRole('link', { name: /Go to Home/i }).click();
+
+		// Should navigate to home (/) without redirecting back to onboarding
 		await expect(page).toHaveURL('/');
 	});
 });
@@ -307,7 +307,7 @@ test.describe('Onboarding navigation header', () => {
 		await expect(page.locator('header nav')).not.toBeVisible();
 	});
 
-	test('dashboard shows navigation header', async ({ page }) => {
+	test('home page shows navigation header', async ({ page }) => {
 		await page.route('**/api/preflight', async (route) => {
 			await route.fulfill({
 				status: 200,
@@ -316,11 +316,11 @@ test.describe('Onboarding navigation header', () => {
 			});
 		});
 
-		await page.route('**/health', async (route) => {
+		await page.route('**/api/layouts', async (route) => {
 			await route.fulfill({
 				status: 200,
 				contentType: 'application/json',
-				body: JSON.stringify({ status: 'ok', version: '0.12.0' })
+				body: JSON.stringify({ layouts: [] })
 			});
 		});
 
@@ -331,7 +331,7 @@ test.describe('Onboarding navigation header', () => {
 	});
 });
 
-test.describe('Navigation header - Settings menu', () => {
+test.describe('Navigation header - More menu', () => {
 	test.beforeEach(async ({ page }) => {
 		await page.route('**/api/preflight', async (route) => {
 			await route.fulfill({
@@ -341,22 +341,23 @@ test.describe('Navigation header - Settings menu', () => {
 			});
 		});
 
-		await page.route('**/health', async (route) => {
+		await page.route('**/api/layouts', async (route) => {
 			await route.fulfill({
 				status: 200,
 				contentType: 'application/json',
-				body: JSON.stringify({ status: 'ok', version: '0.12.0' })
+				body: JSON.stringify({ layouts: [] })
 			});
 		});
 	});
 
-	test('More menu contains Settings, Keycodes, Templates', async ({ page }) => {
+	test('More menu contains Build, Settings, Keycodes, Templates', async ({ page }) => {
 		await page.goto('/');
 
 		// Click More button to open dropdown
 		await page.getByRole('button', { name: 'More' }).click();
 
-		// Should see dropdown with items - use exact match to avoid duplicates on dashboard
+		// Should see dropdown with items
+		await expect(page.getByRole('link', { name: 'Build Compile firmware' })).toBeVisible();
 		await expect(page.getByRole('link', { name: 'Settings Configure QMK path' })).toBeVisible();
 		await expect(page.getByRole('link', { name: 'Keycodes Browse keycodes' })).toBeVisible();
 		await expect(page.getByRole('link', { name: 'Templates Layout templates' })).toBeVisible();
@@ -368,7 +369,7 @@ test.describe('Navigation header - Settings menu', () => {
 		// Click More button to open dropdown
 		await page.getByRole('button', { name: 'More' }).click();
 
-		// Click Settings link in dropdown - use exact match
+		// Click Settings link in dropdown
 		await page.getByRole('link', { name: 'Settings Configure QMK path' }).click();
 
 		// Should navigate to settings
@@ -381,7 +382,7 @@ test.describe('Navigation header - Settings menu', () => {
 		// Click More button to open dropdown
 		await page.getByRole('button', { name: 'More' }).click();
 
-		// Click Keycodes link in dropdown - use exact match
+		// Click Keycodes link in dropdown
 		await page.getByRole('link', { name: 'Keycodes Browse keycodes' }).click();
 
 		// Should navigate to keycodes

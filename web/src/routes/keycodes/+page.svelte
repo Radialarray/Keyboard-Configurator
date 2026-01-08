@@ -54,7 +54,7 @@
 			</p>
 		</div>
 		<Button onclick={() => (window.location.href = '/')}>
-			Back to Dashboard
+			Back to Home
 		</Button>
 	</div>
 

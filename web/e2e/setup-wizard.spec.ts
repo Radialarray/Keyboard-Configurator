@@ -95,21 +95,21 @@ test.describe('Setup Wizard', () => {
 			});
 		});
 
-		await page.route('**/health', async (route) => {
+		await page.route('**/api/layouts', async (route) => {
 			await route.fulfill({
 				status: 200,
 				contentType: 'application/json',
-				body: JSON.stringify({ status: 'ok', version: '0.12.0' })
+				body: JSON.stringify({ layouts: [] })
 			});
 		});
 
 		await page.goto('/');
 
 		// Wait for page to load
-		await expect(page.locator('h1')).toContainText('Dashboard');
+		await expect(page.locator('h1')).toContainText('LazyQMK');
 
-		// Find and click the Create New Layout button (links to /onboarding)
-		await page.getByRole('button', { name: /Create New Layout/i }).click();
+		// Find and click the "New" nav link (use exact match to avoid ambiguity)
+		await page.getByRole('link', { name: 'New', exact: true }).click();
 
 		// Should navigate to onboarding page
 		await expect(page).toHaveURL('/onboarding');

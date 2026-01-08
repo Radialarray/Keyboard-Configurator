@@ -4,23 +4,24 @@
 
 	let showSettingsMenu = $state(false);
 
-	// Secondary pages that go under Settings menu
-	const settingsPages = [
-		{ href: '/settings', label: 'Settings', description: 'Configure QMK path' },
+	// Secondary pages that go under More menu
+	const morePages = [
+		{ href: '/build', label: 'Build', description: 'Compile firmware' },
+		{ href: '/templates', label: 'Templates', description: 'Layout templates' },
 		{ href: '/keycodes', label: 'Keycodes', description: 'Browse keycodes' },
-		{ href: '/templates', label: 'Templates', description: 'Layout templates' }
+		{ href: '/settings', label: 'Settings', description: 'Configure QMK path' }
 	];
 
-	// Check if current page is a settings page
-	let isSettingsPage = $derived(
-		settingsPages.some((p) => $page.url.pathname === p.href)
+	// Check if current page is a More menu page
+	let isMorePage = $derived(
+		morePages.some((p) => $page.url.pathname === p.href)
 	);
 
-	function toggleSettingsMenu() {
+	function toggleMoreMenu() {
 		showSettingsMenu = !showSettingsMenu;
 	}
 
-	function closeSettingsMenu() {
+	function closeMoreMenu() {
 		showSettingsMenu = false;
 	}
 </script>
@@ -38,18 +39,15 @@
 			<a href="/layouts" class="px-3 py-2 text-sm rounded-md hover:bg-muted {$page.url.pathname.startsWith('/layouts') ? 'bg-muted font-medium' : 'text-muted-foreground'}">
 				Layouts
 			</a>
-			<a href="/build" class="px-3 py-2 text-sm rounded-md hover:bg-muted {$page.url.pathname === '/build' ? 'bg-muted font-medium' : 'text-muted-foreground'}">
-				Build
-			</a>
 			<a href="/onboarding" class="px-3 py-2 text-sm rounded-md hover:bg-muted {$page.url.pathname === '/onboarding' ? 'bg-muted font-medium' : 'text-muted-foreground'}">
 				New
 			</a>
 
-			<!-- Settings Dropdown -->
+			<!-- More Dropdown -->
 			<div class="relative">
 				<button
-					class="px-3 py-2 text-sm rounded-md hover:bg-muted flex items-center gap-1 {isSettingsPage ? 'bg-muted font-medium' : 'text-muted-foreground'}"
-					onclick={toggleSettingsMenu}
+					class="px-3 py-2 text-sm rounded-md hover:bg-muted flex items-center gap-1 {isMorePage ? 'bg-muted font-medium' : 'text-muted-foreground'}"
+					onclick={toggleMoreMenu}
 					aria-expanded={showSettingsMenu}
 					aria-haspopup="true"
 				>
@@ -63,15 +61,15 @@
 					<!-- Backdrop -->
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<div class="fixed inset-0 z-40" onclick={closeSettingsMenu}></div>
+					<div class="fixed inset-0 z-40" onclick={closeMoreMenu}></div>
 
 					<!-- Dropdown Menu -->
 					<div class="absolute right-0 top-full mt-1 w-48 bg-popover border rounded-md shadow-lg z-50 py-1">
-						{#each settingsPages as page}
+						{#each morePages as page}
 							<a
 								href={page.href}
 								class="block px-4 py-2 text-sm hover:bg-muted"
-								onclick={closeSettingsMenu}
+								onclick={closeMoreMenu}
 							>
 								<div class="font-medium">{page.label}</div>
 								<div class="text-xs text-muted-foreground">{page.description}</div>

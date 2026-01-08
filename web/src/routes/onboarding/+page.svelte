@@ -581,10 +581,10 @@
 			</Card>
 		{/if}
 
-		<!-- Skip to Dashboard Link -->
+		<!-- Skip to Home Link -->
 		<div class="text-center mt-8">
 			<a href="/" class="text-sm text-muted-foreground hover:text-foreground">
-				Skip to Dashboard →
+				Go to Home
 			</a>
 		</div>
 	</div>

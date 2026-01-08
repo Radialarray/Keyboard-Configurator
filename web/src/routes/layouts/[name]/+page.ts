@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import type { Layout, ApiError } from '$api/types';
+import { addRecentLayout } from '$lib/utils/recentLayouts';
 
 // Disable SSR for this page to allow proper API mocking in tests
 // and client-side rendering with live geometry updates
@@ -24,6 +25,10 @@ export const load: PageLoad = async ({ params, fetch }) => {
 		}
 
 		const layout: Layout = await response.json();
+		
+		// Track this layout as recently opened
+		addRecentLayout(params.name, layout.metadata.name);
+		
 		return {
 			layout,
 			filename: params.name
