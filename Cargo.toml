@@ -44,6 +44,7 @@ chrono = { version = "0.4", features = ["serde"] }
 arboard = "3.6"
 dark-light = "2.0"
 uuid = { version = "1.19", features = ["v4", "serde"] }
+zip = { version = "2.1", default-features = false, features = ["deflate"] }
 
 # Web API dependencies (optional)
 axum = { version = "0.8", optional = true }

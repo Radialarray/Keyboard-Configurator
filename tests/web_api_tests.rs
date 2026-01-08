@@ -1543,3 +1543,214 @@ async fn test_preflight_returning_user() {
     assert_eq!(json["has_layouts"], true);
     assert_eq!(json["first_run"], false);
 }
+
+// ============================================================================
+// Generate Endpoint Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_generate_firmware_missing_layout() {
+    let (state, _temp_dir) = create_test_state_with_qmk();
+    let app = create_router(state);
+
+    let (status, json) = post_json(&app, "/api/layouts/nonexistent.md/generate", json!({})).await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(json["error"].as_str().unwrap().contains("not found"));
+}
+
+#[tokio::test]
+async fn test_generate_firmware_path_traversal_rejected() {
+    let (state, _temp_dir) = create_test_state_with_qmk();
+    let app = create_router(state);
+
+    // Test path traversal in filename (URL encoding prevents router normalization)
+    let (status, json) = post_json(&app, "/api/layouts/..%2Fsecret.md/generate", json!({})).await;
+
+    // Should be rejected as bad request due to path traversal detection
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"].as_str().unwrap().contains("path traversal"));
+}
+
+#[tokio::test]
+async fn test_generate_firmware_no_keyboard() {
+    let (state, temp_dir) = create_test_state_with_qmk();
+
+    // Create a layout file without keyboard defined
+    let mut layout = test_layout_basic(2, 3);
+    layout.metadata.keyboard = None;
+    let path = temp_dir.path().join("no_keyboard.md");
+    write_layout_file(&layout, &path).expect("Failed to write layout");
+
+    let app = create_router(state);
+
+    let (status, json) = post_json(&app, "/api/layouts/no_keyboard.md/generate", json!({})).await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"].as_str().unwrap().contains("no keyboard"));
+}
+
+#[tokio::test]
+async fn test_generate_firmware_no_layout_variant() {
+    let (state, temp_dir) = create_test_state_with_qmk();
+
+    // Create a layout file without layout_variant defined
+    let mut layout = test_layout_basic(2, 3);
+    layout.metadata.layout_variant = None;
+    let path = temp_dir.path().join("no_variant.md");
+    write_layout_file(&layout, &path).expect("Failed to write layout");
+
+    let app = create_router(state);
+
+    let (status, json) = post_json(&app, "/api/layouts/no_variant.md/generate", json!({})).await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(json["error"]
+        .as_str()
+        .unwrap()
+        .contains("no layout variant"));
+}
+
+#[tokio::test]
+async fn test_generate_firmware_starts_job() {
+    let (state, temp_dir) = create_test_state_with_qmk();
+
+    // Create a layout file
+    let layout = test_layout_basic(2, 3);
+    let path = temp_dir.path().join("test_layout.md");
+    write_layout_file(&layout, &path).expect("Failed to write layout");
+
+    let app = create_router(state);
+
+    let (status, json) = post_json(&app, "/api/layouts/test_layout.md/generate", json!({})).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["status"], "started");
+    assert!(json["job"]["id"].is_string());
+    assert!(json["job"]["download_url"].is_string());
+    assert_eq!(json["job"]["status"], "pending");
+    assert_eq!(json["job"]["layout_filename"], "test_layout.md");
+}
+
+#[tokio::test]
+async fn test_generate_job_status() {
+    let (state, temp_dir) = create_test_state_with_qmk();
+
+    // Create a layout file
+    let layout = test_layout_basic(2, 3);
+    let path = temp_dir.path().join("test_layout.md");
+    write_layout_file(&layout, &path).expect("Failed to write layout");
+
+    let app = create_router(state);
+
+    // Start a job
+    let (status, json) = post_json(&app, "/api/layouts/test_layout.md/generate", json!({})).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let job_id = json["job"]["id"].as_str().unwrap();
+
+    // Get job status
+    let (status, json) = get_json(&app, &format!("/api/generate/jobs/{job_id}")).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(json["job"]["id"].is_string());
+}
+
+#[tokio::test]
+async fn test_generate_job_not_found() {
+    let (state, _temp_dir) = create_test_state_with_qmk();
+    let app = create_router(state);
+
+    let (status, json) = get_json(&app, "/api/generate/jobs/nonexistent-job-id").await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(json["error"].as_str().unwrap().contains("not found"));
+}
+
+#[tokio::test]
+async fn test_generate_job_logs() {
+    let (state, temp_dir) = create_test_state_with_qmk();
+
+    // Create a layout file
+    let layout = test_layout_basic(2, 3);
+    let path = temp_dir.path().join("test_layout.md");
+    write_layout_file(&layout, &path).expect("Failed to write layout");
+
+    let app = create_router(state);
+
+    // Start a job
+    let (status, json) = post_json(&app, "/api/layouts/test_layout.md/generate", json!({})).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let job_id = json["job"]["id"].as_str().unwrap();
+
+    // Get job logs
+    let (status, json) = get_json(&app, &format!("/api/generate/jobs/{job_id}/logs")).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["job_id"], job_id);
+    assert!(json["logs"].is_array());
+}
+
+#[tokio::test]
+async fn test_generate_job_cancel() {
+    let (state, temp_dir) = create_test_state_with_qmk();
+
+    // Create a layout file
+    let layout = test_layout_basic(2, 3);
+    let path = temp_dir.path().join("test_layout.md");
+    write_layout_file(&layout, &path).expect("Failed to write layout");
+
+    let app = create_router(state);
+
+    // Start a job
+    let (status, json) = post_json(&app, "/api/layouts/test_layout.md/generate", json!({})).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let job_id = json["job"]["id"].as_str().unwrap();
+
+    // Cancel the job
+    let (status, json) = post_json(
+        &app,
+        &format!("/api/generate/jobs/{job_id}/cancel"),
+        json!({}),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    // Job may have already completed by now, so accept either success or failure
+    assert!(json["success"].is_boolean());
+}
+
+#[tokio::test]
+async fn test_generate_jobs_list() {
+    let (state, temp_dir) = create_test_state_with_qmk();
+
+    // Create a layout file
+    let layout = test_layout_basic(2, 3);
+    let path = temp_dir.path().join("test_layout.md");
+    write_layout_file(&layout, &path).expect("Failed to write layout");
+
+    let app = create_router(state);
+
+    // Start a job
+    let _ = post_json(&app, "/api/layouts/test_layout.md/generate", json!({})).await;
+
+    // List jobs
+    let (status, json) = get_json(&app, "/api/generate/jobs").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(json.is_array());
+    assert!(!json.as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn test_generate_download_job_not_found() {
+    let (state, _temp_dir) = create_test_state_with_qmk();
+    let app = create_router(state);
+
+    let (status, json) = get_json(&app, "/api/generate/jobs/nonexistent-job-id/download").await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(json["error"].as_str().unwrap().contains("not found"));
+}
