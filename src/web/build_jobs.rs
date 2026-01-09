@@ -951,6 +951,11 @@ impl BuildJobManager {
         let artifact_path = self.output_dir.join(job_id).join(&artifact_filename);
 
         // Security: Ensure the resolved path is within the expected output directory
+        // We need to check the file exists first, otherwise canonicalize fails
+        if !artifact_path.exists() {
+            return None;
+        }
+
         let canonical_output = self.output_dir.canonicalize().ok()?;
         let canonical_artifact = artifact_path.canonicalize().ok()?;
 
