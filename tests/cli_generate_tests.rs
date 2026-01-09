@@ -240,7 +240,7 @@ fn test_generate_golden_basic_keymap() {
     assert_eq!(output.status.code(), Some(0));
 
     let keymap = fs::read_to_string(out_dir.join("keymap.c")).expect("Failed to read keymap.c");
-    
+
     assert_golden(&keymap, "tests/golden/keymap_basic.c");
 }
 
@@ -275,7 +275,7 @@ fn test_generate_golden_basic_config() {
     assert_eq!(output.status.code(), Some(0));
 
     let config_h = fs::read_to_string(out_dir.join("config.h")).expect("Failed to read config.h");
-    
+
     assert_golden(&config_h, "tests/golden/config_basic.h");
 }
 
@@ -431,7 +431,7 @@ fn test_generate_with_tap_dances() {
         keymap.contains("ACTION_TAP_DANCE_DOUBLE"),
         "Should have tap dance macros"
     );
-    
+
     // Note: Currently the generator uses ACTION_TAP_DANCE_DOUBLE for all tap dances,
     // even 3-way ones with hold actions. This is a known limitation that could be
     // enhanced to use ACTION_TAP_DANCE_FN_ADVANCED for 3-way tap dances.

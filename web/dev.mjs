@@ -1,0 +1,246 @@
+#!/usr/bin/env node
+
+/**
+ * LazyQMK Web Development Script
+ * 
+ * Starts both Rust backend and Vite frontend for local development.
+ * Cross-platform: works on macOS, Linux, and Windows.
+ * 
+ * Usage:
+ *   npm run dev:web      (from project root)
+ *   pnpm dev:web         (from project root)
+ *   node dev.mjs         (from web/ directory)
+ * 
+ * Double-start Prevention:
+ *   Sets LAZYQMK_BACKEND_STARTED=1 environment variable to prevent
+ *   nested invocations from starting the backend multiple times.
+ *   The frontend spawn explicitly sets cwd='.' to ensure correct context.
+ */
+
+import { spawn } from 'child_process';
+import { platform } from 'os';
+
+const IS_WINDOWS = platform() === 'win32';
+
+// Colors for terminal output
+const colors = {
+  reset: '\x1b[0m',
+  bright: '\x1b[1m',
+  cyan: '\x1b[36m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  red: '\x1b[31m',
+};
+
+function log(color, prefix, message) {
+  console.log(`${colors.bright}${color}[${prefix}]${colors.reset} ${message}`);
+}
+
+// Track child processes for cleanup
+const processes = [];
+let cleanupInProgress = false;
+
+function cleanup() {
+  // Guard against multiple cleanup calls
+  if (cleanupInProgress) {
+    return;
+  }
+  cleanupInProgress = true;
+  
+  log(colors.yellow, 'CLEANUP', 'Stopping all processes...');
+  
+  processes.forEach(proc => {
+    if (proc && !proc.killed) {
+      try {
+        if (IS_WINDOWS) {
+          // Windows: kill process tree
+          spawn('taskkill', ['/pid', proc.pid, '/f', '/t'], { shell: true });
+        } else {
+          // Unix: send SIGTERM
+          proc.kill('SIGTERM');
+        }
+      } catch (err) {
+        // Process may have already exited, ignore errors
+      }
+    }
+  });
+  
+  setTimeout(() => {
+    process.exit(0);
+  }, 1000);
+}
+
+// Handle cleanup on signals only (not on 'exit' to avoid cascading cleanup)
+process.on('SIGINT', cleanup);
+process.on('SIGTERM', cleanup);
+
+function startBackend() {
+  log(colors.cyan, 'BACKEND', 'Starting Rust backend on http://localhost:3001...');
+  
+  const backendArgs = [
+    'run',
+    '--features', 'web',
+    '--bin', 'lazyqmk-web',
+    '--',
+    '--port', '3001'
+  ];
+  
+  const backend = spawn('cargo', backendArgs, {
+    cwd: '..',
+    stdio: 'inherit',
+    shell: IS_WINDOWS,
+  });
+  
+  processes.push(backend);
+  
+  backend.on('error', (err) => {
+    log(colors.red, 'BACKEND', `Failed to start: ${err.message}`);
+    log(colors.yellow, 'BACKEND', 'Make sure Rust and cargo are installed');
+    cleanup();
+  });
+  
+  backend.on('exit', (code, signal) => {
+    // Don't trigger cleanup if process was terminated by our cleanup (SIGTERM = code 143 or signal 'SIGTERM')
+    // or if cleanup is already in progress
+    if (cleanupInProgress) {
+      return;
+    }
+    
+    if (code !== 0 && code !== null && code !== 143) {
+      // Check for common errors and provide helpful messages
+      log(colors.red, 'BACKEND', `Exited with code ${code}`);
+      
+      if (code === 98 || (signal === null && code !== null)) {
+        // Address already in use (Unix: 98, Windows varies)
+        log(colors.yellow, 'BACKEND', 'Port 3001 may already be in use');
+        log(colors.yellow, 'BACKEND', 'Run: lsof -ti:3001 | xargs kill (macOS/Linux)');
+        log(colors.yellow, 'BACKEND', 'Or check DEV_SCRIPT.md for Windows instructions');
+      }
+      
+      cleanup();
+    }
+  });
+  
+  return backend;
+}
+
+function startFrontend() {
+  log(colors.green, 'FRONTEND', 'Starting Vite dev server on http://localhost:5173...');
+  
+  // Use pnpm if available, fallback to npm
+  const packageManager = process.env.npm_execpath?.includes('pnpm') ? 'pnpm' : 'npm';
+  
+  const frontend = spawn(packageManager, ['run', 'dev'], {
+    cwd: '.', // Ensure we stay in web/ directory
+    stdio: 'inherit',
+    shell: IS_WINDOWS,
+    env: {
+      ...process.env,
+      // Prevent any nested scripts from starting the backend
+      LAZYQMK_BACKEND_STARTED: '1'
+    }
+  });
+  
+  processes.push(frontend);
+  
+  frontend.on('error', (err) => {
+    log(colors.red, 'FRONTEND', `Failed to start: ${err.message}`);
+    log(colors.yellow, 'FRONTEND', 'Make sure dependencies are installed (npm install)');
+    cleanup();
+  });
+  
+  frontend.on('exit', (code, signal) => {
+    // Don't trigger cleanup if process was terminated by our cleanup (SIGTERM = code 143 or signal 'SIGTERM')
+    // or if cleanup is already in progress
+    if (cleanupInProgress) {
+      return;
+    }
+    
+    if (code !== 0 && code !== null && code !== 143) {
+      log(colors.red, 'FRONTEND', `Exited with code ${code}`);
+      cleanup();
+    }
+  });
+  
+  return frontend;
+}
+
+/**
+ * Poll the backend health endpoint until it's ready
+ * @param {number} maxAttempts - Maximum number of attempts (default 30 = 30 seconds)
+ * @param {number} intervalMs - Milliseconds between attempts (default 1000)
+ * @returns {Promise<boolean>} - True if backend is ready, false if timeout
+ */
+async function waitForBackend(maxAttempts = 30, intervalMs = 1000) {
+  log(colors.yellow, 'INFO', 'Waiting for backend to be ready...');
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      // Try to fetch the health endpoint
+      const response = await fetch('http://localhost:3001/health');
+      
+      if (response.ok) {
+        const data = await response.json();
+        log(colors.green, 'BACKEND', `Ready! (version ${data.version || 'unknown'})`);
+        return true;
+      }
+    } catch (err) {
+      // Expected during startup - backend not ready yet
+      // Only log every 5 attempts to avoid spam
+      if (attempt % 5 === 0) {
+        log(colors.yellow, 'INFO', `Still waiting for backend... (attempt ${attempt}/${maxAttempts})`);
+      }
+    }
+    
+    // Wait before next attempt
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  
+  // Timeout reached
+  log(colors.red, 'BACKEND', `Failed to start after ${maxAttempts} seconds`);
+  return false;
+}
+
+// Main execution
+async function main() {
+  // Guard against double-start: if backend is already started by this script, exit
+  if (process.env.LAZYQMK_BACKEND_STARTED === '1') {
+    log(colors.yellow, 'INFO', 'Backend already started by parent process, skipping...');
+    return;
+  }
+  
+  console.log(`${colors.bright}${colors.cyan}╔════════════════════════════════════════════════╗${colors.reset}`);
+  console.log(`${colors.bright}${colors.cyan}║     LazyQMK Web Development Environment        ║${colors.reset}`);
+  console.log(`${colors.bright}${colors.cyan}╚════════════════════════════════════════════════╝${colors.reset}`);
+  console.log();
+  
+  log(colors.green, 'INFO', 'Starting backend and frontend...');
+  log(colors.green, 'INFO', 'Press Ctrl+C to stop both services');
+  console.log();
+  
+  // Start backend first (frontend depends on it)
+  startBackend();
+  
+  // Poll health endpoint until backend is ready
+  const backendReady = await waitForBackend();
+  
+  if (!backendReady) {
+    log(colors.red, 'ERROR', 'Backend never became healthy. Check logs above for errors.');
+    cleanup();
+    return;
+  }
+  
+  // Start frontend
+  startFrontend();
+  
+  console.log();
+  log(colors.green, 'READY', 'Development servers starting...');
+  log(colors.green, 'READY', 'Backend:  http://localhost:3001');
+  log(colors.green, 'READY', 'Frontend: http://localhost:5173 (opens automatically)');
+  console.log();
+}
+
+main().catch(err => {
+  log(colors.red, 'ERROR', err.message);
+  cleanup();
+});

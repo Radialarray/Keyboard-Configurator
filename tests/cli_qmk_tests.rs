@@ -5,8 +5,8 @@
 //! - `list-layouts`: List layout variants for a specific keyboard with key counts
 //! - `geometry`: Display coordinate mappings for keyboard layout
 
-use std::process::Command;
 use std::path::PathBuf;
+use std::process::Command;
 
 mod fixtures;
 
@@ -18,8 +18,8 @@ fn lazyqmk_bin() -> &'static str {
 /// Path to the mock QMK fixture for testing without full submodule
 fn mock_qmk_fixture() -> PathBuf {
     // CARGO_MANIFEST_DIR is always set by cargo test to the project root
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-        .expect("CARGO_MANIFEST_DIR should be set by cargo");
+    let manifest_dir =
+        std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR should be set by cargo");
     PathBuf::from(manifest_dir).join("tests/fixtures/mock_qmk")
 }
 
@@ -125,7 +125,11 @@ fn test_list_keyboards_with_filter() {
         .output()
         .expect("Failed to execute command");
 
-    assert_eq!(output.status.code(), Some(0), "Filter should match some keyboards");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "Filter should match some keyboards"
+    );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let result: serde_json::Value =
@@ -134,7 +138,10 @@ fn test_list_keyboards_with_filter() {
     let keyboards = result["keyboards"]
         .as_array()
         .expect("Should have keyboards array");
-    assert!(!keyboards.is_empty(), "Filter should match at least one keyboard");
+    assert!(
+        !keyboards.is_empty(),
+        "Filter should match at least one keyboard"
+    );
 
     // All keyboards should contain the filter string
     for kb in keyboards {
@@ -308,9 +315,7 @@ fn test_list_layouts_json_output() {
         assert!(result["layouts"].is_array(), "Should have layouts array");
         assert!(result["count"].is_number(), "Should have count field");
 
-        let layouts = result["layouts"]
-            .as_array()
-            .expect("Should be array");
+        let layouts = result["layouts"].as_array().expect("Should be array");
         let count = result["count"].as_u64().expect("Should be number");
 
         assert_eq!(
@@ -321,10 +326,7 @@ fn test_list_layouts_json_output() {
 
         // Verify each layout has name and key_count
         for layout in layouts {
-            assert!(
-                layout["name"].is_string(),
-                "Each layout should have name"
-            );
+            assert!(layout["name"].is_string(), "Each layout should have name");
             assert!(
                 layout["key_count"].is_number(),
                 "Each layout should have key_count"
@@ -499,36 +501,25 @@ fn test_geometry_json_output() {
 
     if geo_output.status.code() == Some(0) {
         let stdout = String::from_utf8_lossy(&geo_output.stdout);
-        let result: serde_json::Value =
-            serde_json::from_str(&stdout).expect("Should parse JSON");
+        let result: serde_json::Value = serde_json::from_str(&stdout).expect("Should parse JSON");
 
         // Validate structure
-        assert!(
-            result["keyboard"].is_string(),
-            "Should have keyboard field"
-        );
+        assert!(result["keyboard"].is_string(), "Should have keyboard field");
         assert!(result["layout"].is_string(), "Should have layout field");
         assert!(result["matrix"].is_object(), "Should have matrix object");
         assert!(
             result["key_count"].is_number(),
             "Should have key_count field"
         );
-        assert!(
-            result["mappings"].is_array(),
-            "Should have mappings array"
-        );
+        assert!(result["mappings"].is_array(), "Should have mappings array");
 
         // Validate matrix structure
         let matrix = &result["matrix"];
         assert!(matrix["rows"].is_number(), "Matrix should have rows");
         assert!(matrix["cols"].is_number(), "Matrix should have cols");
 
-        let rows = matrix["rows"]
-            .as_u64()
-            .expect("rows should be number");
-        let cols = matrix["cols"]
-            .as_u64()
-            .expect("cols should be number");
+        let rows = matrix["rows"].as_u64().expect("rows should be number");
+        let cols = matrix["cols"].as_u64().expect("cols should be number");
         assert!(rows > 0, "Rows should be positive");
         assert!(cols > 0, "Cols should be positive");
 
@@ -587,7 +578,9 @@ fn test_geometry_nonexistent_keyboard() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("Invalid keyboard") || stderr.contains("keyboard") || stderr.contains("not found"),
+        stderr.contains("Invalid keyboard")
+            || stderr.contains("keyboard")
+            || stderr.contains("not found"),
         "Error should mention invalid keyboard"
     );
 }
@@ -721,8 +714,7 @@ fn test_geometry_matrix_and_led_indices() {
 
     if geo_output.status.code() == Some(0) {
         let stdout = String::from_utf8_lossy(&geo_output.stdout);
-        let result: serde_json::Value =
-            serde_json::from_str(&stdout).expect("Should parse JSON");
+        let result: serde_json::Value = serde_json::from_str(&stdout).expect("Should parse JSON");
 
         let mappings = result["mappings"]
             .as_array()
@@ -735,11 +727,7 @@ fn test_geometry_matrix_and_led_indices() {
             let matrix = first_mapping["matrix"]
                 .as_array()
                 .expect("matrix should be array");
-            assert_eq!(
-                matrix.len(),
-                2,
-                "Matrix should have [row, col]"
-            );
+            assert_eq!(matrix.len(), 2, "Matrix should have [row, col]");
             assert!(matrix[0].is_number(), "Matrix row should be number");
             assert!(matrix[1].is_number(), "Matrix col should be number");
 
@@ -747,11 +735,7 @@ fn test_geometry_matrix_and_led_indices() {
             let visual = first_mapping["visual_position"]
                 .as_array()
                 .expect("visual_position should be array");
-            assert_eq!(
-                visual.len(),
-                2,
-                "Visual position should have [x, y]"
-            );
+            assert_eq!(visual.len(), 2, "Visual position should have [x, y]");
             assert!(visual[0].is_number(), "X should be number");
             assert!(visual[1].is_number(), "Y should be number");
         }

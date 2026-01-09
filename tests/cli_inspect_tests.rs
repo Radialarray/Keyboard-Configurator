@@ -106,7 +106,9 @@ fn test_inspect_layers_json() {
 
     // Validate structure
     assert_eq!(result["count"], 2, "Should have 2 layers");
-    let layers = result["layers"].as_array().expect("Should have layers array");
+    let layers = result["layers"]
+        .as_array()
+        .expect("Should have layers array");
     assert_eq!(layers.len(), 2);
 
     // Check first layer
@@ -177,10 +179,7 @@ fn test_inspect_categories_json() {
     assert!(categories[0]["id"].is_string());
     assert!(categories[0]["name"].is_string());
     assert!(categories[0]["color"].is_string());
-    assert!(categories[0]["color"]
-        .as_str()
-        .unwrap()
-        .starts_with('#'));
+    assert!(categories[0]["color"].as_str().unwrap().starts_with('#'));
 }
 
 #[test]
@@ -215,16 +214,22 @@ fn test_inspect_tap_dances_json() {
     // Note: Tap dances are auto-created from TD() references when layout is loaded,
     // so they will have KC_NO placeholders. The names are extracted from the keycodes.
     // Order may vary based on hash set iteration, so we just check structure and presence.
-    
+
     // Find the tap dances by name (order not guaranteed)
     let td_names: Vec<&str> = tap_dances
         .iter()
         .filter_map(|td| td["name"].as_str())
         .collect();
-    
-    assert!(td_names.contains(&"esc_caps"), "Should have esc_caps tap dance");
-    assert!(td_names.contains(&"shift_ctrl"), "Should have shift_ctrl tap dance");
-    
+
+    assert!(
+        td_names.contains(&"esc_caps"),
+        "Should have esc_caps tap dance"
+    );
+    assert!(
+        td_names.contains(&"shift_ctrl"),
+        "Should have shift_ctrl tap dance"
+    );
+
     // Check that each tap dance has required fields
     for td in tap_dances {
         assert!(td["name"].is_string());

@@ -1,0 +1,129 @@
+# LazyQMK Docker Compose Configuration
+# Supports both development and production profiles
+
+name: lazyqmk
+
+services:
+  # ==========================================================================
+  # Backend - Rust Axum API Server
+  # ==========================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lazyqmk-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - RUST_LOG=info
+      - LAZYQMK_HOST=0.0.0.0
+      - LAZYQMK_PORT=3001
+    volumes:
+      # Mount workspace for layout files (required)
+      - ${LAZYQMK_WORKSPACE:-./examples}:/app/workspace:rw
+      # Mount QMK firmware (required for keyboard geometry)
+      - ${QMK_FIRMWARE_PATH:-./qmk_firmware}:/app/qmk_firmware:ro
+      # Mount LazyQMK config directory (optional, for persisting settings)
+      - ${LAZYQMK_CONFIG_DIR:-lazyqmk-config}:/home/lazyqmk/.config/LazyQMK:rw
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - lazyqmk-network
+
+  # ==========================================================================
+  # Frontend - SvelteKit Web Application
+  # ==========================================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    container_name: lazyqmk-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=production
+      - PORT=5173
+      - HOST=0.0.0.0
+      # Backend API URL for SSR
+      - PUBLIC_API_URL=http://backend:3001
+      - ORIGIN=http://localhost:5173
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - lazyqmk-network
+
+# =============================================================================
+# Development Profile
+# =============================================================================
+# Use with: docker compose --profile dev up
+  backend-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: lazyqmk-backend-dev
+    ports:
+      - "3001:3001"
+    environment:
+      - RUST_LOG=debug
+      - LAZYQMK_HOST=0.0.0.0
+      - LAZYQMK_PORT=3001
+    volumes:
+      # Mount source for live reloading
+      - ./src:/app/src:ro
+      - ./Cargo.toml:/app/Cargo.toml:ro
+      - ./Cargo.lock:/app/Cargo.lock:ro
+      # Mount workspace for layout files
+      - ${LAZYQMK_WORKSPACE:-./examples}:/app/workspace:rw
+      # Mount QMK firmware
+      - ${QMK_FIRMWARE_PATH:-./qmk_firmware}:/app/qmk_firmware:ro
+      # Cargo cache for faster rebuilds
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/app/target
+    networks:
+      - lazyqmk-network
+
+  frontend-dev:
+    profiles: ["dev"]
+    image: node:20-slim
+    container_name: lazyqmk-frontend-dev
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./web:/app:rw
+      - frontend-node-modules:/app/node_modules
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - backend-dev
+    networks:
+      - lazyqmk-network
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  lazyqmk-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  lazyqmk-config:
+    name: lazyqmk-config
+  cargo-cache:
+    name: lazyqmk-cargo-cache
+  target-cache:
+    name: lazyqmk-target-cache
+  frontend-node-modules:
+    name: lazyqmk-frontend-node-modules

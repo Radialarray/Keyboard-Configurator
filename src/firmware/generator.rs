@@ -13,7 +13,6 @@ use crate::models::keyboard_geometry::KeyboardGeometry;
 use crate::models::layout::Layout;
 use crate::models::visual_layout_mapping::VisualLayoutMapping;
 use anyhow::{Context, Result};
-use serde_json::json;
 use std::collections::HashSet;
 use std::fs;
 
@@ -339,54 +338,9 @@ impl<'a> FirmwareGenerator<'a> {
         }
     }
 
-    /// Generates key assignments for a layer ordered by LED index.
-    ///
-    /// Used only for LED-related features. For keymap generation, use
-    /// `generate_layer_keys_by_layout` instead.
-    #[allow(dead_code)]
-    fn generate_layer_keys_by_led(
-        &self,
-        layer: &crate::models::layer::Layer,
-    ) -> Result<Vec<String>> {
-        let led_count = self.mapping.key_count();
-        let mut keys_by_led = vec![String::from("KC_NO"); led_count];
-
-        // Map each key to its LED position
-        for key in &layer.keys {
-            let visual_pos = key.position;
-
-            // Visual d1 Matrix
-            let matrix_pos = self
-                .mapping
-                .visual_to_matrix_pos(visual_pos.row, visual_pos.col)
-                .with_context(|| {
-                    format!(
-                        "Failed to map visual position ({}, {}) to matrix",
-                        visual_pos.row, visual_pos.col
-                    )
-                })?;
-
-            // Matrix d1 LED
-            let led_idx = self
-                .mapping
-                .visual_to_led_index(visual_pos.row, visual_pos.col)
-                .with_context(|| {
-                    format!(
-                        "Failed to map matrix position ({}, {}) to LED index",
-                        matrix_pos.0, matrix_pos.1
-                    )
-                })?;
-
-            // Store keycode at LED position
-            keys_by_led[led_idx as usize].clone_from(&key.keycode);
-        }
-
-        Ok(keys_by_led)
-    }
-
     /// Generates resolved colors for a layer ordered by LED index.
     ///
-    /// Colors use the same visual -> LED mapping as `generate_layer_keys_by_led`
+    /// Colors use the same visual -> LED mapping for LED-based features
     /// and honor the layout's four-level color priority system and the
     /// `inactive_key_behavior` setting.
     ///
@@ -518,77 +472,6 @@ impl<'a> FirmwareGenerator<'a> {
         code.push_str("#endif\n");
 
         Ok(code)
-    }
-
-    /// DEPRECATED: Generates vial.json configuration.
-    ///
-    /// This function is no longer used since migration to standard QMK.
-    /// Kept for reference and potential future use with VIA.
-    #[allow(dead_code)]
-    fn generate_vial_json(&self) -> Result<String> {
-        let vial_config = json!({
-            "name": self.layout.metadata.name,
-            "vendor_product_id": "0xFEED:0x0000", // Default, should be overridden
-            "lighting": "none",
-            "matrix": {
-                "rows": self.geometry.matrix_rows,
-                "cols": self.geometry.matrix_cols
-            },
-            "layouts": {
-                "keymap": self.generate_vial_layout_array()?
-            },
-            "layers": self.layout.layers.len(),
-            "author": self.layout.metadata.author,
-            "description": self.layout.metadata.description,
-            "tags": self.layout.metadata.tags
-        });
-
-        let json_str =
-            serde_json::to_string_pretty(&vial_config).context("Failed to serialize vial.json")?;
-
-        Ok(json_str)
-    }
-
-    /// DEPRECATED: Generates the Vial layout array.
-    ///
-    /// This function is no longer used since migration to standard QMK.
-    /// Kept for reference and potential future use with VIA.
-    #[allow(dead_code)]
-    fn generate_vial_layout_array(&self) -> Result<serde_json::Value> {
-        let mut layout_keys = Vec::new();
-
-        // Get all keys from first layer (geometry is same for all layers)
-        let first_layer = self
-            .layout
-            .layers
-            .first()
-            .context("Layout must have at least one layer")?;
-
-        for key in &first_layer.keys {
-            // Get key geometry via LED mapping
-            let led_idx = self
-                .mapping
-                .visual_to_led_index(key.position.row, key.position.col)
-                .context("Failed to map key to LED index")?;
-
-            let key_geom = self
-                .geometry
-                .get_key_by_led(led_idx)
-                .context("Failed to get key geometry")?;
-
-            // Create Vial key definition
-            // Format: [x, y, width, height, matrix_row, matrix_col]
-            layout_keys.push(json!([
-                key_geom.visual_x,
-                key_geom.visual_y,
-                key_geom.width,
-                key_geom.height,
-                key_geom.matrix_position.0,
-                key_geom.matrix_position.1
-            ]));
-        }
-
-        Ok(json!(layout_keys))
     }
 
     /// Gets the keymap output directory.
@@ -1136,48 +1019,6 @@ mod tests {
         assert!(keymap_c.contains("#ifdef RGB_MATRIX_ENABLE"));
         assert!(keymap_c.contains("const uint8_t PROGMEM layer_base_colors"));
         assert!(keymap_c.contains("#endif"));
-    }
-
-    #[test]
-    fn test_generate_layer_keys_by_led() {
-        let (layout, geometry, mapping, config, keycode_db) = create_test_setup();
-        let generator = FirmwareGenerator::new(&layout, &geometry, &mapping, &config, &keycode_db);
-
-        let layer = &layout.layers[0];
-        let keys_by_led = generator.generate_layer_keys_by_led(layer).unwrap();
-
-        assert_eq!(keys_by_led.len(), 2);
-        assert_eq!(keys_by_led[0], "KC_A");
-        assert_eq!(keys_by_led[1], "KC_B");
-    }
-
-    #[test]
-    fn test_generate_vial_json() {
-        let (layout, geometry, mapping, config, keycode_db) = create_test_setup();
-        let generator = FirmwareGenerator::new(&layout, &geometry, &mapping, &config, &keycode_db);
-
-        let vial_json = generator.generate_vial_json().unwrap();
-
-        // Verify JSON structure
-        assert!(vial_json.contains(r#""name": "Test""#));
-        assert!(vial_json.contains(r#""rows": 2"#));
-        assert!(vial_json.contains(r#""cols": 2"#));
-        assert!(vial_json.contains(r#""layers": 1"#));
-    }
-
-    #[test]
-    fn test_generate_vial_layout_array() {
-        let (layout, geometry, mapping, config, keycode_db) = create_test_setup();
-        let generator = FirmwareGenerator::new(&layout, &geometry, &mapping, &config, &keycode_db);
-
-        let layout_array = generator.generate_vial_layout_array().unwrap();
-        let layout_vec = layout_array.as_array().unwrap();
-
-        assert_eq!(layout_vec.len(), 2);
-        // Verify first key has expected structure [x, y, w, h, row, col]
-        let first_key = &layout_vec[0];
-        assert!(first_key.is_array());
-        assert_eq!(first_key.as_array().unwrap().len(), 6);
     }
 
     #[test]

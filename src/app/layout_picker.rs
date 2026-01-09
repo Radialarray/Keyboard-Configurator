@@ -2,6 +2,8 @@ use anyhow::Result;
 use crossterm::event::{self, Event};
 use std::time::Duration;
 
+use crate::tui::component::Component;
+use crate::tui::layout_picker::{LayoutPicker, LayoutPickerEvent};
 use crate::{config, services, tui};
 
 use super::onboarding;
@@ -10,10 +12,9 @@ use super::onboarding;
 pub fn run_layout_picker_terminal(config: &config::Config) -> Result<()> {
     // Initialize terminal
     let mut terminal = tui::setup_terminal()?;
-    let mut picker_state = tui::layout_picker::LayoutPickerState::new();
 
-    // Scan for saved layouts
-    picker_state.scan_layouts()?;
+    // Create component-based layout picker
+    let mut picker = LayoutPicker::new();
 
     // Run picker loop
     loop {
@@ -21,23 +22,23 @@ pub fn run_layout_picker_terminal(config: &config::Config) -> Result<()> {
         let theme = tui::Theme::detect();
 
         terminal.draw(|f| {
-            tui::layout_picker::render(f, &picker_state, &theme);
+            picker.render(f, f.area(), &theme);
         })?;
 
         // Poll for events with timeout
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
-                if let Some(action) = tui::layout_picker::handle_input(&mut picker_state, key)? {
+                if let Some(event) = picker.handle_input(key) {
                     // Restore terminal before proceeding
                     tui::restore_terminal(terminal)?;
 
-                    match action {
-                        tui::layout_picker::PickerAction::CreateNew => {
+                    match event {
+                        LayoutPickerEvent::CreateNew => {
                             // Run wizard to let user select keyboard, layout, and name
                             onboarding::run_new_layout_wizard_terminal(config)?;
                             return Ok(());
                         }
-                        tui::layout_picker::PickerAction::LoadLayout(path) => {
+                        LayoutPickerEvent::LayoutSelected(path) => {
                             println!("Loading layout: {}", path.display());
                             println!();
 
@@ -88,7 +89,7 @@ pub fn run_layout_picker_terminal(config: &config::Config) -> Result<()> {
                             result?;
                             return Ok(());
                         }
-                        tui::layout_picker::PickerAction::Cancel => {
+                        LayoutPickerEvent::Cancelled => {
                             println!("Layout selection cancelled.");
                             return Ok(());
                         }

@@ -1,7 +1,7 @@
 //! End-to-end tests for `lazyqmk category` commands.
 
-use std::process::Command;
 use serde::{Deserialize, Serialize};
+use std::process::Command;
 
 mod fixtures;
 use fixtures::*;
@@ -107,9 +107,16 @@ fn test_category_list_json_format() {
     let result: serde_json::Value =
         serde_json::from_str(&stdout).expect("Should parse JSON output");
 
-    assert!(result["categories"].is_array(), "Should have categories array");
+    assert!(
+        result["categories"].is_array(),
+        "Should have categories array"
+    );
     assert!(result["count"].is_number(), "Should have count field");
-    assert_eq!(result["count"].as_u64().unwrap(), 2, "Should have 2 categories");
+    assert_eq!(
+        result["count"].as_u64().unwrap(),
+        2,
+        "Should have 2 categories"
+    );
 }
 
 #[test]
@@ -134,7 +141,11 @@ fn test_category_list_json_empty() {
     let result: serde_json::Value =
         serde_json::from_str(&stdout).expect("Should parse JSON output");
 
-    assert_eq!(result["count"].as_u64().unwrap(), 0, "Should have 0 categories");
+    assert_eq!(
+        result["count"].as_u64().unwrap(),
+        0,
+        "Should have 0 categories"
+    );
     assert_eq!(
         result["categories"].as_array().unwrap().len(),
         0,
@@ -200,7 +211,12 @@ fn test_category_add_valid() {
 #[test]
 fn test_category_add_duplicate_id_fails() {
     let mut layout = test_layout_basic(2, 3);
-    let cat = lazyqmk::models::Category::new("test-cat", "Test", lazyqmk::models::RgbColor::new(255, 0, 0)).unwrap();
+    let cat = lazyqmk::models::Category::new(
+        "test-cat",
+        "Test",
+        lazyqmk::models::RgbColor::new(255, 0, 0),
+    )
+    .unwrap();
     layout.categories.push(cat);
     let (layout_path, _temp_dir) = create_temp_layout_file(&layout);
 
@@ -304,7 +320,12 @@ fn test_category_add_short_hex_color() {
         .output()
         .expect("Failed to execute command");
 
-    assert_eq!(output.status.code(), Some(0), "Short hex format should work. stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "Short hex format should work. stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 // ============================================================================
@@ -314,7 +335,12 @@ fn test_category_add_short_hex_color() {
 #[test]
 fn test_category_delete_unused() {
     let mut layout = test_layout_basic(2, 3);
-    let cat = lazyqmk::models::Category::new("test-cat", "Test", lazyqmk::models::RgbColor::new(255, 0, 0)).unwrap();
+    let cat = lazyqmk::models::Category::new(
+        "test-cat",
+        "Test",
+        lazyqmk::models::RgbColor::new(255, 0, 0),
+    )
+    .unwrap();
     layout.categories.push(cat);
     let (layout_path, _temp_dir) = create_temp_layout_file(&layout);
 
@@ -457,12 +483,7 @@ fn test_category_delete_nonexistent_fails() {
 #[test]
 fn test_category_list_nonexistent_file() {
     let output = Command::new(lazyqmk_bin())
-        .args([
-            "category",
-            "list",
-            "--layout",
-            "/nonexistent/layout.md",
-        ])
+        .args(["category", "list", "--layout", "/nonexistent/layout.md"])
         .output()
         .expect("Failed to execute command");
 

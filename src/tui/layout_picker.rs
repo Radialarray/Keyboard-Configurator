@@ -4,7 +4,6 @@
 //! saved layout files from ~/.config/LazyQMK/layouts/
 
 use anyhow::{Context, Result};
-use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout as RatatuiLayout, Rect},
     style::{Modifier, Style},
@@ -299,166 +298,13 @@ fn render_layout_picker_component(
     f.render_widget(paragraph, vertical_chunks[2]);
 }
 
-/// Renders the layout picker dialog (legacy - for backward compatibility during migration).
-pub fn render(f: &mut Frame, state: &LayoutPickerState, theme: &crate::tui::theme::Theme) {
-    let size = f.area();
-
-    // Create centered dialog
-    let vertical_chunks = RatatuiLayout::default()
-        .direction(Direction::Vertical)
-        .margin(2)
-        .constraints([
-            Constraint::Length(3), // Title
-            Constraint::Min(10),   // List
-            Constraint::Length(3), // Instructions
-        ])
-        .split(size);
-
-    // Render title
-    let title = Paragraph::new("Select a Layout")
-        .style(
-            Style::default()
-                .fg(theme.primary)
-                .add_modifier(Modifier::BOLD),
-        )
-        .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL));
-    f.render_widget(title, vertical_chunks[0]);
-
-    // Build list items
-    let mut items: Vec<ListItem> = Vec::new();
-
-    // Add "Create New" option first
-    let create_new_style = if state.create_new {
-        Style::default()
-            .fg(theme.accent)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(theme.success)
-    };
-    items.push(ListItem::new("+ Create New Layout").style(create_new_style));
-
-    // Add saved layouts
-    for (i, layout_info) in state.layouts.iter().enumerate() {
-        let is_selected = !state.create_new && i == state.selected;
-
-        let style = if is_selected {
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default()
-        };
-
-        let modified = layout_info
-            .metadata
-            .modified
-            .format("%Y-%m-%d %H:%M")
-            .to_string();
-
-        let text = format!("{} ({})", layout_info.metadata.name, modified);
-
-        items.push(ListItem::new(text).style(style));
-    }
-
-    let list_title = if state.layouts.is_empty() {
-        "No saved layouts found".to_string()
-    } else {
-        format!("Saved Layouts ({} total)", state.layouts.len())
-    };
-
-    let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(list_title))
-        .highlight_style(
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        );
-
-    f.render_widget(list, vertical_chunks[1]);
-
-    // Render instructions
-    let instructions = "↑↓: Navigate  |  Enter: Select  |  Esc: Cancel";
-    let paragraph = Paragraph::new(instructions)
-        .style(Style::default().fg(theme.text_muted))
-        .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL));
-    f.render_widget(paragraph, vertical_chunks[2]);
-}
-
 /// Events emitted by the LayoutPicker component
 #[derive(Debug, Clone)]
 pub enum LayoutPickerEvent {
     /// User chose to create a new layout
     CreateNew,
     /// User selected an existing layout to load
-    #[allow(dead_code)] // Used but compiler can't detect it through component event pattern
     LayoutSelected(PathBuf),
     /// User cancelled the picker
     Cancelled,
-}
-
-/// Action returned by layout picker when user makes a choice (legacy alias for backward compatibility).
-#[derive(Debug, Clone)]
-pub enum PickerAction {
-    /// User chose to create a new layout
-    CreateNew,
-    /// User selected an existing layout to load
-    LoadLayout(PathBuf),
-    /// User cancelled the picker
-    Cancel,
-}
-
-/// Handles keyboard input for the layout picker.
-///
-/// Returns Some(action) if user made a choice, None otherwise.
-pub fn handle_input(state: &mut LayoutPickerState, key: KeyEvent) -> Result<Option<PickerAction>> {
-    match key.code {
-        KeyCode::Up | KeyCode::Char('k') => {
-            if state.create_new {
-                // Move from "Create New" to last layout
-                if !state.layouts.is_empty() {
-                    state.create_new = false;
-                    state.selected = state.layouts.len() - 1;
-                }
-            } else if state.selected > 0 {
-                state.selected -= 1;
-            } else {
-                // Wrap to "Create New"
-                state.create_new = true;
-            }
-            Ok(None)
-        }
-        KeyCode::Down | KeyCode::Char('j') => {
-            if state.create_new {
-                // Move from "Create New" to first layout
-                if !state.layouts.is_empty() {
-                    state.create_new = false;
-                    state.selected = 0;
-                }
-            } else if state.selected < state.layouts.len() - 1 {
-                state.selected += 1;
-            } else {
-                // Wrap to "Create New"
-                state.create_new = true;
-            }
-            Ok(None)
-        }
-        KeyCode::Enter => {
-            // User made a selection
-            if state.create_new {
-                Ok(Some(PickerAction::CreateNew))
-            } else if let Some(layout_info) = state.layouts.get(state.selected) {
-                Ok(Some(PickerAction::LoadLayout(layout_info.path.clone())))
-            } else {
-                // No layouts available, default to creating new
-                Ok(Some(PickerAction::CreateNew))
-            }
-        }
-        KeyCode::Esc => {
-            // User cancelled
-            Ok(Some(PickerAction::Cancel))
-        }
-        _ => Ok(None),
-    }
 }

@@ -1,0 +1,29 @@
+# LazyQMK Development Dockerfile
+# For local development with cargo-watch
+
+FROM rust:1.83-bookworm
+
+WORKDIR /app
+
+# Install development dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install cargo-watch for hot reloading
+RUN cargo install cargo-watch
+
+# Copy source files
+COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+COPY src ./src
+
+# Build dependencies (for caching)
+RUN cargo build --features web --bin lazyqmk-web
+
+# Expose the API port
+EXPOSE 3001
+
+# Development command with hot reloading
+CMD ["cargo", "watch", "-x", "run --features web --bin lazyqmk-web -- --host 0.0.0.0 --port 3001 --workspace /app/workspace"]

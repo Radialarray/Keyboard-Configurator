@@ -67,7 +67,10 @@ fn test_config_show_json_format() {
     assert!(result["paths"].is_object(), "Should have paths object");
     assert!(result["build"].is_object(), "Should have build object");
     assert!(result["ui"].is_object(), "Should have ui object");
-    assert!(result["ui"]["theme"].is_string(), "Theme should be a string");
+    assert!(
+        result["ui"]["theme"].is_string(),
+        "Theme should be a string"
+    );
 }
 
 #[test]
@@ -84,7 +87,10 @@ fn test_config_show_json_schema() {
     // Validate complete schema
     assert!(result["paths"].is_object());
     assert!(result["build"].is_object());
-    assert!(result["build"]["output_dir"].is_string(), "Should have output_dir");
+    assert!(
+        result["build"]["output_dir"].is_string(),
+        "Should have output_dir"
+    );
     assert!(result["ui"].is_object());
     assert!(result["ui"]["theme"].is_string(), "Should have theme");
 }
@@ -193,12 +199,15 @@ fn test_config_set_output_dir_creates_if_needed() {
     let _lock = CONFIG_TEST_LOCK.lock().unwrap();
     let config_temp = tempfile::TempDir::new().expect("Failed to create config temp dir");
     let config_dir = config_temp.path().to_path_buf();
-    
+
     let output_temp = tempfile::TempDir::new().expect("Failed to create output temp dir");
     let output_dir = output_temp.path().join("new_output_dir");
 
     // Verify it doesn't exist yet
-    assert!(!output_dir.exists(), "Output dir should not exist initially");
+    assert!(
+        !output_dir.exists(),
+        "Output dir should not exist initially"
+    );
 
     let mut cmd = isolated_config_command(
         &[
@@ -239,7 +248,7 @@ fn test_config_set_qmk_path() {
     let _lock = CONFIG_TEST_LOCK.lock().unwrap();
     let config_temp = tempfile::TempDir::new().expect("Failed to create config temp dir");
     let config_dir = config_temp.path().to_path_buf();
-    
+
     let (config, temp_dir) = temp_config_with_qmk(None);
     let qmk_path = config
         .paths
@@ -295,7 +304,7 @@ fn test_config_set_multiple_values() {
     let _lock = CONFIG_TEST_LOCK.lock().unwrap();
     let config_temp = tempfile::TempDir::new().expect("Failed to create config temp dir");
     let config_dir = config_temp.path().to_path_buf();
-    
+
     let output_temp = tempfile::TempDir::new().expect("Failed to create output temp dir");
     let output_dir = output_temp.path().join("output");
 
