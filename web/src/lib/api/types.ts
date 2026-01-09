@@ -264,11 +264,44 @@ export interface ExportResponse {
 	suggested_filename: string;
 }
 
-// Generate response
+// Generate response (initial response from starting a generate job)
 export interface GenerateResponse {
 	status: string;
 	message: string;
-	job_id?: string;
+	job: GenerateJob;
+}
+
+// Generate Job types
+export type GenerateJobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface GenerateJob {
+	id: string;
+	status: GenerateJobStatus;
+	layout_filename: string;
+	keyboard: string;
+	layout_variant: string;
+	created_at: string;
+	started_at?: string;
+	completed_at?: string;
+	error?: string;
+	zip_path?: string;
+	download_url?: string;
+	progress: number;
+}
+
+export interface GenerateJobStatusResponse {
+	job: GenerateJob;
+}
+
+export interface GenerateJobLogsResponse {
+	job_id: string;
+	logs: LogEntry[];
+	has_more: boolean;
+}
+
+export interface CancelGenerateJobResponse {
+	success: boolean;
+	message: string;
 }
 
 // Effects list

@@ -328,4 +328,151 @@ describe('ApiClient', () => {
 			expect(result.success).toBe(false);
 		});
 	});
+
+	// Generate Job Tests
+	describe('listGenerateJobs', () => {
+		it('fetches all generate jobs', async () => {
+			const mockJobs = [
+				{
+					id: 'gen-1',
+					status: 'completed',
+					layout_filename: 'test.md',
+					keyboard: 'crkbd',
+					layout_variant: 'LAYOUT_split_3x6_3',
+					created_at: '2024-01-01T00:00:00Z',
+					progress: 100
+				}
+			];
+			(global.fetch as any).mockResolvedValueOnce({
+				ok: true,
+				json: async () => mockJobs
+			});
+
+			const result = await client.listGenerateJobs();
+			expect(result).toEqual(mockJobs);
+			expect(global.fetch).toHaveBeenCalledWith(
+				'http://localhost:3000/api/generate/jobs',
+				expect.any(Object)
+			);
+		});
+	});
+
+	describe('getGenerateJob', () => {
+		it('fetches a specific generate job', async () => {
+			const mockResponse = {
+				job: {
+					id: 'gen-123',
+					status: 'running',
+					layout_filename: 'test.md',
+					keyboard: 'crkbd',
+					layout_variant: 'LAYOUT_split_3x6_3',
+					created_at: '2024-01-01T00:00:00Z',
+					progress: 50
+				}
+			};
+			(global.fetch as any).mockResolvedValueOnce({
+				ok: true,
+				json: async () => mockResponse
+			});
+
+			const result = await client.getGenerateJob('gen-123');
+			expect(result).toEqual(mockResponse);
+			expect(global.fetch).toHaveBeenCalledWith(
+				'http://localhost:3000/api/generate/jobs/gen-123',
+				expect.any(Object)
+			);
+		});
+
+		it('encodes job ID in URL', async () => {
+			(global.fetch as any).mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ job: {} })
+			});
+
+			await client.getGenerateJob('job with spaces');
+			expect(global.fetch).toHaveBeenCalledWith(
+				'http://localhost:3000/api/generate/jobs/job%20with%20spaces',
+				expect.any(Object)
+			);
+		});
+	});
+
+	describe('getGenerateLogs', () => {
+		it('fetches generate logs with default pagination', async () => {
+			const mockResponse = {
+				job_id: 'gen-123',
+				logs: [
+					{ timestamp: '2024-01-01T00:00:00Z', level: 'INFO', message: 'Generation started' }
+				],
+				has_more: false
+			};
+			(global.fetch as any).mockResolvedValueOnce({
+				ok: true,
+				json: async () => mockResponse
+			});
+
+			const result = await client.getGenerateLogs('gen-123');
+			expect(result).toEqual(mockResponse);
+			expect(global.fetch).toHaveBeenCalledWith(
+				'http://localhost:3000/api/generate/jobs/gen-123/logs?offset=0&limit=100',
+				expect.any(Object)
+			);
+		});
+
+		it('fetches generate logs with custom pagination', async () => {
+			const mockResponse = { job_id: 'gen-123', logs: [], has_more: true };
+			(global.fetch as any).mockResolvedValueOnce({
+				ok: true,
+				json: async () => mockResponse
+			});
+
+			await client.getGenerateLogs('gen-123', 50, 25);
+			expect(global.fetch).toHaveBeenCalledWith(
+				'http://localhost:3000/api/generate/jobs/gen-123/logs?offset=50&limit=25',
+				expect.any(Object)
+			);
+		});
+	});
+
+	describe('cancelGenerate', () => {
+		it('cancels a generate job', async () => {
+			const mockResponse = { success: true, message: 'Generation cancelled' };
+			(global.fetch as any).mockResolvedValueOnce({
+				ok: true,
+				json: async () => mockResponse
+			});
+
+			const result = await client.cancelGenerate('gen-123');
+			expect(result).toEqual(mockResponse);
+			expect(global.fetch).toHaveBeenCalledWith(
+				'http://localhost:3000/api/generate/jobs/gen-123/cancel',
+				expect.objectContaining({
+					method: 'POST'
+				})
+			);
+		});
+
+		it('handles cancellation failure', async () => {
+			const mockResponse = { success: false, message: 'Cannot cancel completed job' };
+			(global.fetch as any).mockResolvedValueOnce({
+				ok: true,
+				json: async () => mockResponse
+			});
+
+			const result = await client.cancelGenerate('gen-123');
+			expect(result.success).toBe(false);
+		});
+	});
+
+	describe('getGenerateDownloadUrl', () => {
+		it('returns the correct download URL', () => {
+			const url = client.getGenerateDownloadUrl('gen-123');
+			expect(url).toBe('http://localhost:3000/api/generate/jobs/gen-123/download');
+		});
+
+		it('encodes job ID in URL', () => {
+			const url = client.getGenerateDownloadUrl('job with spaces');
+			expect(url).toBe('http://localhost:3000/api/generate/jobs/job%20with%20spaces/download');
+		});
+	});
 });

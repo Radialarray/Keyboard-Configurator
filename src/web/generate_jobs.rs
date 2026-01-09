@@ -170,6 +170,17 @@ pub struct CancelGenerateJobResponse {
     pub message: String,
 }
 
+/// Health information for the generate job system.
+#[derive(Debug, Clone, Serialize)]
+pub struct GenerateJobHealth {
+    /// Whether the background worker thread is running.
+    pub worker_running: bool,
+    /// Number of currently running jobs.
+    pub running_count: usize,
+    /// Maximum number of concurrent jobs allowed.
+    pub max_concurrent_jobs: usize,
+}
+
 /// Generate command to be executed by worker thread.
 pub(crate) struct GenerateCommand {
     job_id: String,
@@ -550,17 +561,28 @@ impl GenerateJobManager {
 
         let manager = Arc::clone(self);
 
+        eprintln!("[INFO] Generate worker thread starting");
+
         thread::spawn(move || {
+            eprintln!("[INFO] Generate worker thread started, waiting for jobs");
             for cmd in rx {
+                eprintln!("[INFO] Worker received job {} for processing", cmd.job_id);
                 manager.process_generate(cmd);
             }
+            eprintln!("[INFO] Generate worker thread stopped (channel closed)");
         });
     }
 
     /// Processes a generate command.
     fn process_generate(self: &Arc<Self>, cmd: GenerateCommand) {
+        eprintln!(
+            "[INFO] Processing job {}: transition Pending → Running",
+            cmd.job_id
+        );
+
         // Check if cancelled before starting
         if self.is_cancelled(&cmd.job_id) {
+            eprintln!("[INFO] Job {} was cancelled before processing", cmd.job_id);
             self.update_job_status(&cmd.job_id, GenerateJobStatus::Cancelled, None, None);
             return;
         }
@@ -605,6 +627,10 @@ impl GenerateJobManager {
 
         // Check if cancelled after generation
         if self.is_cancelled(&cmd.job_id) {
+            eprintln!(
+                "[INFO] Job {} completed but was cancelled, marking as Cancelled",
+                cmd.job_id
+            );
             self.update_job_status(&cmd.job_id, GenerateJobStatus::Cancelled, None, None);
             return;
         }
@@ -612,6 +638,10 @@ impl GenerateJobManager {
         // Update job with result
         match result {
             Ok(zip_path) => {
+                eprintln!(
+                    "[INFO] Job {} completed successfully: transition Running → Completed",
+                    cmd.job_id
+                );
                 self.update_job_status(
                     &cmd.job_id,
                     GenerateJobStatus::Completed,
@@ -620,6 +650,10 @@ impl GenerateJobManager {
                 );
             }
             Err(error) => {
+                eprintln!(
+                    "[WARN] Job {} failed: transition Running → Failed ({})",
+                    cmd.job_id, error
+                );
                 self.update_job_status(&cmd.job_id, GenerateJobStatus::Failed, Some(error), None);
             }
         }
@@ -707,25 +741,72 @@ impl GenerateJobManager {
 
         // Send command to worker
         let cmd = GenerateCommand {
-            job_id,
+            job_id: job_id.clone(),
             layout_filename,
             layout_path,
             workspace_root: self.workspace_root.clone(),
             qmk_path,
-            log_path,
+            log_path: log_path.clone(),
             output_dir: job_output_dir,
         };
 
-        {
+        // Check if worker is running and send command
+        let send_result = {
             let tx = self.command_tx.lock().unwrap();
-            if let Some(sender) = tx.as_ref() {
-                sender
+            match tx.as_ref() {
+                None => {
+                    eprintln!(
+                        "[ERROR] Generate worker not running for job {}, cannot enqueue",
+                        job_id
+                    );
+                    Err("Generate worker not running".to_string())
+                }
+                Some(sender) => sender
                     .send(cmd)
-                    .map_err(|e| format!("Failed to queue generation: {e}"))?;
+                    .map_err(|e| format!("Failed to queue generation: {e}")),
             }
+        };
+
+        // Handle send failure - rollback state and write error log
+        if let Err(error_msg) = send_result {
+            // Rollback running count
+            {
+                let mut count = self.running_count.lock().unwrap();
+                *count = count.saturating_sub(1);
+            }
+
+            // Write error to log file
+            self.write_error_log(&log_path, &error_msg);
+
+            // Mark job as failed
+            self.update_job_status(
+                &job_id,
+                GenerateJobStatus::Failed,
+                Some(error_msg.clone()),
+                None,
+            );
+
+            eprintln!("[WARN] Job {} failed to enqueue: {}", job_id, error_msg);
+            return Err(error_msg);
         }
 
+        eprintln!(
+            "[INFO] Job {} queued successfully for layout {}",
+            job_id, job.layout_filename
+        );
         Ok(job)
+    }
+
+    /// Writes an error message to the job log file.
+    fn write_error_log(&self, log_path: &std::path::Path, error: &str) {
+        use std::io::Write;
+        let timestamp = chrono::Utc::now().to_rfc3339();
+        let log_entry = format!("[ERROR] {timestamp} {error}\n");
+        let _ = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_path)
+            .and_then(|mut file| file.write_all(log_entry.as_bytes()));
     }
 
     /// Gets the status of a job.
@@ -842,6 +923,20 @@ impl GenerateJobManager {
                 success: false,
                 message: "Job not found".to_string(),
             },
+        }
+    }
+
+    /// Gets the health status of the generate job system.
+    ///
+    /// Returns information about whether the worker is running and current capacity.
+    pub fn health(&self) -> GenerateJobHealth {
+        let worker_running = self.command_tx.lock().unwrap().is_some();
+        let running_count = *self.running_count.lock().unwrap();
+
+        GenerateJobHealth {
+            worker_running,
+            running_count,
+            max_concurrent_jobs: MAX_CONCURRENT_JOBS,
         }
     }
 
@@ -1142,5 +1237,174 @@ mod tests {
         let result = add_file_to_zip(&mut zip, "/etc/passwd", b"content", options);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Invalid filename"));
+    }
+
+    #[test]
+    fn test_worker_not_running_returns_error() {
+        let temp_dir = std::env::temp_dir().join(format!("lazyqmk_gen_test_{}", Uuid::new_v4()));
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        // Create a dummy layout file
+        let layout_path = temp_dir.join("test.md");
+        fs::write(&layout_path, "---\nname: Test\n---\n").unwrap();
+
+        let keycode_db = Arc::new(KeycodeDb::load().unwrap());
+        let mock_worker = Arc::new(MockGenerateWorker::default());
+
+        // Create manager but don't start the worker thread
+        let manager = Arc::new(GenerateJobManager {
+            jobs: RwLock::new(HashMap::new()),
+            cancelled: RwLock::new(std::collections::HashSet::new()),
+            running_count: Mutex::new(0),
+            command_tx: Mutex::new(None), // No worker!
+            logs_dir: temp_dir.join("logs"),
+            output_dir: temp_dir.join("output"),
+            workspace_root: temp_dir.clone(),
+            qmk_path: Some(PathBuf::from("/tmp/qmk")),
+            worker: mock_worker,
+            keycode_db,
+        });
+
+        // Ensure directories exist
+        let _ = fs::create_dir_all(&manager.logs_dir);
+        let _ = fs::create_dir_all(&manager.output_dir);
+
+        let result = manager.start_generate(
+            "test.md".to_string(),
+            "crkbd".to_string(),
+            "LAYOUT_split_3x6_3".to_string(),
+        );
+
+        // Should return error
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(
+            error.contains("worker not running"),
+            "Expected 'worker not running' in error, got: {}",
+            error
+        );
+
+        // Running count should be unaffected (not incremented)
+        let count = *manager.running_count.lock().unwrap();
+        assert_eq!(count, 0, "Running count should remain 0 after failure");
+
+        // Job should exist but be marked as failed
+        let jobs = manager.jobs.read().unwrap();
+        assert_eq!(jobs.len(), 1, "Job should be created even if enqueue fails");
+        let job = jobs.values().next().unwrap();
+        assert_eq!(
+            job.status,
+            GenerateJobStatus::Failed,
+            "Job should be marked as Failed"
+        );
+        assert!(job.error.is_some(), "Job should have an error message");
+
+        // Log file should exist with error entry
+        let log_path = manager.logs_dir.join(format!("{}.log", job.id));
+        assert!(log_path.exists(), "Log file should be created");
+        let log_content = fs::read_to_string(&log_path).unwrap();
+        assert!(
+            log_content.contains("[ERROR]"),
+            "Log should contain error entry"
+        );
+        assert!(
+            log_content.contains("worker not running"),
+            "Log should explain the failure"
+        );
+    }
+
+    #[test]
+    fn test_send_failure_rolls_back_state() {
+        let temp_dir = std::env::temp_dir().join(format!("lazyqmk_gen_test_{}", Uuid::new_v4()));
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        // Create a dummy layout file
+        let layout_path = temp_dir.join("test.md");
+        fs::write(&layout_path, "---\nname: Test\n---\n").unwrap();
+
+        let keycode_db = Arc::new(KeycodeDb::load().unwrap());
+        let mock_worker = Arc::new(MockGenerateWorker::default());
+
+        // Create a channel and immediately drop the receiver to simulate send failure
+        let (tx, rx) = mpsc::channel::<GenerateCommand>();
+        drop(rx); // This will cause send to fail
+
+        let manager = Arc::new(GenerateJobManager {
+            jobs: RwLock::new(HashMap::new()),
+            cancelled: RwLock::new(std::collections::HashSet::new()),
+            running_count: Mutex::new(0),
+            command_tx: Mutex::new(Some(tx)),
+            logs_dir: temp_dir.join("logs"),
+            output_dir: temp_dir.join("output"),
+            workspace_root: temp_dir.clone(),
+            qmk_path: Some(PathBuf::from("/tmp/qmk")),
+            worker: mock_worker,
+            keycode_db,
+        });
+
+        // Ensure directories exist
+        let _ = fs::create_dir_all(&manager.logs_dir);
+        let _ = fs::create_dir_all(&manager.output_dir);
+
+        let result = manager.start_generate(
+            "test.md".to_string(),
+            "crkbd".to_string(),
+            "LAYOUT_split_3x6_3".to_string(),
+        );
+
+        // Should return error
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(
+            error.contains("Failed to queue"),
+            "Expected 'Failed to queue' in error, got: {}",
+            error
+        );
+
+        // Running count should be rolled back to 0
+        let count = *manager.running_count.lock().unwrap();
+        assert_eq!(count, 0, "Running count should be rolled back to 0");
+
+        // Job should exist and be marked as failed
+        let jobs = manager.jobs.read().unwrap();
+        assert_eq!(jobs.len(), 1, "Job should exist");
+        let job = jobs.values().next().unwrap();
+        assert_eq!(
+            job.status,
+            GenerateJobStatus::Failed,
+            "Job should be marked as Failed"
+        );
+        assert!(job.error.is_some(), "Job should have error message");
+
+        // Log file should contain error
+        let log_path = manager.logs_dir.join(format!("{}.log", job.id));
+        assert!(log_path.exists(), "Log file should be created");
+        let log_content = fs::read_to_string(&log_path).unwrap();
+        assert!(
+            log_content.contains("[ERROR]"),
+            "Log should contain error entry"
+        );
+    }
+
+    #[test]
+    fn test_health_accessor() {
+        let temp_dir = std::env::temp_dir().join(format!("lazyqmk_gen_test_{}", Uuid::new_v4()));
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let manager = create_test_manager(&temp_dir);
+
+        let health = manager.health();
+        assert!(
+            health.worker_running,
+            "Worker should be running after initialization"
+        );
+        assert_eq!(
+            health.running_count, 0,
+            "No jobs should be running initially"
+        );
+        assert_eq!(
+            health.max_concurrent_jobs, MAX_CONCURRENT_JOBS,
+            "Max concurrent jobs should match constant"
+        );
     }
 }

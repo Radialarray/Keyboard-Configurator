@@ -21,6 +21,8 @@
 		InspectResponse,
 		ExportResponse,
 		GenerateResponse,
+		GenerateJob,
+		LogEntry,
 		Category,
 		RgbColor,
 		LayoutVariantInfo,
@@ -34,6 +36,7 @@
 		shouldHandleEscape,
 		shouldOpenPicker
 	} from '$lib/utils/keyboardNavigation';
+	import { onDestroy } from 'svelte';
 
 	let { data }: { data: PageData } = $props();
 	// Initialize layout as mutable state without referencing props
@@ -122,6 +125,103 @@
 	let exportLoading = $state(false);
 	let generateResult = $state<GenerateResponse | null>(null);
 	let generateLoading = $state(false);
+
+	// Generate job polling state
+	let generateJob = $state<GenerateJob | null>(null);
+	let generateLogs = $state<LogEntry[]>([]);
+	let generatePollingActive = $state(false);
+	let generateTimeoutReached = $state(false);
+	let generateCancelling = $state(false);
+	let pollIntervalId = $state<ReturnType<typeof setInterval> | null>(null);
+	let pollTimeoutId = $state<ReturnType<typeof setTimeout> | null>(null);
+	const POLL_INTERVAL_MS = 1000; // Poll every 1 second
+	const GENERATE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minute timeout
+
+	// Cleanup polling on component destroy
+	onDestroy(() => {
+		stopPolling();
+	});
+
+	function stopPolling() {
+		if (pollIntervalId) {
+			clearInterval(pollIntervalId);
+			pollIntervalId = null;
+		}
+		if (pollTimeoutId) {
+			clearTimeout(pollTimeoutId);
+			pollTimeoutId = null;
+		}
+		generatePollingActive = false;
+	}
+
+	function resetGenerateState() {
+		stopPolling();
+		generateResult = null;
+		generateJob = null;
+		generateLogs = [];
+		generateTimeoutReached = false;
+		generateCancelling = false;
+		generateLoading = false;
+	}
+
+	async function pollJobStatus(jobId: string) {
+		try {
+			const response = await apiClient.getGenerateJob(jobId);
+			generateJob = response.job;
+
+			// Fetch logs (append new ones)
+			const logsResponse = await apiClient.getGenerateLogs(jobId, generateLogs.length);
+			if (logsResponse.logs.length > 0) {
+				generateLogs = [...generateLogs, ...logsResponse.logs];
+			}
+
+			// Check if job is complete
+			const terminalStates: GenerateJob['status'][] = ['completed', 'failed', 'cancelled'];
+			if (terminalStates.includes(response.job.status)) {
+				stopPolling();
+				generateLoading = false;
+			}
+		} catch (e) {
+			console.error('Error polling generate job:', e);
+			// Don't stop polling on transient errors
+		}
+	}
+
+	function startPolling(jobId: string) {
+		stopPolling(); // Clear any existing polling
+		generatePollingActive = true;
+		generateTimeoutReached = false;
+
+		// Start polling interval
+		pollIntervalId = setInterval(() => {
+			pollJobStatus(jobId);
+		}, POLL_INTERVAL_MS);
+
+		// Set timeout
+		pollTimeoutId = setTimeout(() => {
+			generateTimeoutReached = true;
+			stopPolling();
+		}, GENERATE_TIMEOUT_MS);
+
+		// Initial poll immediately
+		pollJobStatus(jobId);
+	}
+
+	async function cancelGenerateJob() {
+		if (!generateJob) return;
+		generateCancelling = true;
+		try {
+			const result = await apiClient.cancelGenerate(generateJob.id);
+			if (result.success) {
+				// Will be picked up by next poll, or manually refresh
+				await pollJobStatus(generateJob.id);
+			}
+		} catch (e) {
+			console.error('Error cancelling generate job:', e);
+		} finally {
+			generateCancelling = false;
+		}
+	}
 
 	// State for save as template
 	let showSaveTemplateDialog = $state(false);
@@ -752,16 +852,25 @@
 	// Generate
 	async function runGenerate() {
 		if (!filename) return;
+		
+		// Reset state for fresh generation
+		resetGenerateState();
 		generateLoading = true;
+		
 		try {
 			generateResult = await apiClient.generateFirmware(filename);
+			// The response now includes the job object
+			if (generateResult.job) {
+				generateJob = generateResult.job;
+				// Start polling for status updates
+				startPolling(generateResult.job.id);
+			}
 		} catch (e) {
 			generateResult = {
 				status: 'error',
 				message: e instanceof Error ? e.message : 'Generation failed',
-				job_id: undefined
+				job: null as unknown as GenerateJob // Type workaround for error case
 			};
-		} finally {
 			generateLoading = false;
 		}
 	}
@@ -1819,26 +1928,139 @@
 			<Card class="p-6">
 				<div class="flex items-center justify-between mb-4">
 					<h2 class="text-lg font-semibold">Generate Firmware</h2>
-					<Button onclick={runGenerate} disabled={generateLoading}>
-						{generateLoading ? 'Generating...' : 'Generate Firmware'}
-					</Button>
+					<div class="flex gap-2">
+						{#if generateJob && (generateJob.status === 'pending' || generateJob.status === 'running')}
+							<Button 
+								onclick={cancelGenerateJob} 
+								disabled={generateCancelling}
+								variant="destructive"
+								data-testid="cancel-generate-button"
+							>
+								{generateCancelling ? 'Cancelling...' : 'Cancel'}
+							</Button>
+						{/if}
+						<Button 
+							onclick={runGenerate} 
+							disabled={generateLoading || generatePollingActive}
+							data-testid="generate-button"
+						>
+							{generateLoading || generatePollingActive ? 'Generating...' : 'Generate Firmware'}
+						</Button>
+					</div>
 				</div>
 
-				{#if generateResult}
-					<div
-						class="p-4 rounded-lg {generateResult.status === 'not_implemented'
-							? 'bg-yellow-500/10 border border-yellow-500/30'
-							: generateResult.status === 'error'
-								? 'bg-red-500/10 border border-red-500/30'
-								: 'bg-green-500/10 border border-green-500/30'}"
-					>
-						<p class="font-medium mb-2 capitalize">{generateResult.status.replace('_', ' ')}</p>
-						<p class="text-sm text-muted-foreground">{generateResult.message}</p>
+				<!-- Timeout Warning -->
+				{#if generateTimeoutReached}
+					<div class="mb-4 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30" data-testid="generate-timeout-warning">
+						<p class="font-medium text-yellow-700 dark:text-yellow-300">Generation Timeout</p>
+						<p class="text-sm text-muted-foreground">
+							The generation process has exceeded the 5 minute timeout. The job may still be running in the background.
+							Check back later or try generating again.
+						</p>
 					</div>
-				{:else}
+				{/if}
+
+				<!-- Job Status -->
+				{#if generateJob}
+					<div class="mb-4">
+						<!-- Status Badge -->
+						<div class="flex items-center gap-3 mb-3">
+							<span class="text-sm font-medium text-muted-foreground">Status:</span>
+							{#if generateJob.status === 'pending'}
+								<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" data-testid="status-pending">
+									⏳ Pending
+								</span>
+							{:else if generateJob.status === 'running'}
+								<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" data-testid="status-running">
+									🔄 Running
+								</span>
+							{:else if generateJob.status === 'completed'}
+								<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" data-testid="status-completed">
+									✅ Completed
+								</span>
+							{:else if generateJob.status === 'failed'}
+								<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" data-testid="status-failed">
+									❌ Failed
+								</span>
+							{:else if generateJob.status === 'cancelled'}
+								<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200" data-testid="status-cancelled">
+									🚫 Cancelled
+								</span>
+							{/if}
+						</div>
+
+						<!-- Progress Bar -->
+						{#if generateJob.status === 'running' || generateJob.status === 'pending'}
+							<div class="mb-3">
+								<div class="flex justify-between text-xs text-muted-foreground mb-1">
+									<span>Progress</span>
+									<span>{generateJob.progress}%</span>
+								</div>
+								<div class="w-full bg-muted rounded-full h-2">
+									<div 
+										class="bg-primary h-2 rounded-full transition-all duration-300" 
+										style="width: {generateJob.progress}%"
+										data-testid="progress-bar"
+									></div>
+								</div>
+							</div>
+						{/if}
+
+						<!-- Error Message -->
+						{#if generateJob.status === 'failed' && generateJob.error}
+							<div class="mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30" data-testid="generate-error">
+								<p class="text-sm font-medium text-red-700 dark:text-red-300">Error:</p>
+								<p class="text-sm text-red-600 dark:text-red-400">{generateJob.error}</p>
+							</div>
+						{/if}
+
+						<!-- Download Button -->
+						{#if generateJob.status === 'completed' && generateJob.download_url}
+							<div class="mb-4 p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+								<div class="flex items-center justify-between">
+									<div>
+										<p class="font-medium text-green-700 dark:text-green-300">Generation Complete!</p>
+										<p class="text-sm text-muted-foreground">Your firmware files are ready to download.</p>
+									</div>
+									<a 
+										href={apiClient.getGenerateDownloadUrl(generateJob.id)}
+										download
+										class="inline-flex items-center px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors"
+										data-testid="download-button"
+									>
+										📦 Download ZIP
+									</a>
+								</div>
+							</div>
+						{/if}
+
+						<!-- Logs Section -->
+						{#if generateLogs.length > 0}
+							<div class="mt-4">
+								<h3 class="text-sm font-medium mb-2">Generation Logs</h3>
+								<div 
+									class="bg-muted/50 rounded-lg p-3 max-h-64 overflow-y-auto font-mono text-xs"
+									data-testid="generate-logs"
+								>
+									{#each generateLogs as log}
+										<div class="flex gap-2 py-0.5 {log.level === 'ERROR' ? 'text-red-500' : log.level === 'WARN' ? 'text-yellow-500' : 'text-muted-foreground'}">
+											<span class="text-muted-foreground/60 shrink-0">
+												{new Date(log.timestamp).toLocaleTimeString()}
+											</span>
+											<span class="font-semibold shrink-0 w-12">[{log.level}]</span>
+											<span class="break-all">{log.message}</span>
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
+					</div>
+				{:else if !generateResult}
+					<!-- Initial state - no job yet -->
 					<div class="space-y-4">
 						<p class="text-muted-foreground text-sm">
-							Generate QMK firmware files for this layout.
+							Generate QMK firmware files for this layout. This will create a zip file containing
+							keymap.c, config.h, and other required files.
 						</p>
 						<div class="bg-muted/30 p-4 rounded-lg">
 							<p class="text-sm font-medium mb-2">CLI Alternative:</p>

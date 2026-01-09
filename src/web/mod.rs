@@ -32,6 +32,7 @@
 //! - `GET /api/generate/jobs/{job_id}/logs` - Get generate job logs
 //! - `POST /api/generate/jobs/{job_id}/cancel` - Cancel a generate job
 //! - `GET /api/generate/jobs/{job_id}/download` - Download generated zip file
+//! - `GET /api/generate/health` - Get generate job system health status
 
 pub mod build_jobs;
 pub mod generate_jobs;
@@ -1954,6 +1955,13 @@ async fn download_generate_zip(
     Ok(response)
 }
 
+/// GET /api/generate/health - Get generate job system health.
+async fn get_generate_health(
+    State(state): State<AppState>,
+) -> Json<generate_jobs::GenerateJobHealth> {
+    Json(state.generate_manager.health())
+}
+
 /// GET /api/effects - List available RGB matrix effects.
 async fn list_effects() -> Json<EffectsListResponse> {
     let effects = RgbMatrixEffect::all()
@@ -3017,6 +3025,7 @@ pub fn create_router(state: AppState) -> Router {
             "/api/generate/jobs/{job_id}/download",
             get(download_generate_zip),
         )
+        .route("/api/generate/health", get(get_generate_health))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)

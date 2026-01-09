@@ -13,6 +13,10 @@ import type {
 	InspectResponse,
 	ExportResponse,
 	GenerateResponse,
+	GenerateJob,
+	GenerateJobStatusResponse,
+	GenerateJobLogsResponse,
+	CancelGenerateJobResponse,
 	EffectsListResponse,
 	TemplateListResponse,
 	TemplateInfo,
@@ -250,6 +254,37 @@ export class ApiClient {
 		return this.request<CancelJobResponse>(`/api/build/jobs/${encodeURIComponent(jobId)}/cancel`, {
 			method: 'POST'
 		});
+	}
+
+	// Generate Job Operations
+	async listGenerateJobs(): Promise<GenerateJob[]> {
+		return this.request<GenerateJob[]>('/api/generate/jobs');
+	}
+
+	async getGenerateJob(jobId: string): Promise<GenerateJobStatusResponse> {
+		return this.request<GenerateJobStatusResponse>(`/api/generate/jobs/${encodeURIComponent(jobId)}`);
+	}
+
+	async getGenerateLogs(jobId: string, offset: number = 0, limit: number = 100): Promise<GenerateJobLogsResponse> {
+		const params = new URLSearchParams();
+		params.set('offset', offset.toString());
+		params.set('limit', limit.toString());
+		return this.request<GenerateJobLogsResponse>(`/api/generate/jobs/${encodeURIComponent(jobId)}/logs?${params.toString()}`);
+	}
+
+	async cancelGenerate(jobId: string): Promise<CancelGenerateJobResponse> {
+		return this.request<CancelGenerateJobResponse>(`/api/generate/jobs/${encodeURIComponent(jobId)}/cancel`, {
+			method: 'POST'
+		});
+	}
+
+	/**
+	 * Returns the download URL for a completed generate job's zip file.
+	 * @param jobId The generate job ID
+	 * @returns Full URL to download the generated zip file
+	 */
+	getGenerateDownloadUrl(jobId: string): string {
+		return `${this.baseUrl}/api/generate/jobs/${encodeURIComponent(jobId)}/download`;
 	}
 }
 
