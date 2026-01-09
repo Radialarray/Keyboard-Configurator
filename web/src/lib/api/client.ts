@@ -264,11 +264,11 @@ export class ApiClient {
 	/**
 	 * Returns the download URL for a specific build artifact.
 	 * @param jobId The build job ID
-	 * @param filename The artifact filename
+	 * @param artifactId The artifact ID (e.g., "uf2", "hex", "bin")
 	 * @returns Full URL to download the artifact
 	 */
-	getBuildArtifactDownloadUrl(jobId: string, filename: string): string {
-		return `${this.baseUrl}/api/build/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(filename)}`;
+	getBuildArtifactDownloadUrl(jobId: string, artifactId: string): string {
+		return `${this.baseUrl}/api/build/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(artifactId)}/download`;
 	}
 
 	// Generate Job Operations
