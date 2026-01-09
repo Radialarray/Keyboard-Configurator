@@ -62,9 +62,9 @@ impl Theme {
     #[must_use]
     pub fn detect() -> Self {
         match dark_light::detect() {
-            Ok(dark_light::Mode::Light) => Self::light(),
-            // Fall back to dark theme for dark mode, unspecified, or errors
-            Ok(dark_light::Mode::Dark | dark_light::Mode::Unspecified) | Err(_) => Self::dark(),
+            dark_light::Mode::Light => Self::light(),
+            // Fall back to dark theme for dark mode or default
+            dark_light::Mode::Dark | dark_light::Mode::Default => Self::dark(),
         }
     }
 
