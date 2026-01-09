@@ -80,7 +80,7 @@ For production deployment without a separate frontend server, the `lazyqmk-web` 
 ```bash
 cd web
 npm install
-npm run build
+RUST_EMBED=true npm run build  # Uses adapter-static for proper static site generation
 ```
 
 **Step 2: Build the Rust binary with embedded frontend**

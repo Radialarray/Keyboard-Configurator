@@ -20,10 +20,12 @@ The `lazyqmk-web` binary can be compiled with the frontend assets embedded using
 ```bash
 cd web
 npm install           # or: pnpm install
-npm run build         # Creates web/build/ directory
+RUST_EMBED=true npm run build  # Uses adapter-static for proper static site generation
 ```
 
 This creates the production build in `web/build/` with minified HTML, CSS, and JavaScript.
+
+**Note**: The `RUST_EMBED=true` environment variable tells SvelteKit to use `@sveltejs/adapter-static` instead of `@sveltejs/adapter-auto`, ensuring proper static site generation without warnings.
 
 **2. Build the Rust binary with embedded frontend**
 
