@@ -12,7 +12,7 @@
 
 **Choose Your Workflow:**
 - **`lazyqmk`** - Terminal UI (TUI) for keyboard enthusiasts who live in the terminal
-- **`lazyqmk-web`** - Web-based editor for a modern browser experience
+- **`lazyqmk web`** - Web-based editor for a modern browser experience
 
 Both interfaces provide full feature parity: visual keyboard preview, layer management, firmware generation, and compilation.
 
@@ -50,7 +50,7 @@ brew install lazyqmk
 ### Pre-built Binary + Custom QMK Fork
 
 > [!TIP]
-> Each release includes both `lazyqmk` (terminal UI) and `lazyqmk-web` (web server) binaries for all platforms.
+> Starting with v0.13.0, `lazyqmk` includes both TUI and web interfaces in a single binary. Use `lazyqmk` for TUI or `lazyqmk web` to start the web server.
 
 **Step 1: Download and install LazyQMK for your platform**
 
@@ -137,20 +137,14 @@ That's it! You're ready to start editing your layout.
 ### Quick Start - Web Interface
 
 ```bash
-# Download the web binary from releases
-# Linux example:
-wget https://github.com/Radialarray/LazyQMK/releases/latest/download/lazyqmk-web-linux-x86_64.tar.gz
-tar -xzf lazyqmk-web-linux-x86_64.tar.gz
-chmod +x lazyqmk-web
-sudo mv lazyqmk-web /usr/local/bin/
-
-# Start the web server
-lazyqmk-web
+# Install LazyQMK (see Installation section above)
+# Then start the web server:
+lazyqmk web
 
 # Open your browser to http://localhost:3001
 ```
 
-The `lazyqmk-web` binary is a standalone server that provides:
+The `lazyqmk web` subcommand provides:
 - **REST API** - Backend for layout management and firmware operations
 - **Web UI** - Modern browser-based editor (embedded, no separate installation needed)
 - **Single Binary** - Frontend is embedded at compile time for easy deployment
@@ -172,21 +166,18 @@ The `lazyqmk-web` binary is a standalone server that provides:
 
 ```bash
 # Custom port
-lazyqmk-web --port 8080
+lazyqmk web --port 8080
 
-# Custom workspace directory
-lazyqmk-web --workspace ~/my-keyboard-layouts
+# Custom host (bind to all network interfaces for LAN/remote access)
+lazyqmk web --host 0.0.0.0
 
-# Bind to all network interfaces (for LAN/remote access)
-lazyqmk-web --host 0.0.0.0
-
-# Custom QMK firmware path
-lazyqmk-web --qmk-path ~/custom-qmk-firmware
+# Combine options
+lazyqmk web --host 0.0.0.0 --port 8080
 ```
 
 ### When to Use Web vs TUI
 
-**Use the Web Editor (`lazyqmk-web`) when:**
+**Use the Web Editor (`lazyqmk web`) when:**
 - You prefer a graphical interface with mouse interaction
 - You want to share access with others on your network
 - You're working on a device without terminal access
@@ -198,7 +189,7 @@ lazyqmk-web --qmk-path ~/custom-qmk-firmware
 - You're editing layouts over SSH
 - You prefer tools like `lazygit` and `neovim`
 
-Both interfaces share the same layout file format and can be used interchangeably!
+Both interfaces use the same binary and share the same configuration!
 
 ### Deployment
 
@@ -474,39 +465,34 @@ After building, follow the QMK fork setup and configuration steps from the Insta
 
 LazyQMK includes an optional web-based UI for editing layouts in your browser.
 
-**Quick Start (Out-of-the-box):**
+**Quick Start:**
 ```bash
-lazyqmk --web
+lazyqmk web
 ```
 Then open http://localhost:3001 in your browser.
 
 **Development (with hot-reload):**
 ```bash
 cd web
-pnpm install           # or npm install
-pnpm dev:web           # or npm run dev:web
+npm install
+npm run dev:web
 ```
 This starts the Rust backend (port 3001) and Vite dev server (port 5173) simultaneously.
 
 **Custom Configuration:**
 ```bash
-# Custom workspace directory for layout files
-lazyqmk --web --workspace ~/my-layouts
-
 # Custom port
-lazyqmk --web --port 8080
+lazyqmk web --port 8080
 
 # Custom host (bind to all interfaces)
-lazyqmk --web --host 0.0.0.0
+lazyqmk web --host 0.0.0.0
 ```
 
-**Workspace Directory:**
-The web backend stores layout files in a workspace directory. By default, it uses:
-- **Linux**: `~/.config/LazyQMK/layouts/`
+**Layout Storage:**
+The web interface uses the same layout directory as the TUI:
+- **Linux**: `~/.local/share/LazyQMK/layouts/`
 - **macOS**: `~/Library/Application Support/LazyQMK/layouts/`
 - **Windows**: `%APPDATA%\LazyQMK\layouts\`
-
-Override with `--workspace` flag to use a custom directory.
 
 **Docker (Optional):**
 For containerized deployment, see [web/SETUP.md](web/SETUP.md) for Docker instructions.
