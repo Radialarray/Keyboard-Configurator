@@ -26,7 +26,7 @@ path = "src/main.rs"
 # required-features = ["web"]
 
 [features]
-default = ["ratatui"]
+default = ["ratatui", "web"]
 ratatui = ["dep:ratatui"]
 web = ["dep:axum", "dep:tower-http", "dep:tokio", "dep:tracing", "dep:tracing-subscriber", "dep:sha2", "dep:rust-embed", "dep:mime_guess"]
 

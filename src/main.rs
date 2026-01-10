@@ -12,9 +12,7 @@
 
 // Module declarations
 mod app;
-mod branding;
 mod cli;
-mod config;
 mod constants;
 mod export;
 mod firmware;
@@ -25,52 +23,67 @@ mod services;
 mod shortcuts;
 mod tui;
 
+// Import from library to avoid module conflicts and duplication
+use lazyqmk::{branding, config};
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use constants::{APP_BINARY_NAME, APP_DESCRIPTION, APP_NAME};
 use std::path::PathBuf;
 
-/// LazyQMK - Terminal-based keyboard layout editor
+/// LazyQMK - Keyboard layout editor for QMK firmware
 #[derive(Parser, Debug)]
 #[command(
     author,
     version,
     about,
     long_about = "\
-LazyQMK - Terminal-based keyboard layout editor for QMK firmware
+LazyQMK - Keyboard layout editor for QMK firmware
 
-NOTE: This binary provides the terminal UI interface. For web editor information,
-      see docs/WEB_FEATURES.md or visit the GitHub repository.
+INTERFACES:
+  LazyQMK provides two interfaces in one binary:
+  
+  1. Terminal UI (TUI) - Default when no command specified
+     - Launch: lazyqmk [layout.md]
+     - Keyboard-driven interface in your terminal
+  
+  2. Web Editor - Browser-based interface
+     - Launch: lazyqmk web [--port 3001] [--host 127.0.0.1]
+     - Modern GUI with mouse support
+     - Access at http://localhost:3001
 
-CURRENT RELEASE STATUS:
-  This release includes only the TUI (terminal UI) binary. The web editor
-  (lazyqmk-web) is under development and will be available in future releases
-  as a separate binary or integrated subcommand.
+QUICK START:
+  # Launch TUI with layout picker
+  lazyqmk
   
-  For the latest status, visit: https://github.com/Radialarray/LazyQMK
-
-BUILDING FROM SOURCE:
-  The project supports building with web features for development:
+  # Open specific layout in TUI
+  lazyqmk my-layout.md
   
-    # Build TUI only (default)
-    cargo build --release
-    
-    # Build with web server support (requires web feature)
-    cargo build --release --features web --bin lazyqmk-web
+  # Start web server (default: http://localhost:3001)
+  lazyqmk web
   
-  Note: The lazyqmk-web binary requires uncommenting its configuration
-        in Cargo.toml before building.
+  # Start web server on custom port
+  lazyqmk web --port 8080
+  
+  # Run setup wizard
+  lazyqmk --init
 
 FEATURES:
-  - Visual keyboard layout editor in your terminal
-  - Layer management and navigation
+  - Visual keyboard layout editor
+  - Layer management and navigation  
   - Color coding system with categories
   - QMK firmware generation and compilation
   - Tap dance configuration
   - Template system for layout sharing
   - Support for 500+ QMK keyboards
   
-  For full feature list, see: docs/FEATURES.md
+  Both interfaces provide identical functionality - choose based on your preference!
+
+DOCUMENTATION:
+  - TUI features: docs/FEATURES.md
+  - Web features: docs/WEB_FEATURES.md
+  - Architecture: docs/ARCHITECTURE.md
+  - GitHub: https://github.com/Radialarray/LazyQMK
 "
 )]
 struct Cli {
@@ -89,6 +102,28 @@ struct Cli {
     /// Specify QMK firmware path
     #[arg(long, value_name = "PATH")]
     qmk_path: Option<PathBuf>,
+}
+
+/// Web server arguments
+#[cfg(feature = "web")]
+#[derive(clap::Args, Debug)]
+struct WebArgs {
+    /// Port to listen on
+    #[arg(short, long, default_value = "3001")]
+    port: u16,
+
+    /// Host to bind to (default: localhost only for security)
+    #[arg(long, default_value = "127.0.0.1")]
+    host: String,
+
+    /// Workspace directory containing layout files.
+    /// Defaults to platform-specific layouts directory.
+    #[arg(short, long)]
+    workspace: Option<PathBuf>,
+
+    /// Enable verbose logging
+    #[arg(short, long)]
+    verbose: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -128,6 +163,9 @@ enum Command {
     Category(cli::CategoryArgs),
     /// Manage layout templates
     Template(cli::TemplateArgs),
+    /// Start web server for browser-based editor
+    #[cfg(feature = "web")]
+    Web(WebArgs),
 }
 
 fn main() -> Result<()> {
@@ -243,6 +281,11 @@ fn main() -> Result<()> {
                     e.exit_code
                 }
             },
+            #[cfg(feature = "web")]
+            Command::Web(args) => {
+                // Web command uses async runtime, handle it differently
+                return run_web_server(args);
+            }
         };
 
         std::process::exit(exit_code as i32);
@@ -377,4 +420,62 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Run the web server (available when built with 'web' feature)
+#[cfg(feature = "web")]
+fn run_web_server(args: WebArgs) -> Result<()> {
+    use anyhow::Context;
+    use std::net::SocketAddr;
+
+    // Initialize tracing for web server logs
+    {
+        use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+        let filter = if args.verbose { "debug" } else { "info" };
+        tracing_subscriber::registry()
+            .with(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| filter.into()),
+            )
+            .with(tracing_subscriber::fmt::layer())
+            .init();
+    }
+
+    // Load or create configuration
+    let cfg = config::Config::load().unwrap_or_default();
+
+    // Determine workspace root
+    let workspace_root = match args.workspace {
+        Some(path) => path,
+        None => {
+            let layouts_dir = config::Config::config_dir()?.join("layouts");
+            if !layouts_dir.exists() {
+                std::fs::create_dir_all(&layouts_dir).context(format!(
+                    "Failed to create layouts directory: {}",
+                    layouts_dir.display()
+                ))?;
+            }
+            layouts_dir
+        }
+    };
+
+    println!("{} v{} - Web Server", APP_NAME, env!("CARGO_PKG_VERSION"));
+    println!("Workspace: {}", workspace_root.display());
+    println!("Starting server on http://{}:{}", args.host, args.port);
+    println!();
+    println!("Press Ctrl+C to stop the server");
+    println!();
+
+    // Build socket address
+    let addr: SocketAddr = format!("{}:{}", args.host, args.port)
+        .parse()
+        .context("Failed to parse socket address")?;
+
+    // Use tokio runtime to run the async web server
+    let runtime = tokio::runtime::Runtime::new()?;
+    runtime.block_on(async move {
+        // Import web module from library
+        lazyqmk::web::run_server(cfg, workspace_root, addr).await
+    })
 }
