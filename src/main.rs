@@ -39,36 +39,38 @@ use std::path::PathBuf;
     long_about = "\
 LazyQMK - Terminal-based keyboard layout editor for QMK firmware
 
-AVAILABLE BUILD FEATURES:
-  - ratatui (default): Terminal UI interface
-  - web: REST API server and web-based editor
+NOTE: This binary provides the terminal UI interface. For web editor information,
+      see docs/WEB_FEATURES.md or visit the GitHub repository.
 
-BUILDING WITH WEB FEATURES:
-  To build LazyQMK with web server support:
+CURRENT RELEASE STATUS:
+  This release includes only the TUI (terminal UI) binary. The web editor
+  (lazyqmk-web) is under development and will be available in future releases
+  as a separate binary or integrated subcommand.
   
-    cargo build --features web --release
+  For the latest status, visit: https://github.com/Radialarray/LazyQMK
 
-  Or build binaries separately:
+BUILDING FROM SOURCE:
+  The project supports building with web features for development:
   
-    cargo build --bin lazyqmk --release        # TUI only
-    cargo build --bin lazyqmk-web --release    # Web server (requires 'web' feature)
+    # Build TUI only (default)
+    cargo build --release
+    
+    # Build with web server support (requires web feature)
+    cargo build --release --features web --bin lazyqmk-web
+  
+  Note: The lazyqmk-web binary requires uncommenting its configuration
+        in Cargo.toml before building.
 
-USING THE WEB EDITOR:
-  The web editor provides a modern browser-based interface with full feature parity.
-  After building with web features, start the server:
+FEATURES:
+  - Visual keyboard layout editor in your terminal
+  - Layer management and navigation
+  - Color coding system with categories
+  - QMK firmware generation and compilation
+  - Tap dance configuration
+  - Template system for layout sharing
+  - Support for 500+ QMK keyboards
   
-    lazyqmk-web                                # Default: http://localhost:3001
-    lazyqmk-web --port 8080 --host 0.0.0.0    # Custom port and host
-    lazyqmk-web --workspace ~/my-layouts       # Custom workspace directory
-  
-  Then open http://localhost:3001 in your browser.
-  
-  For more information, see: docs/WEB_FEATURES.md
-
-PRE-BUILT BINARIES:
-  Official releases include both 'lazyqmk' (TUI) and 'lazyqmk-web' (web server)
-  binaries for Linux, macOS, and Windows. Download from:
-  https://github.com/Radialarray/LazyQMK/releases
+  For full feature list, see: docs/FEATURES.md
 "
 )]
 struct Cli {
