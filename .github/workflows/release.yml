@@ -100,10 +100,12 @@ jobs:
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
       - name: Build web frontend
+        env:
+          RUST_EMBED: true
         run: |
           cd web
           npm ci
-          RUST_EMBED=true npm run build
+          npm run build
           cd ..
       - name: Build artifacts
         run: |
