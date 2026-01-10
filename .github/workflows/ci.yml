@@ -51,7 +51,7 @@ jobs:
         run: |
           cd web
           npm ci
-          npm run build
+          RUST_EMBED=true npm run build
           cd ..
       - name: Test (all features)
         run: cargo test --all-features --verbose
@@ -96,7 +96,7 @@ jobs:
         run: |
           cd web
           npm ci
-          npm run build
+          RUST_EMBED=true npm run build
           cd ..
       - name: Test (all features)
         run: cargo test --all-features --verbose

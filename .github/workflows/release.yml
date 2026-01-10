@@ -103,7 +103,7 @@ jobs:
         run: |
           cd web
           npm ci
-          npm run build
+          RUST_EMBED=true npm run build
           cd ..
       - name: Build artifacts
         run: |
