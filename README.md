@@ -6,7 +6,18 @@
 
 ---
 
-![LazyQMK Screen](docs/LazyQMK.png)
+<table>
+<tr>
+<td width="50%">
+<img src="docs/LazyQMK.png" alt="LazyQMK Terminal UI">
+<p align="center"><em>Terminal UI (TUI)</em></p>
+</td>
+<td width="50%">
+<img src="docs/LazyQMK_Web_Dark.png" alt="LazyQMK Web Interface">
+<p align="center"><em>Web Interface</em></p>
+</td>
+</tr>
+</table>
 
 ## ✨ Two Interfaces, Same Power
 
